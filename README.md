@@ -22,6 +22,34 @@ Teste de loopback (sem hardware, sinal sintético + ruído gaussiano):
 ./venv/bin/python loopback_test.py
 ```
 
+Calibração do enlace — **faça isso antes de qualquer outra coisa** com áudio real. Uma máquina transmite padrão de teste, a outra mede:
+
+```bash
+# máquina A
+./venv/bin/python app.py --tune tx
+
+# máquina B
+./venv/bin/python app.py --tune rx
+```
+
+A ponta receptora mostra um medidor ao vivo:
+
+```
+[###############.....]  -13.5 dBFS  in-band  96%  120.4 B/s (want 120)  good 100%  LOCK
+```
+
+Ajuste volume de saída em A e ganho de microfone em B até aparecer `LOCK`. Depois inverta os papéis para calibrar o outro sentido. Os diagnósticos são autoexplicativos:
+
+| Status | Causa | O que fazer |
+|---|---|---|
+| `LOCK` | Enlace bom | Nada. Pode usar. |
+| `no signal` | Nada chegando | Verifique se A está transmitindo, e o microfone de B. |
+| `TOO WEAK - raise TX volume` | Portadora presente mas abaixo do squelch | Aumente o volume de A ou o ganho de B. |
+| `CLIPPING - lower the volume` | Entrada saturando | Baixe o volume de A ou o ganho de B. |
+| `NOISY - no carrier in band` | Energia fora de 800–2600 Hz | Ruído ambiente dominando. Aproxime os aparelhos. |
+| `carrier, no bytes` | Sinal forte e na banda, mas nada decodifica | Baud ou tons diferentes entre as pontas. |
+| `NOISY - partial decode` | Decodifica com erros | Ajuste fino de nível, ou reduza ruído ambiente. |
+
 Modem ao vivo, modo terminal (stdin/stdout):
 
 ```bash

@@ -16,6 +16,8 @@ Interpreter is the venv, not system Python:
 ./venv/bin/python loopback_test.py     # end-to-end DSP test, no audio hardware needed
 ./venv/bin/python app.py               # live modem, stdin/stdout mode
 ./venv/bin/python app.py --pty         # live modem, virtual serial device
+./venv/bin/python app.py --tune tx     # transmit test pattern (link calibration)
+./venv/bin/python app.py --tune rx     # meter the incoming signal
 ./venv/bin/pip install -r requirements.txt
 ```
 
@@ -47,6 +49,8 @@ stdout/PTY <── rx_byte_queue <── [demodulator thread] <── rx_audio_q
 **Demodulation is delay-and-multiply, not correlation.** `bandpass → x[n]·x[n-D] → lowpass`, with `D = fs/(4·f_center)` ≈ 90° at 1700 Hz. After the lowpass, mark is positive and space is negative, so bit decision is a sign test. No carrier recovery involved.
 
 **Squelch works on baseband amplitude** (`|baseband| < squelch → force +1.0`), not on a separate energy envelope — `mult` is already proportional to signal energy. This avoids a second stateful filter in the streaming chain. Threshold is hardcoded at `0.005` in `app.py` and does not adapt to ambient noise.
+
+**`--tune` is the first thing to reach for when a real acoustic link misbehaves.** Audio level is almost always the fault, not the DSP. `FSKDemodulator` exposes `input_rms`, `input_peak`, and `level_rms` (post-bandpass) from the last block; the ratio `level_rms / input_rms` separates "carrier present" from "room noise", which is what makes the diagnostics in `tune_rx_loop` distinguishable. Those metrics are computed before squelch and before bit decision, so they show what the sound card actually delivered.
 
 **Preamble (`0x55 × 10 + 0xFF`) lives in `app.py`, not `modem.py`.** It's a link-layer concern. Any future framing, CRC, or ARQ belongs at that same level — above the modem, not inside it.
 

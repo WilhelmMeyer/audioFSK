@@ -75,18 +75,34 @@ class FSKDemodulator:
         self.current_byte = 0
         self.sample_count = 0
         self.last_bb = 0
-        
+
+        # Level metrics from the most recent block, for link tuning.
+        # Measured before squelch and before bit decision, so they reflect
+        # what the sound card actually delivered.
+        self.input_rms = 0.0   # RMS of the raw input
+        self.input_peak = 0.0  # peak of the raw input (clipping check)
+        self.level_rms = 0.0   # RMS after the bandpass, i.e. in-band energy
+
     def reset(self):
         self.prev_samples = np.zeros(self.delay)
         self.lpf_state = signal.lfilter_zi(self.lpf_b, self.lpf_a)
         self.bpf_state = signal.lfilter_zi(self.bpf_b, self.bpf_a)
         self.state = 'IDLE'
         self.last_bb = 0
-        
+        self.input_rms = 0.0
+        self.input_peak = 0.0
+        self.level_rms = 0.0
+
     def demodulate(self, samples):
         # 1. Bandpass filter
         filtered, self.bpf_state = signal.lfilter(self.bpf_b, self.bpf_a, samples, zi=self.bpf_state)
-        
+
+        # Level metrics for tuning. Cheap, and only over this block.
+        if len(samples):
+            self.input_rms = float(np.sqrt(np.mean(np.square(samples))))
+            self.input_peak = float(np.max(np.abs(samples)))
+            self.level_rms = float(np.sqrt(np.mean(np.square(filtered))))
+
         # 2. Delay and multiply discriminator
         # Pad with previous samples to do delay
         padded = np.concatenate((self.prev_samples, filtered))
