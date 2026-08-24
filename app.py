@@ -134,6 +134,50 @@ def stdio_writer_thread_fn():
             print(f"Stdout error: {e}", file=sys.stderr)
 
 
+# --- Device selection ----------------------------------------------------
+# The system default is not always a working capture path. On PipeWire the
+# default source can hand out digital silence while the ALSA device behind it
+# is fine, so both ends of the stream have to be selectable.
+
+def resolve_device(spec, want_input):
+    """Accept a device index or a case-insensitive name substring."""
+    if spec is None:
+        return None
+    devices = sd.query_devices()
+    try:
+        idx = int(spec)
+    except ValueError:
+        key = 'max_input_channels' if want_input else 'max_output_channels'
+        matches = [i for i, d in enumerate(devices)
+                   if spec.lower() in d['name'].lower() and d[key] > 0]
+        if not matches:
+            raise SystemExit(f"No {'input' if want_input else 'output'} device matches {spec!r}. "
+                             f"Run --list-devices to see the options.")
+        idx = matches[0]
+    if not 0 <= idx < len(devices):
+        raise SystemExit(f"Device index {idx} out of range. Run --list-devices.")
+    return idx
+
+
+def open_stream(in_dev, out_dev):
+    """Open the duplex stream, matching each device's channel count."""
+    devices = sd.query_devices()
+    default_in, default_out = sd.default.device
+    in_idx = in_dev if in_dev is not None else default_in
+    out_idx = out_dev if out_dev is not None else default_out
+
+    # Some capture devices refuse mono, so take what the device offers and
+    # let the callback use the first channel.
+    in_ch = min(2, devices[in_idx]['max_input_channels']) or 1
+    out_ch = 1
+
+    print(f"    input : [{in_idx}] {devices[in_idx]['name']} ({in_ch} ch)")
+    print(f"    output: [{out_idx}] {devices[out_idx]['name']} ({out_ch} ch)")
+    return sd.Stream(samplerate=FS, device=(in_idx, out_idx),
+                     channels=(in_ch, out_ch), callback=audio_callback,
+                     blocksize=BLOCK_SIZE)
+
+
 # --- Link tuning ---------------------------------------------------------
 # 0x55 is 01010101, which with the start and stop bits produces an unbroken
 # mark/space alternation. That wakes up microphone AGC, settles the receive
@@ -214,19 +258,19 @@ def tune_rx_loop(demod):
         window_start = now
 
 
-def run_tune(mode, mod, demod):
+def run_tune(mode, mod, demod, in_dev, out_dev):
     if mode == 'tx':
         print(f"[+] TX tune: sending 0x55 continuously. Run '--tune rx' on the other machine.")
         print("    Raise this machine's output volume until the other side reports LOCK.")
         threading.Thread(target=tune_tx_thread_fn, args=(mod,), daemon=True).start()
-        with sd.Stream(samplerate=FS, channels=1, callback=audio_callback, blocksize=BLOCK_SIZE):
+        with open_stream(in_dev, out_dev):
             print("[+] Transmitting. Ctrl+C to stop.")
             while True:
                 time.sleep(1)
     else:
         print("[+] RX tune: measuring the incoming signal. Run '--tune tx' on the other machine.")
         print("    Adjust this machine's microphone gain for LOCK without CLIPPING.")
-        with sd.Stream(samplerate=FS, channels=1, callback=audio_callback, blocksize=BLOCK_SIZE):
+        with open_stream(in_dev, out_dev):
             tune_rx_loop(demod)
 
 
@@ -235,7 +279,18 @@ def main():
     parser.add_argument('--pty', action='store_true', help="Create a PTY interface (Linux/macOS only)")
     parser.add_argument('--tune', choices=['tx', 'rx'],
                         help="Link tuning: 'tx' sends a test pattern, 'rx' meters what arrives")
+    parser.add_argument('--in-device', help="Capture device: index or name substring")
+    parser.add_argument('--out-device', help="Playback device: index or name substring")
+    parser.add_argument('--list-devices', action='store_true', help="List audio devices and exit")
     args = parser.parse_args()
+
+    if args.list_devices:
+        print(sd.query_devices())
+        print(f"\ndefault input/output: {sd.default.device}")
+        return
+
+    in_dev = resolve_device(args.in_device, want_input=True)
+    out_dev = resolve_device(args.out_device, want_input=False)
 
     print(f"Starting FSK Modem at {BAUD} baud (Mark: 1200Hz, Space: 2200Hz)")
 
@@ -244,7 +299,7 @@ def main():
 
     if args.tune:
         try:
-            run_tune(args.tune, mod, demod)
+            run_tune(args.tune, mod, demod, in_dev, out_dev)
         except KeyboardInterrupt:
             print("\nExiting...")
         except Exception as e:
@@ -273,7 +328,7 @@ def main():
 
     # Start audio stream
     try:
-        with sd.Stream(samplerate=FS, channels=1, callback=audio_callback, blocksize=BLOCK_SIZE):
+        with open_stream(in_dev, out_dev):
             print("[+] Audio stream active. Press Ctrl+C to exit.")
             while True:
                 time.sleep(1)
