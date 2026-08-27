@@ -1,0 +1,496 @@
+"""Interactive two-machine console for the acoustic link, over the serial cable.
+
+Running on both machines, this turns the serial wire into a remote control:
+from one keyboard you switch each side's microphone and speaker on and off,
+retune gain and squelch, swap audio devices, and watch live level meters from
+both ends at once. That is the whole point -- during development the two
+things you actually need to change are on opposite sides of the room.
+
+    fsk> mic on           acts on THIS machine
+    fsk> r mic on         acts on the OTHER machine, over the serial cable
+    fsk> b reset          acts on both
+
+Both roles run the same AudioNode and the same execute(); the only difference
+is that the console has a REPL and the agent does not. So any command works
+identically whichever side you type it on, and there is one implementation to
+keep correct rather than two.
+
+    python console.py --role agent   --port /dev/ttyUSB0     # Linux, headless
+    python console.py --role console --port COM4             # Windows, REPL
+
+The serial link carries control only. The audio still goes through the air --
+that is still the thing under test.
+"""
+
+import argparse
+import queue
+import sys
+import threading
+import time
+
+import numpy as np
+import sounddevice as sd
+
+from modem import FSKModulator, FSKDemodulator
+from serial_link import Control, pack, unpack
+
+FS = 48000
+BAUD = 1200
+BLOCK = 2048
+PREAMBLE = bytes([0x55] * 10 + [0xFF])
+
+TONE_CHUNK = 32       # bytes of 0x55 per modulated chunk, ~0.27 s
+TONE_DEPTH = 4        # keep ~1 s of tone buffered, no more
+
+
+def dbfs(rms):
+    return -99.0 if rms <= 1e-9 else 20.0 * float(np.log10(rms))
+
+
+def meter_bar(db, width=20):
+    bars = int(np.clip((db + 60.0) / 60.0, 0.0, 1.0) * width)
+    return "#" * bars + "." * (width - bars)
+
+
+def printable(data):
+    return "".join(chr(b) if 32 <= b < 127 else "." for b in data)
+
+
+class AudioNode:
+    """One machine's audio half: mic in, speaker out, and the knobs.
+
+    Input and output are separate streams, not one duplex stream, precisely
+    so the mic and the speaker can be switched independently from the far end.
+    """
+
+    def __init__(self, gain=0.8, squelch=0.005, dev_in=None, dev_out=None,
+                 on_event=None):
+        self.mod = FSKModulator(fs=FS, baud=BAUD)
+        self.demod = FSKDemodulator(fs=FS, baud=BAUD, squelch=squelch)
+        self.gain = gain
+        self.dev_in = dev_in
+        self.dev_out = dev_out
+        self.on_event = on_event or (lambda text: None)
+
+        self.tone = False
+        self.echo = False
+        self.in_stream = None
+        self.out_stream = None
+
+        # Every modulation happens on the feeder thread. The modulator carries
+        # phase across calls, so touching it from two threads would splice
+        # discontinuous phase into the carrier -- audible clicks, and energy
+        # smeared outside the passband.
+        self.tx_bytes = queue.Queue()
+        self.out_queue = queue.Queue()
+        self.out_buf = np.zeros(0, dtype=np.float32)
+
+        # Likewise every demodulation happens on the demod thread: bpf/lpf
+        # state and the UART state machine are carried across blocks.
+        self.in_queue = queue.Queue()
+        self.rx_buffer = bytearray()
+
+        self.stats_lock = threading.Lock()
+        self._reset_stats()
+
+        self.meter_interval = 0.0   # 0 = meter off
+        threading.Thread(target=self._feeder, daemon=True).start()
+        threading.Thread(target=self._demodder, daemon=True).start()
+        threading.Thread(target=self._meter, daemon=True).start()
+
+    def _reset_stats(self):
+        self.peak = 0.0
+        self.rms_sum = 0.0
+        self.level_sum = 0.0
+        self.blocks = 0
+        self.bytes_in = 0
+
+    # --- audio callbacks: these run on PortAudio's real-time thread and
+    # --- must only move data. All DSP is on the worker threads below.
+
+    def _out_cb(self, outdata, frames, time_info, status):
+        needed, idx = frames, 0
+        while needed > 0:
+            if len(self.out_buf) == 0:
+                try:
+                    self.out_buf = self.out_queue.get_nowait()
+                except queue.Empty:
+                    outdata[idx:, 0] = 0
+                    return
+            take = min(needed, len(self.out_buf))
+            outdata[idx:idx + take, 0] = self.out_buf[:take]
+            self.out_buf = self.out_buf[take:]
+            idx += take
+            needed -= take
+
+    def _in_cb(self, indata, frames, time_info, status):
+        self.in_queue.put(indata[:, 0].copy())
+
+    # --- worker threads
+
+    def _feeder(self):
+        while True:
+            try:
+                data = self.tx_bytes.get_nowait()
+            except queue.Empty:
+                data = None
+            if data is not None:
+                samples = self.mod.modulate(PREAMBLE + data)
+                self.out_queue.put((samples * self.gain).astype(np.float32))
+                continue
+            if self.tone and self.out_queue.qsize() < TONE_DEPTH:
+                samples = self.mod.modulate(bytes([0x55]) * TONE_CHUNK)
+                self.out_queue.put((samples * self.gain).astype(np.float32))
+            else:
+                time.sleep(0.02)
+
+    def _demodder(self):
+        while True:
+            samples = self.in_queue.get()
+            out = self.demod.demodulate(samples)
+            with self.stats_lock:
+                self.peak = max(self.peak, self.demod.input_peak)
+                # Sum the two levels and divide once at the end. Averaging the
+                # per-block ratio instead lets a near-silent block, where the
+                # denominator is almost zero and the bandpass is still ringing
+                # from its own initial state, throw the whole window past 100%.
+                self.rms_sum += self.demod.input_rms
+                self.level_sum += self.demod.level_rms
+                self.blocks += 1
+                self.bytes_in += len(out)
+            if out:
+                self.rx_buffer += out
+                del self.rx_buffer[:-4096]
+                if self.echo:
+                    self.on_event(f"rx: {printable(out)}")
+
+    def _meter(self):
+        while True:
+            interval = self.meter_interval
+            if interval <= 0:
+                time.sleep(0.1)
+                continue
+            time.sleep(interval)
+            self.on_event(self.level(window=interval, reset=True))
+
+    # --- readings
+
+    def level(self, window=1.0, reset=False):
+        with self.stats_lock:
+            blocks, peak = self.blocks, self.peak
+            rms = self.rms_sum / blocks if blocks else 0.0
+            inband = min(1.0, self.level_sum / self.rms_sum) if self.rms_sum > 1e-9 else 0.0
+            rate = self.bytes_in / window if window > 0 else 0.0
+            if reset:
+                self._reset_stats()
+        if not blocks:
+            return "sem audio de entrada (mic desligado?)"
+        db = dbfs(rms)
+        return (f"[{meter_bar(db)}] {db:6.1f} dBFS  in-band {inband * 100:3.0f}%  "
+                f"pico {peak:.2f}  {rate:5.1f} B/s")
+
+    def status(self):
+        return "\n".join([
+            f"mic     {'ON' if self.in_stream else 'off'}   dev in  {self.dev_in}",
+            f"speaker {'ON' if self.out_stream else 'off'}   dev out {self.dev_out}",
+            f"tone    {'ON' if self.tone else 'off'}",
+            f"echo    {'ON' if self.echo else 'off'}",
+            f"meter   {f'{self.meter_interval}s' if self.meter_interval else 'off'}",
+            f"gain    {self.gain}",
+            f"squelch {self.demod.squelch}",
+            f"rx buf  {len(self.rx_buffer)} bytes",
+        ])
+
+    # --- stream control
+
+    def mic(self, on):
+        if on:
+            if self.in_stream:
+                return "mic ja ligado"
+            self.demod.reset()
+            self.in_stream = sd.InputStream(samplerate=FS, channels=1,
+                                            blocksize=BLOCK, device=self.dev_in,
+                                            callback=self._in_cb)
+            self.in_stream.start()
+            return "mic LIGADO"
+        if not self.in_stream:
+            return "mic ja desligado"
+        self.in_stream.stop()
+        self.in_stream.close()
+        self.in_stream = None
+        return "mic desligado"
+
+    def speaker(self, on):
+        if on:
+            if self.out_stream:
+                return "caixa ja ligada"
+            self.out_stream = sd.OutputStream(samplerate=FS, channels=1,
+                                              blocksize=BLOCK, device=self.dev_out,
+                                              callback=self._out_cb)
+            self.out_stream.start()
+            return "caixa LIGADA"
+        if not self.out_stream:
+            return "caixa ja desligada"
+        self.tone = False
+        self.out_stream.stop()
+        self.out_stream.close()
+        self.out_stream = None
+        return "caixa desligada"
+
+    def set_device(self, which, value):
+        dev = None if value in ("default", "none", "-") else (
+            int(value) if value.isdigit() else value)
+        if which == "in":
+            was_on = self.in_stream is not None
+            if was_on:
+                self.mic(False)
+            self.dev_in = dev
+            if was_on:
+                self.mic(True)
+            return f"dev in = {dev}" + (" (mic reiniciado)" if was_on else "")
+        was_on = self.out_stream is not None
+        tone_was = self.tone
+        if was_on:
+            self.speaker(False)
+        self.dev_out = dev
+        if was_on:
+            self.speaker(True)
+            self.tone = tone_was
+        return f"dev out = {dev}" + (" (caixa reiniciada)" if was_on else "")
+
+
+HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
+  mic on|off          liga/desliga o microfone
+  spk on|off          liga/desliga a caixa de som
+  tone on|off         portadora continua 0x55 (precisa da caixa ligada)
+  send <texto>        transmite <texto> pelo ar
+  rx                  mostra e limpa o buffer recebido
+  echo on|off         imprime bytes recebidos conforme chegam
+  meter on|off|<seg>  medidor de nivel continuo
+  level               uma leitura de nivel
+  gain <0..1>         amplitude de saida
+  squelch <valor>     limiar do squelch (lembre: e quadratico)
+  dev in|out <n>      troca o dispositivo de audio (reinicia o stream)
+  devs                lista dispositivos de audio
+  status              estado deste lado
+  ping                testa o canal serial
+  help / quit"""
+
+
+def execute(node, cmd):
+    """The one command table. Identical on console and agent."""
+    parts = cmd.strip().split(None, 1)
+    if not parts:
+        return ""
+    verb = parts[0].lower()
+    arg = parts[1].strip() if len(parts) > 1 else ""
+
+    def flag(default=True):
+        return default if not arg else arg.lower() in ("on", "1", "true", "sim")
+
+    if verb in ("help", "?"):
+        return HELP
+    if verb == "ping":
+        return "pong"
+    if verb == "status":
+        return node.status()
+    if verb == "level":
+        return node.level()
+    if verb == "devs":
+        return str(sd.query_devices())
+    if verb == "mic":
+        return node.mic(flag())
+    if verb in ("spk", "speaker", "caixa"):
+        return node.speaker(flag())
+    if verb == "tone":
+        on = flag()
+        if on and not node.out_stream:
+            return "caixa desligada - rode 'spk on' antes"
+        node.tone = on
+        return f"tone {'ON' if on else 'off'}"
+    if verb == "echo":
+        node.echo = flag()
+        return f"echo {'ON' if node.echo else 'off'}"
+    if verb == "meter":
+        if arg.lower() in ("off", "0", "false"):
+            node.meter_interval = 0.0
+            return "meter off"
+        try:
+            node.meter_interval = float(arg) if arg and arg[0].isdigit() else 1.0
+        except ValueError:
+            return f"intervalo invalido: {arg!r}"
+        return f"meter a cada {node.meter_interval}s"
+    if verb == "gain":
+        try:
+            node.gain = max(0.0, min(1.0, float(arg)))
+        except ValueError:
+            return f"gain invalido: {arg!r}"
+        return f"gain = {node.gain}"
+    if verb == "squelch":
+        try:
+            node.demod.squelch = float(arg)
+        except ValueError:
+            return f"squelch invalido: {arg!r}"
+        return f"squelch = {node.demod.squelch}"
+    if verb == "dev":
+        bits = arg.split()
+        if len(bits) != 2 or bits[0] not in ("in", "out"):
+            return "uso: dev in <n> | dev out <n>"
+        return node.set_device(bits[0], bits[1])
+    if verb == "send":
+        if not arg:
+            return "uso: send <texto>"
+        if not node.out_stream:
+            return "caixa desligada - rode 'spk on' antes"
+        node.tx_bytes.put(arg.encode("utf-8", "replace"))
+        return f"enviando {len(arg)} bytes"
+    if verb == "rx":
+        data = bytes(node.rx_buffer)
+        node.rx_buffer.clear()
+        if not data:
+            return "buffer vazio"
+        return f"{len(data)} bytes: {printable(data)}"
+    if verb == "reset":
+        node.demod.reset()
+        node.rx_buffer.clear()
+        with node.stats_lock:
+            node._reset_stats()
+        return "demodulador e buffers resetados"
+    return f"comando desconhecido: {verb!r} (tente 'help')"
+
+
+def run_agent(args, ctl, node):
+    print(f"[agent] pronto em {args.port} @ {args.sync_baud}. Ctrl+C para sair.")
+    print("[agent] aceitando comandos da outra maquina.")
+    while True:
+        line = ctl.recv(timeout=None)
+        if line is None:
+            continue
+        if not line.startswith("CMD "):
+            continue
+        rest = line[4:]
+        seq, _, cmd = rest.partition(" ")
+        cmd = unpack(cmd)
+        print(f"[agent] <- {cmd}")
+        try:
+            reply = execute(node, cmd)
+        except Exception as e:
+            reply = f"ERRO: {e}"
+        ctl.send(f"OK {seq} {pack(reply)}")
+
+
+def run_console(args, ctl, node):
+    replies = queue.Queue()
+
+    def router():
+        while True:
+            line = ctl.recv(timeout=0.2)
+            if line is None:
+                continue
+            if line.startswith("EVT "):
+                for out in unpack(line[4:]).split("\n"):
+                    print(f"\n[remoto] {out}")
+            elif line.startswith("OK "):
+                replies.put(line[3:])
+
+    threading.Thread(target=router, daemon=True).start()
+
+    seq = [0]
+
+    def remote(cmd, timeout=8.0):
+        seq[0] += 1
+        want = str(seq[0])
+        ctl.send(f"CMD {want} {pack(cmd)}")
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                got = replies.get(timeout=max(0.05, deadline - time.time()))
+            except queue.Empty:
+                break
+            gseq, _, body = got.partition(" ")
+            if gseq == want:
+                return unpack(body)
+        return "(sem resposta da outra maquina -- ela esta rodando --role agent?)"
+
+    print(f"[console] {args.port} @ {args.sync_baud}. 'help' lista os comandos.")
+    print("[console] prefixo 'r ' = outra maquina, 'b ' = as duas.\n")
+
+    while True:
+        try:
+            line = input("fsk> ").strip()
+        except EOFError:
+            return 0
+        if not line:
+            continue
+        if line.lower() in ("quit", "exit", "q"):
+            return 0
+
+        head, _, rest = line.partition(" ")
+        target, cmd = "local", line
+        if head.lower() in ("r", "remote", "remoto"):
+            target, cmd = "remote", rest
+        elif head.lower() in ("b", "both", "ambos"):
+            target, cmd = "both", rest
+        if not cmd.strip():
+            print("  (comando vazio)")
+            continue
+
+        if target in ("local", "both"):
+            try:
+                out = execute(node, cmd)
+            except Exception as e:
+                out = f"ERRO: {e}"
+            for row in str(out).split("\n"):
+                print(f"  [local]  {row}")
+        if target in ("remote", "both"):
+            for row in str(remote(cmd)).split("\n"):
+                print(f"  [remoto] {row}")
+
+
+def main():
+    p = argparse.ArgumentParser(
+        description="Console de controle do link acustico FSK, via porta serial")
+    p.add_argument("--role", choices=["console", "agent"], required=True,
+                   help="'console' tem o teclado; 'agent' obedece pela serial")
+    p.add_argument("--port", required=True, help="porta serial (COM4, /dev/ttyUSB0)")
+    p.add_argument("--sync-baud", type=int, default=115200)
+    p.add_argument("--gain", type=float, default=0.8)
+    p.add_argument("--squelch", type=float, default=0.005)
+    p.add_argument("--dev-in", default=None, help="indice do dispositivo de entrada")
+    p.add_argument("--dev-out", default=None, help="indice do dispositivo de saida")
+    args = p.parse_args()
+
+    for name in ("dev_in", "dev_out"):
+        val = getattr(args, name)
+        if val is not None and val.isdigit():
+            setattr(args, name, int(val))
+
+    try:
+        ctl = Control(args.port, args.sync_baud)
+    except Exception as e:
+        print(f"Nao consegui abrir {args.port}: {e}", file=sys.stderr)
+        return 1
+
+    if args.role == "agent":
+        emit = lambda text: ctl.send("EVT " + pack(text))
+    else:
+        emit = lambda text: print(f"\n[local]  {text}")
+
+    node = AudioNode(gain=args.gain, squelch=args.squelch,
+                     dev_in=args.dev_in, dev_out=args.dev_out, on_event=emit)
+
+    try:
+        if args.role == "agent":
+            return run_agent(args, ctl, node)
+        return run_console(args, ctl, node)
+    except KeyboardInterrupt:
+        print("\nSaindo...")
+        return 0
+    finally:
+        node.mic(False)
+        node.speaker(False)
+        ctl.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
