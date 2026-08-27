@@ -167,7 +167,20 @@ def main():
     rem.close()
 
     missing = [i for i in range(npackets) if i not in chunks]
-    data = b"".join(chunks.get(i, b"") for i in range(npackets))
+    # Zero-fill a packet that never arrived rather than omitting it. Omitting
+    # shortens the file and shifts every byte after the gap, so one lost packet
+    # ruins the whole remainder; padding keeps every later byte at its correct
+    # offset and confines the damage to the hole. For an image that is the
+    # difference between a few wrong pixels and an unreadable file.
+    filled = []
+    for i in range(npackets):
+        if i in chunks:
+            filled.append(chunks[i])
+        else:
+            last = i == npackets - 1
+            gap = (size - (npackets - 1) * xfer.PAYLOAD_SIZE) if last else xfer.PAYLOAD_SIZE
+            filled.append(b"\x00" * max(0, gap))
+    data = b"".join(filled)
     elapsed = time.time() - started
 
     print(f"\n{len(data)}/{size} bytes em {elapsed:.0f}s "
