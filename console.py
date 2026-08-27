@@ -31,6 +31,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import updater
 from modem import FSKModulator, FSKDemodulator
 from serial_link import Control, pack, unpack
 
@@ -274,6 +275,9 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   devs                lista dispositivos de audio
   status              estado deste lado
   ping                testa o canal serial
+  version             commit que esta maquina esta rodando
+  pull [ref] [force]  atualiza o codigo pelo repositorio remoto
+  restart             reinicia o processo com o codigo novo
   help / quit"""
 
 
@@ -350,6 +354,12 @@ def execute(node, cmd):
         if not data:
             return "buffer vazio"
         return f"{len(data)} bytes: {printable(data)}"
+    if verb == "version":
+        return updater.version()
+    if verb == "pull":
+        return updater.pull(arg)
+    if verb == "restart":
+        return updater.request_restart()
     if verb == "reset":
         node.demod.reset()
         node.rx_buffer.clear()
@@ -357,6 +367,18 @@ def execute(node, cmd):
             node._reset_stats()
         return "demodulador e buffers resetados"
     return f"comando desconhecido: {verb!r} (tente 'help')"
+
+
+def shutdown(ctl, node):
+    """Release the audio devices and the serial port.
+
+    exec keeps file descriptors open across the image swap, so without this
+    the replacement process finds its own serial port already busy.
+    """
+    node.mic(False)
+    node.speaker(False)
+    time.sleep(0.3)   # let the USB-serial driver drain what was just written
+    ctl.close()
 
 
 def run_agent(args, ctl, node):
@@ -377,6 +399,12 @@ def run_agent(args, ctl, node):
         except Exception as e:
             reply = f"ERRO: {e}"
         ctl.send(f"OK {seq} {pack(reply)}")
+        if updater.pending_restart:
+            # Only after the reply is on the wire: exec never returns, so a
+            # restart handled any earlier would leave the far side waiting out
+            # its timeout on a command that actually succeeded.
+            print("[agent] reiniciando com o codigo novo...")
+            updater.restart(cleanup=lambda: shutdown(ctl, node))
 
 
 def run_console(args, ctl, node):
@@ -445,6 +473,9 @@ def run_console(args, ctl, node):
         if target in ("remote", "both"):
             for row in str(remote(cmd)).split("\n"):
                 print(f"  [remoto] {row}")
+        if updater.pending_restart:
+            print("  [local]  reiniciando com o codigo novo...")
+            updater.restart(cleanup=lambda: shutdown(ctl, node))
 
 
 def main():
@@ -487,9 +518,7 @@ def main():
         print("\nSaindo...")
         return 0
     finally:
-        node.mic(False)
-        node.speaker(False)
-        ctl.close()
+        shutdown(ctl, node)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ Interpreter is the venv, not system Python:
 
 # interactive remote control of both machines' audio (see console.py)
 ./venv/bin/python console.py --role agent   --port /dev/ttyUSB0  # headless side
+./agent.sh                                                       # same, supervised
 ./venv/bin/python console.py --role console --port COM4          # side with the keyboard
 ./venv/bin/pip install -r requirements.txt
 ```
@@ -43,6 +44,8 @@ Two layers, deliberately separated:
 - **`linktest.py` — runtime, scored test.** Same layering rule as `app.py`: it owns serial, audio, and threads, and imports the modem classes untouched. Cross-platform, so it and `console.py` are the entry points that run on the Windows side (`--pty` is POSIX-only).
 - **`console.py` — runtime, interactive.** Remote control of both machines' audio over the serial cable. One `AudioNode` and one `execute()` run on *both* roles; `--role console` has a REPL, `--role agent` does not. Add a command in one place and both sides get it — do not fork the command table.
 - **`serial_link.py` — the shared control channel.** `Control` (background line reader) plus `pack`/`unpack`, which escape newlines so a multi-line reply survives a line protocol. Both tools import it, so framing and timeouts cannot drift apart.
+- **`updater.py` — git only, no serial and no audio.** Same layering rule as `modem.py`, one level up: it knows how to fetch, reset, and re-exec, and nothing about the wire that asked. `console.py` wires it to the command table.
+- **`agent.sh` — supervisor for the follower machine.** Restarts `console.py --role agent` after a crash. A voluntary `restart` execs in place and keeps the PID, so it never reaches this loop; the wrapper is for unplugged adapters and vanishing audio devices.
 
 Data flow:
 
@@ -69,6 +72,10 @@ stdout/PTY <── rx_byte_queue <── [demodulator thread] <── rx_audio_q
 **`linktest.py` uses the serial cable as an out-of-band control channel, never as a data path.** The payload is generated on both sides from a shared seed sent over the wire, so the bytes being scored only ever travel through the air. RX opens and warms the input stream *before* answering `ARMED`, which keeps device startup latency off the critical path so `GO` can act immediately; `GUARD` then only has to cover serial latency. Scoring goes through `difflib.SequenceMatcher` (with `autojunk=False` — above 200 elements it would treat common byte values as junk and destroy the alignment) because this link drops bytes rather than merely corrupting them, and one dropped byte shifts everything after it. An index-by-index compare scores a near-perfect link at ~50%.
 
 **The in-band ratio must be a ratio of sums, never a mean of per-block ratios.** `level_rms / input_rms` per block, averaged, is wrong: a near-silent block has an almost-zero denominator while the bandpass is still ringing from its own `lfilter_zi` initial state, and a single such block throws the window past 100% — observed at 9713% before the fix. Accumulate `input_rms` and `level_rms` separately, divide once, clamp to 1.0. `linktest.py` and `console.py` do this. `tune_rx_loop` in `app.py` still takes the instantaneous single-block ratio and is unclamped, so it can read above 100% on a transient.
+
+**The two machines talk on two layers, and `pull` is the slow one.** The serial command table acts in milliseconds; `pull` moves code, committed to the remote by the leading machine and fetched by the follower. `updater.pull` **hard-resets** onto the tracking ref (`origin/main` as fallback) rather than merging — the follower's working tree is not where work happens, and a merge conflict on a machine with nobody at the keyboard is a dead end. That makes it destructive, so a dirty tree aborts the pull unless `pull force` is given.
+
+**A `pull` never restarts by itself.** Re-exec drops both audio streams, so a pull landing mid-measurement would silently undo the levels the far side just dialed in. `pull` sets `updater.pending_restart` (only when a `.py` actually changed) and says so; the far side sends `restart` when it is ready. Both loops act on that flag *after* the reply is already on the wire — exec never returns, so restarting any earlier would leave the far side timing out on a command that in fact succeeded. `shutdown()` must close the serial port before the exec: file descriptors survive the image swap, and the replacement process would find its own port busy.
 
 **Preamble (`0x55 × 10 + 0xFF`) lives in `app.py`, not `modem.py`.** It's a link-layer concern. Any future framing, CRC, or ARQ belongs at that same level — above the modem, not inside it.
 
