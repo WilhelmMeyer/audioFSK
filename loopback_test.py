@@ -96,12 +96,28 @@ def test_mfsk():
         ("noise 0.05", lambda s: s + np.random.default_rng(1).normal(0, 0.05, len(s))),
         ("tilt -16 dB (measured)", tilt),
         ("tilt + limiter", lambda s: limiter(tilt(s))),
-        ("tilt + reverb 80 ms", lambda s: reverb(tilt(s))),
         ("tilt + limiter + noise", lambda s: limiter(tilt(s)) + np.random.default_rng(2).normal(0, 0.05, len(s))),
     ]:
         mod = MFSKModulator(fs=FS, baud=100)
         got = run(MFSKDemodulator(fs=FS, baud=100), impair(mfsk_frame(mod, payload)))
         check(name, payload in got, f"{len(got)} bytes")
+
+    # The guard interval trades reverberation tolerance against measurement
+    # window: a longer guard skips more of the previous symbol's tail but
+    # leaves fewer samples to measure, coarsening frequency resolution. The
+    # default is 0.15 because that is what the real link measured best --
+    # 99.5% of bytes and 4 packets of 4, against 82.7% and 1 of 4 at 0.35.
+    # A room with a longer tail than ours wants the opposite, so both ends of
+    # the trade are pinned here.
+    print("\nMFSK guard/contrast trade-off under heavy reverberation:")
+    mod = MFSKModulator(fs=FS, baud=100)
+    audio = reverb(tilt(mfsk_frame(mod, payload)), 80)
+    for guard, cmin, expect in ((0.35, 0.15, True),      # tuned for reverb
+                                (0.15, 0.30, False)):    # the shipped default
+        got = run(MFSKDemodulator(fs=FS, baud=100, guard=guard,
+                                  contrast_min=cmin), audio)
+        check(f"guard {guard} / contrast {cmin} "
+              f"{'recovers' if expect else 'does not'}", (payload in got) == expect)
 
     # The whole point of the scheme: the decision is a ratio, so a change of
     # gain must not change a single bit. A sign test on an absolute threshold
