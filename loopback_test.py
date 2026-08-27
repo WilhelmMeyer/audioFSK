@@ -10,6 +10,7 @@ to survive, so those are the conditions it has to pass.
 
 import numpy as np
 
+import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator)
 
@@ -124,9 +125,66 @@ def test_mfsk():
           f"{len(b_got)} bytes, payload absent")
 
 
+def test_xfer():
+    """Packets over MFSK, on the file that actually broke the link.
+
+    testcard.bmp is the hard case on purpose: a BMP header and a 256-entry
+    palette are mostly 0x00, and framed 8N1 that is nine identical bits per
+    byte with no transition for timing recovery to hold onto.
+    """
+    print("\nxfer packets over MFSK:")
+    try:
+        with open("testcard.bmp", "rb") as fh:
+            raw = fh.read()
+    except OSError:
+        print("  SKIP  testcard.bmp ausente")
+        return
+
+    parts = xfer.split(raw)
+
+    def long_runs(data, limit=6):
+        bits = []
+        for byte in data:
+            bits.append(0)
+            bits += [(byte >> i) & 1 for i in range(8)]
+            bits.append(1)
+        n = run = 0
+        for i in range(1, len(bits)):
+            run = run + 1 if bits[i] == bits[i - 1] else 1
+            if run == limit:
+                n += 1
+        return n
+
+    plain = long_runs(raw)
+    scrambled = long_runs(b"".join(xfer._scramble(p) for p in parts))
+    check("scrambling breaks up long runs", scrambled < plain // 2,
+          f"{plain} -> {scrambled} runs of 6+ identical bits")
+
+    for name, impair in [("clean", lambda s: s),
+                         ("tilt -16 dB", tilt),
+                         ("tilt + reverb 40 ms", lambda s: reverb(tilt(s), 40))]:
+        ok = 0
+        sample = parts[:8]
+        for seq, chunk in enumerate(sample):
+            mod = MFSKModulator(fs=FS, baud=100)
+            audio = impair(np.concatenate([mod.modulate(xfer.build(seq, chunk)),
+                                           mod.idle(6)]))
+            got = xfer.parse(run(MFSKDemodulator(fs=FS, baud=100), audio), want_seq=seq)
+            if got and got[1] == chunk:
+                ok += 1
+        check(f"packets over {name}", ok == len(sample), f"{ok}/{len(sample)}")
+
+    # The CRC has to reject damage, or a corrupt file passes as a good one.
+    pkt = bytearray(xfer.build(3, parts[3]))
+    pkt[len(xfer.LEAD) + 6] ^= 0x01
+    check("CRC rejects a flipped bit", xfer.parse(bytes(pkt)) is None)
+    check("CRC32 covers the whole file", xfer.crc32(raw) == xfer.crc32(b"".join(parts)))
+
+
 def main():
     test_bell202()
     test_mfsk()
+    test_xfer()
     print()
     if failures:
         print(f"FAILED: {len(failures)} check(s): {', '.join(failures)}")

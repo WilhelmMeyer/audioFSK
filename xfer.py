@@ -17,7 +17,14 @@ LEAD = bytes([0x55] * 12)   # 8N1 makes this an unbroken bit alternation:
                             # wakes microphone AGC and gives timing recovery
                             # an edge on every symbol before the data starts.
 SYNC = 0xFF
-PAYLOAD_SIZE = 64
+# 32, not something larger. There is no forward error correction here, so a
+# single bad byte costs the whole packet, and the failure rate climbs with
+# length: measured over a reverberant channel, 16-24 byte payloads recovered
+# 91% of packets where 64-byte ones managed 50%. On the real link a ~45 byte
+# transmission succeeded three times out of three while 81-byte packets failed
+# four out of four. The cost is a fixed 17 bytes of framing per packet, so
+# smaller still would spend more air on overhead than on the file.
+PAYLOAD_SIZE = 32
 HEADER = 3                  # sync, seq, len
 TRAILER = 2                 # crc16
 
@@ -44,17 +51,51 @@ def crc32(data):
     return crc ^ 0xFFFFFFFF
 
 
+def _keystream(n, _cache={}):
+    """Fixed pseudorandom bytes, xorshift32 -- deterministic and identical on
+    both machines without depending on any library's RNG staying stable.
+
+    Position-keyed, not packet-keyed, deliberately: the receiver has to
+    descramble the length field before it knows how long the packet is, so the
+    stream cannot depend on anything carried inside it.
+    """
+    if n <= _cache.get('n', 0):
+        return _cache['ks'][:n]
+    x, out = 0x1F123BB5, bytearray()
+    for _ in range(max(n, 512)):
+        x ^= (x << 13) & 0xFFFFFFFF
+        x ^= x >> 17
+        x ^= (x << 5) & 0xFFFFFFFF
+        out.append(x & 0xFF)
+    _cache['n'], _cache['ks'] = len(out), bytes(out)
+    return _cache['ks'][:n]
+
+
+def _scramble(data):
+    return bytes(b ^ k for b, k in zip(data, _keystream(len(data))))
+
+
 def split(data, size=PAYLOAD_SIZE):
     return [data[i:i + size] for i in range(0, len(data), size)]
 
 
 def build(seq, payload):
-    """One packet, ready to hand to the modulator."""
+    """One packet, ready to hand to the modulator.
+
+    Everything after the sync byte is scrambled, and that is not cosmetic.
+    Timing recovery in the multi-tone demodulator is an early/late gate steered
+    by decision contrast, so it learns the symbol clock from *transitions*.
+    Framed 8N1, a 0x00 byte is nine identical bits in a row and teaches it
+    nothing; a run of them makes it drift. Measured on this link, a BMP header
+    lost 33 consecutive bytes -- almost all 0x00 -- in one stretch. Scrambling
+    makes every payload look random, so the transitions are there whatever the
+    file happens to contain.
+    """
     if len(payload) > 255:
         raise ValueError("payload too long for a one-byte length field")
     body = bytes([seq & 0xFF, len(payload)]) + payload
     crc = crc16(body)
-    return LEAD + bytes([SYNC]) + body + bytes([crc >> 8, crc & 0xFF])
+    return LEAD + bytes([SYNC]) + _scramble(body + bytes([crc >> 8, crc & 0xFF]))
 
 
 def parse(stream, want_seq=None):
@@ -66,23 +107,27 @@ def parse(stream, want_seq=None):
     the parser indifferent to leading noise, trailing noise, and to how much of
     the lead-in survived.
     """
+    ks = _keystream(256 + HEADER + TRAILER)
     for i, byte in enumerate(stream):
         if byte != SYNC:
             continue
         if i + HEADER > len(stream):
             break
-        seq = stream[i + 1]
-        length = stream[i + 2]
+        # Descramble positionally, so the length can be read before the rest
+        # of the packet is even known to be there.
+        seq = stream[i + 1] ^ ks[0]
+        length = stream[i + 2] ^ ks[1]
         end = i + HEADER + length + TRAILER
         if end > len(stream):
             continue
-        body = stream[i + 1:i + HEADER + length]
-        got = (stream[end - 2] << 8) | stream[end - 1]
+        full = bytes(stream[i + 1 + k] ^ ks[k] for k in range(2 + length + TRAILER))
+        body = full[:2 + length]
+        got = (full[-2] << 8) | full[-1]
         if crc16(body) != got:
             continue
         if want_seq is not None and seq != want_seq:
             continue
-        return seq, bytes(stream[i + HEADER:i + HEADER + length])
+        return seq, body[2:]
     return None
 
 
