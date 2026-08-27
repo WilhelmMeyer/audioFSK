@@ -14,10 +14,23 @@ it when the far side is ready.
 """
 
 import os
+import py_compile
 import subprocess
 import sys
+import tempfile
 
 REPO = os.path.dirname(os.path.abspath(__file__))
+
+# Where this machine follows. NOT the branch's own tracking ref: a follower
+# left on some old feature branch would take `pull` backwards onto whatever
+# that branch tracks, and a hard reset onto an older commit deletes the very
+# files serving the link. Measured, not hypothetical -- it deleted console.py
+# and took the serial channel down with it. One fixed ref, overridable per
+# call with `pull <ref>`.
+DEFAULT_REF = "origin/main"
+
+# Everything that has to import for this machine to keep answering the wire.
+CRITICAL = ("console.py", "serial_link.py", "modem.py", "updater.py")
 
 # Set by request_restart(), read by the agent/console loop after the reply has
 # gone out on the wire. Re-execing inside execute() would kill the process
@@ -44,15 +57,34 @@ def _current_branch():
     return out if ok else "HEAD"
 
 
-def _upstream():
-    """Tracking ref for the current branch, or origin/main as the fallback."""
-    ok, out = _git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
-    return out if ok and out else "origin/main"
-
-
 def _is_dirty():
     ok, out = _git("status", "--porcelain")
     return bool(ok and out)
+
+
+def _broken():
+    """Which critical files are missing or will not compile.
+
+    Checked before re-exec, because a restart onto code that cannot import is
+    unrecoverable from here: the process dies, and the serial channel that
+    would let the far side fix it dies with it. Compiling is not proof the
+    code is correct -- it is proof the machine will still answer.
+    """
+    bad = []
+    with tempfile.TemporaryDirectory() as cache:
+        for name in CRITICAL:
+            path = os.path.join(REPO, name)
+            if not os.path.exists(path):
+                bad.append(f"{name}: ausente")
+                continue
+            try:
+                py_compile.compile(path, cfile=os.path.join(cache, name + "c"),
+                                   doraise=True)
+            except py_compile.PyCompileError as e:
+                bad.append(f"{name}: {str(e).splitlines()[-1][:120]}")
+            except Exception as e:
+                bad.append(f"{name}: {e}")
+    return bad
 
 
 def version():
@@ -77,7 +109,7 @@ def pull(arg=""):
     parts = arg.split()
     force = "force" in parts or "-f" in parts
     refs = [p for p in parts if p not in ("force", "-f")]
-    ref = refs[0] if refs else _upstream()
+    ref = refs[0] if refs else DEFAULT_REF
 
     if _is_dirty() and not force:
         ok, changed = _git("status", "--porcelain")
@@ -108,6 +140,19 @@ def pull(arg=""):
     if not ok:
         return f"reset falhou: {out}"
 
+    # Land, then check, then keep or undo. The far side can push anything,
+    # including a ref that predates these files entirely; if what arrived
+    # cannot run, going back is the only move that leaves the serial channel
+    # alive to be told about it.
+    bad = _broken()
+    if bad:
+        back_ok, back_out = _git("reset", "--hard", before)
+        lines = [f"codigo em {target[:7]} NAO carrega -- pull revertido:"]
+        lines.extend(bad)
+        lines.append(f"de volta em {before[:7]}" if back_ok
+                     else f"REVERSAO TAMBEM FALHOU: {back_out}")
+        return "\n".join(lines)
+
     names = [f for f in files.split("\n") if f]
     # Only Python changes need the process replaced; a README or a config
     # sample does not justify dropping the audio streams.
@@ -125,7 +170,12 @@ def pull(arg=""):
 
 
 def request_restart():
+    """Arm the restart, unless restarting would take this machine off the air."""
     global pending_restart
+    bad = _broken()
+    if bad:
+        return "\n".join(["restart RECUSADO -- o codigo em disco nao carrega:"]
+                         + bad + ["conserte e mande de novo, ou 'pull force'"])
     pending_restart = True
     return "reiniciando..."
 
@@ -136,6 +186,11 @@ def restart(cleanup=None):
     Called only after the reply is already on the wire. cleanup() must close
     the serial port and the audio streams -- exec keeps file descriptors, so a
     still-open port would make the new process fail to open it.
+
+    orig_argv, not sys.argv: sys.argv drops the interpreter's own flags, so a
+    process started as `python -u console.py ...` would come back fully
+    buffered and its log would go quiet -- which reads exactly like a restart
+    that never happened.
     """
     if cleanup is not None:
         try:
@@ -144,4 +199,5 @@ def restart(cleanup=None):
             pass
     sys.stdout.flush()
     sys.stderr.flush()
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+    argv = list(getattr(sys, "orig_argv", [])) or [sys.executable] + sys.argv
+    os.execv(argv[0], argv)
