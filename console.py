@@ -32,6 +32,7 @@ import numpy as np
 import sounddevice as sd
 
 import updater
+import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator)
 from serial_link import Control, pack, unpack
@@ -180,7 +181,11 @@ class AudioNode:
             except queue.Empty:
                 data = None
             if data is not None:
-                samples = self.mod.modulate(PREAMBLE + data)
+                # A raw item already carries its own lead-in and framing, as
+                # xfer.build does; prefixing the console's preamble as well
+                # would just add a second sync byte for the parser to reject.
+                payload, raw = data
+                samples = self.mod.modulate(payload if raw else PREAMBLE + payload)
                 self.out_queue.put((samples * self.gain).astype(np.float32))
                 continue
             if self.tone and self.out_queue.qsize() < TONE_DEPTH:
@@ -334,6 +339,8 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   spk on|off          liga/desliga a caixa de som
   tone on|off         portadora continua 0x55 (precisa da caixa ligada)
   send <texto>        transmite <texto> pelo ar
+  fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
+  sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
   rx                  mostra e limpa o buffer recebido
   echo on|off         imprime bytes recebidos conforme chegam
   meter on|off|<seg>  medidor de nivel continuo
@@ -420,8 +427,33 @@ def execute(node, cmd):
             return "uso: send <texto>"
         if not node.out_stream:
             return "caixa desligada - rode 'spk on' antes"
-        node.tx_bytes.put(arg.encode("utf-8", "replace"))
+        node.tx_bytes.put((arg.encode("utf-8", "replace"), False))
         return f"enviando {len(arg)} bytes"
+    if verb == "fileinfo":
+        try:
+            with open(arg, "rb") as fh:
+                data = fh.read()
+        except OSError as e:
+            return f"nao consegui ler {arg!r}: {e}"
+        parts = xfer.split(data)
+        return (f"size={len(data)} packets={len(parts)} crc32={xfer.crc32(data):08x} "
+                f"air={xfer.air_seconds(sum(len(xfer.build(i, c)) for i, c in enumerate(parts))):.0f}s")
+    if verb == "sendpkt":
+        bits = arg.split()
+        if len(bits) != 2:
+            return "uso: sendpkt <arquivo> <seq>"
+        try:
+            with open(bits[0], "rb") as fh:
+                parts = xfer.split(fh.read())
+            seq = int(bits[1])
+        except (OSError, ValueError) as e:
+            return f"sendpkt: {e}"
+        if not 0 <= seq < len(parts):
+            return f"seq fora de faixa: {seq} (0..{len(parts) - 1})"
+        if not node.out_stream:
+            return "caixa desligada - rode 'spk on' antes"
+        node.tx_bytes.put((xfer.build(seq, parts[seq]), True))
+        return f"pkt {seq}/{len(parts) - 1} {len(parts[seq])} bytes"
     if verb == "rx":
         data = bytes(node.rx_buffer)
         node.rx_buffer.clear()

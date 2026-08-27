@@ -30,7 +30,11 @@ REPO = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_REF = "origin/main"
 
 # Everything that has to import for this machine to keep answering the wire.
-CRITICAL = ("console.py", "serial_link.py", "modem.py", "updater.py")
+CRITICAL = ("console.py", "serial_link.py", "modem.py", "updater.py", "xfer.py")
+# Anything console.py imports belongs here. py_compile does not execute
+# imports, so a module missing or broken at import time is invisible to the
+# check unless it is named -- and the agent would then die on startup with the
+# serial channel gone, which is the exact failure this list exists to prevent.
 
 # Set by request_restart(), read by the agent/console loop after the reply has
 # gone out on the wire. Re-execing inside execute() would kill the process
