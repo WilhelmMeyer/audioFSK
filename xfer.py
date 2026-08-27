@@ -16,7 +16,14 @@ acknowledgements travel on.
 LEAD = bytes([0x55] * 12)   # 8N1 makes this an unbroken bit alternation:
                             # wakes microphone AGC and gives timing recovery
                             # an edge on every symbol before the data starts.
-SYNC = 0xFF
+# 0x33, not 0xFF. Framed 8N1 the marker is the one byte that cannot be
+# scrambled -- the receiver has to recognise it to find anything at all -- so
+# it must be the most robust byte in the packet, and 0xFF is the least: nine
+# identical bits in a row, the exact pattern that starves timing recovery.
+# Measured on the wire, the sync byte was dropped outright and the parser was
+# left with no candidate to test. 0x33 frames as 0-1-1-0-0-1-1-0-0-1: never
+# more than two identical bits together.
+SYNC = 0x33
 # 32, not something larger. There is no forward error correction here, so a
 # single bad byte costs the whole packet, and the failure rate climbs with
 # length: measured over a reverberant channel, 16-24 byte payloads recovered

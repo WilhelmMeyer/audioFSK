@@ -155,6 +155,26 @@ def test_xfer():
                 n += 1
         return n
 
+    def max_run(data):
+        bits = []
+        for byte in data:
+            bits.append(0)
+            bits += [(byte >> i) & 1 for i in range(8)]
+            bits.append(1)
+        best = run = 1
+        for i in range(1, len(bits)):
+            run = run + 1 if bits[i] == bits[i - 1] else 1
+            best = max(best, run)
+        return best
+
+    # The sync byte is the one byte that cannot be scrambled -- the receiver
+    # must recognise it to find anything -- so it has to be the most robust in
+    # the packet. 0xFF was the least: nine identical bits, and the wire dropped
+    # it outright, leaving the parser with no candidate at all.
+    check("sync byte is transition-rich", max_run(bytes([xfer.SYNC])) <= 3,
+          f"0x{xfer.SYNC:02x} -> max run {max_run(bytes([xfer.SYNC]))} "
+          f"(0xff would be {max_run(b'\xff')})")
+
     plain = long_runs(raw)
     scrambled = long_runs(b"".join(xfer._scramble(p) for p in parts))
     check("scrambling breaks up long runs", scrambled < plain // 2,
