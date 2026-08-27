@@ -105,6 +105,9 @@ class AudioNode:
         self.level_sum = 0.0
         self.blocks = 0
         self.bytes_in = 0
+        # Real elapsed time, so the byte rate is honest even when the meter
+        # thread runs late and when `level` is called ad hoc.
+        self.window_start = time.time()
 
     # --- audio callbacks: these run on PortAudio's real-time thread and
     # --- must only move data. All DSP is on the worker threads below.
@@ -172,16 +175,26 @@ class AudioNode:
                 time.sleep(0.1)
                 continue
             time.sleep(interval)
-            self.on_event(self.level(window=interval, reset=True))
+            self.on_event(self.level())
 
     # --- readings
 
-    def level(self, window=1.0, reset=False):
+    def level(self, reset=True):
+        """Reading for the window since the last one, not since the process
+        started.
+
+        Resetting by default is the whole point: with the accumulators left
+        running, `level` reported a lifetime average and a peak that never
+        decayed, so a tone that had already stopped still read -25 dBFS
+        seconds later. A meter that cannot fall is worse than no meter --
+        it says the level is fine while you are chasing silence.
+        """
         with self.stats_lock:
             blocks, peak = self.blocks, self.peak
+            elapsed = max(1e-3, time.time() - self.window_start)
             rms = self.rms_sum / blocks if blocks else 0.0
             inband = min(1.0, self.level_sum / self.rms_sum) if self.rms_sum > 1e-9 else 0.0
-            rate = self.bytes_in / window if window > 0 else 0.0
+            rate = self.bytes_in / elapsed
             if reset:
                 self._reset_stats()
         if not blocks:
