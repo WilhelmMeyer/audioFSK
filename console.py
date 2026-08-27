@@ -32,13 +32,16 @@ import numpy as np
 import sounddevice as sd
 
 import updater
-from modem import FSKModulator, FSKDemodulator
+from modem import (FSKModulator, FSKDemodulator,
+                   MFSKModulator, MFSKDemodulator)
 from serial_link import Control, pack, unpack
 
 FS = 48000
 BAUD = 1200
 BLOCK = 2048
 PREAMBLE = bytes([0x55] * 10 + [0xFF])
+
+MFSK_BAUD = 100       # multi-tone layer: slower, but amplitude-independent
 
 TONE_CHUNK = 32       # bytes of 0x55 per modulated chunk, ~0.27 s
 TONE_DEPTH = 4        # keep ~1 s of tone buffered, no more
@@ -66,8 +69,16 @@ class AudioNode:
 
     def __init__(self, gain=0.8, squelch=0.005, dev_in=None, dev_out=None,
                  on_event=None):
-        self.mod = FSKModulator(fs=FS, baud=BAUD)
-        self.demod = FSKDemodulator(fs=FS, baud=BAUD, squelch=squelch)
+        # Both physical layers live side by side, each with its own stateful
+        # pair, so switching modes never carries filter or phase state across.
+        # `mode` selects which the feeder and demod threads use.
+        self.layers = {
+            'fsk': (FSKModulator(fs=FS, baud=BAUD),
+                    FSKDemodulator(fs=FS, baud=BAUD, squelch=squelch)),
+            'mfsk': (MFSKModulator(fs=FS, baud=MFSK_BAUD),
+                     MFSKDemodulator(fs=FS, baud=MFSK_BAUD)),
+        }
+        self.mode = 'fsk'
         self.gain = gain
         self.dev_in = dev_in
         self.dev_out = dev_out
@@ -98,6 +109,36 @@ class AudioNode:
         threading.Thread(target=self._feeder, daemon=True).start()
         threading.Thread(target=self._demodder, daemon=True).start()
         threading.Thread(target=self._meter, daemon=True).start()
+
+    @property
+    def mod(self):
+        return self.layers[self.mode][0]
+
+    @property
+    def demod(self):
+        return self.layers[self.mode][1]
+
+    def threshold(self, value=None):
+        """The two layers gate on different quantities and must not share a
+        number: Bell 202 squelches on absolute baseband amplitude, the ratio
+        detector on contrast, which is a fraction. Setting 0.005 on the latter
+        would be almost no gate at all."""
+        attr = 'squelch' if self.mode == 'fsk' else 'contrast_min'
+        if value is not None:
+            setattr(self.demod, attr, value)
+        return attr, getattr(self.demod, attr)
+
+    def set_mode(self, mode):
+        if mode not in self.layers:
+            return f"modo desconhecido: {mode!r} (use 'fsk' ou 'mfsk')"
+        self.mode = mode
+        self.mod.reset()
+        self.demod.reset()
+        self.rx_buffer.clear()
+        with self.stats_lock:
+            self._reset_stats()
+        baud = BAUD if mode == 'fsk' else MFSK_BAUD
+        return f"modo = {mode} ({baud} baud)"
 
     def _reset_stats(self):
         self.peak = 0.0
@@ -143,7 +184,11 @@ class AudioNode:
                 self.out_queue.put((samples * self.gain).astype(np.float32))
                 continue
             if self.tone and self.out_queue.qsize() < TONE_DEPTH:
-                samples = self.mod.modulate(bytes([0x55]) * TONE_CHUNK)
+                # 0x55 framed 8N1 is an unbroken bit alternation in either
+                # layer, which is what timing recovery needs. Scale the chunk
+                # by baud so a chunk stays about a quarter second either way.
+                n = TONE_CHUNK if self.mode == 'fsk' else max(1, TONE_CHUNK * MFSK_BAUD // BAUD)
+                samples = self.mod.modulate(bytes([0x55]) * n)
                 self.out_queue.put((samples * self.gain).astype(np.float32))
             else:
                 time.sleep(0.02)
@@ -159,7 +204,14 @@ class AudioNode:
                 # denominator is almost zero and the bandpass is still ringing
                 # from its own initial state, throw the whole window past 100%.
                 self.rms_sum += self.demod.input_rms
-                self.level_sum += self.demod.level_rms
+                # Each layer reports quality in its own currency: in-band
+                # energy for the Bell 202 detector, decision contrast for the
+                # ratio detector. Both are fractions of the input, so the
+                # meter renders them the same way.
+                if self.mode == 'fsk':
+                    self.level_sum += self.demod.level_rms
+                else:
+                    self.level_sum += self.demod.contrast * self.demod.input_rms
                 self.blocks += 1
                 self.bytes_in += len(out)
             if out:
@@ -200,7 +252,10 @@ class AudioNode:
         if not blocks:
             return "sem audio de entrada (mic desligado?)"
         db = dbfs(rms)
-        return (f"[{meter_bar(db)}] {db:6.1f} dBFS  in-band {inband * 100:3.0f}%  "
+        # Name the quantity, because the two layers report different ones and
+        # a reader comparing runs has to know which is on screen.
+        label = "in-band" if self.mode == 'fsk' else "contrst"
+        return (f"[{meter_bar(db)}] {db:6.1f} dBFS  {label} {inband * 100:3.0f}%  "
                 f"pico {peak:.2f}  {rate:5.1f} B/s")
 
     def status(self):
@@ -211,7 +266,8 @@ class AudioNode:
             f"echo    {'ON' if self.echo else 'off'}",
             f"meter   {f'{self.meter_interval}s' if self.meter_interval else 'off'}",
             f"gain    {self.gain}",
-            f"squelch {self.demod.squelch}",
+            f"modo    {self.mode} ({BAUD if self.mode == 'fsk' else MFSK_BAUD} baud)",
+            f"squelch {self.threshold()[1]}  ({self.threshold()[0]})",
             f"rx buf  {len(self.rx_buffer)} bytes",
         ])
 
@@ -283,7 +339,8 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   meter on|off|<seg>  medidor de nivel continuo
   level               uma leitura de nivel
   gain <0..1>         amplitude de saida
-  squelch <valor>     limiar do squelch (lembre: e quadratico)
+  mode fsk|mfsk       camada fisica: fsk 1200 baud, mfsk 100 baud por razao
+  squelch <valor>     limiar: squelch (fsk) ou contraste 0..1 (mfsk)
   dev in|out <n>      troca o dispositivo de audio (reinicia o stream)
   devs                lista dispositivos de audio
   status              estado deste lado
@@ -345,10 +402,14 @@ def execute(node, cmd):
         return f"gain = {node.gain}"
     if verb == "squelch":
         try:
-            node.demod.squelch = float(arg)
+            name, val = node.threshold(float(arg))
         except ValueError:
             return f"squelch invalido: {arg!r}"
-        return f"squelch = {node.demod.squelch}"
+        return f"{name} = {val}"
+    if verb in ("mode", "modo"):
+        if not arg:
+            return f"modo atual: {node.mode}"
+        return node.set_mode(arg.lower())
     if verb == "dev":
         bits = arg.split()
         if len(bits) != 2 or bits[0] not in ("in", "out"):

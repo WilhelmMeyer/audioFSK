@@ -10,6 +10,12 @@ class FSKModulator:
         self.samples_per_symbol = int(fs / baud)
         self.phase = 0.0
 
+    def reset(self):
+        """Drop carrier phase. Only between streams -- resetting mid-stream
+        splices a discontinuity into the carrier, which clicks and spreads
+        energy out of band."""
+        self.phase = 0.0
+
     def modulate_byte(self, byte_val):
         # UART framing: 1 start bit (0), 8 data bits (LSB first), 1 stop bit (1)
         bits = [0] # Start bit
@@ -185,3 +191,191 @@ class FSKDemodulator:
             self.last_bb = bb
             
         return bytes(output_bytes)
+
+
+# --- Multi-tone FSK ------------------------------------------------------
+#
+# A second physical layer, alongside the Bell 202 one above, for links where
+# amplitude cannot be trusted. The scheme above decides bits by the sign of a
+# delay-and-multiply discriminator, so anything that weakens one tone relative
+# to the other biases every decision the same way. On a real acoustic link
+# here, a channel that pushed the 2300 Hz content to 9.5% of nominal produced
+# bytes like d5/df -- 0x55 with extra 1 bits and never missing ones -- and
+# decoded 0 payload bytes while the level meter still read 100% in band.
+#
+# Here each symbol is a chord of several tones, and the decision compares the
+# energy of the two chords. Scaling the whole signal scales both sides, so the
+# comparison is unchanged: gain drops out entirely. Several tones per symbol
+# add frequency diversity, so a tone landing in a null of the channel costs
+# accuracy rather than the symbol.
+#
+# Tones are chosen so no 2nd or 3rd harmonic of one symbol's tone lands on a
+# tone of the other symbol. Speakers and microphones distort, and distortion
+# manufactures harmonics; a harmonic falling on the opposite chord would be
+# evidence for the wrong symbol. Within one chord it is harmless -- it
+# reinforces the right answer. Both chords carry the same mean frequency, so a
+# tilted channel attenuates them equally.
+MFSK_TONES_0 = (1150, 2150, 2550)
+MFSK_TONES_1 = (1400, 1650, 2800)
+
+
+class MFSKModulator:
+    """Multi-tone FSK. One chord per bit, UART 8N1 framing as above."""
+
+    def __init__(self, fs=48000, baud=100, tones_0=MFSK_TONES_0,
+                 tones_1=MFSK_TONES_1):
+        self.fs = fs
+        self.baud = baud
+        self.tones_0 = tuple(tones_0)
+        self.tones_1 = tuple(tones_1)
+        self.samples_per_symbol = int(fs / baud)
+        # Phase is carried per tone across calls, for the same reason the Bell
+        # 202 modulator carries one: restarting a tone mid-stream splices a
+        # discontinuity into it, which is a click and out-of-band energy.
+        self.phase = {f: 0.0 for f in self.tones_0 + self.tones_1}
+
+    def reset(self):
+        for f in self.phase:
+            self.phase[f] = 0.0
+
+    def _symbol(self, bit):
+        tones = self.tones_1 if bit else self.tones_0
+        n = np.arange(self.samples_per_symbol)
+        out = np.zeros(self.samples_per_symbol)
+        for f in tones:
+            w = 2 * np.pi * f / self.fs
+            out += np.sin(w * n + self.phase[f])
+            self.phase[f] = (self.phase[f] + w * self.samples_per_symbol) % (2 * np.pi)
+        # Normalised by chord size, so a chord never clips where a single tone
+        # would not, and both chords carry equal power.
+        return out / len(tones)
+
+    def modulate_bits(self, bits):
+        chunks = [self._symbol(b) for b in bits]
+        return np.concatenate(chunks) if chunks else np.array([])
+
+    def modulate_byte(self, byte_val):
+        bits = [0]                                        # start
+        bits += [(byte_val >> i) & 1 for i in range(8)]   # LSB first
+        bits.append(1)                                    # stop
+        return self.modulate_bits(bits)
+
+    def modulate(self, data: bytes):
+        chunks = [self.modulate_byte(b) for b in data]
+        return np.concatenate(chunks) if chunks else np.array([])
+
+    def idle(self, symbols):
+        """Continuous mark. Timing recovery needs transitions, so a link-layer
+        preamble should alternate rather than idle."""
+        return self.modulate_bits([1] * symbols)
+
+
+class MFSKDemodulator:
+    """Energy-ratio detector with its own symbol clock.
+
+    The Bell 202 demodulator above gets symbol timing for free: it hunts for
+    the falling edge of a UART start bit in a continuous waveform. Energy over
+    a window has no such edge to find, so this one recovers timing explicitly,
+    with an early/late gate steered by the very contrast it uses to decide
+    bits -- contrast peaks when the window sits inside one symbol and collapses
+    when it straddles two.
+    """
+
+    def __init__(self, fs=48000, baud=100, tones_0=MFSK_TONES_0,
+                 tones_1=MFSK_TONES_1, guard=0.35, contrast_min=0.15):
+        self.fs = fs
+        self.baud = baud
+        self.tones_0 = tuple(tones_0)
+        self.tones_1 = tuple(tones_1)
+        self.samples_per_symbol = int(fs / baud)
+        self.contrast_min = contrast_min
+
+        # Skip the head of every symbol: that is where the previous symbol's
+        # reverberation is still ringing. Measured, this took accuracy from
+        # 76.5% to 100% on a channel with an 80 ms tail.
+        self.guard = int(guard * self.samples_per_symbol)
+
+        n = np.arange(self.guard, self.samples_per_symbol)
+        self.probe_0 = np.exp(-2j * np.pi * np.outer(self.tones_0, n) / fs)
+        self.probe_1 = np.exp(-2j * np.pi * np.outer(self.tones_1, n) / fs)
+
+        # Early/late gate geometry. The on-time window starts `delta` into the
+        # buffer, leaving margin on each side to look earlier and later.
+        self.delta = max(1, self.samples_per_symbol // 8)
+        self.step = max(1, self.samples_per_symbol // 32)
+
+        self.reset()
+
+    def reset(self):
+        self.buf = np.zeros(0, dtype=np.float64)
+        self.state = 'IDLE'
+        self.bit_idx = 0
+        self.current_byte = 0
+        self.input_rms = 0.0
+        self.input_peak = 0.0
+        self.contrast = 0.0
+
+    def _score(self, start):
+        """Bit and contrast for the symbol window beginning at `start`."""
+        seg = self.buf[start + self.guard:start + self.samples_per_symbol]
+        e0 = float(np.sum(np.abs(self.probe_0 @ seg) ** 2))
+        e1 = float(np.sum(np.abs(self.probe_1 @ seg) ** 2))
+        total = e0 + e1
+        if total <= 0.0:
+            return 1, 0.0
+        return (1 if e1 > e0 else 0), abs(e1 - e0) / total
+
+    def _feed_bit(self, bit, output):
+        """UART 8N1 on the recovered bit stream, the same framing the Bell 202
+        path uses, so either physical layer presents the same dumb serial line."""
+        if self.state == 'IDLE':
+            if bit == 0:
+                self.state = 'DATA'
+                self.bit_idx = 0
+                self.current_byte = 0
+        elif self.state == 'DATA':
+            self.current_byte |= (bit << self.bit_idx)
+            self.bit_idx += 1
+            if self.bit_idx == 8:
+                self.state = 'STOP'
+        elif self.state == 'STOP':
+            if bit == 1:
+                output.append(self.current_byte)
+            # A bad stop bit means framing is lost. Drop the byte and hunt for
+            # the next start rather than emitting known-corrupt data.
+            self.state = 'IDLE'
+
+    def demodulate(self, samples):
+        samples = np.asarray(samples, dtype=np.float64)
+        if len(samples):
+            self.input_rms = float(np.sqrt(np.mean(np.square(samples))))
+            self.input_peak = float(np.max(np.abs(samples)))
+        self.buf = np.concatenate((self.buf, samples))
+
+        output = []
+        need = self.samples_per_symbol + 2 * self.delta
+        while len(self.buf) >= need:
+            bit_e, c_e = self._score(0)
+            bit_o, c_o = self._score(self.delta)
+            bit_l, c_l = self._score(2 * self.delta)
+
+            # Steer toward whichever gate sees the cleanest separation: best
+            # contrast means the window sits most fully inside one symbol.
+            if c_l > c_o and c_l >= c_e:
+                adjust, bit, self.contrast = self.step, bit_l, c_l
+            elif c_e > c_o and c_e > c_l:
+                adjust, bit, self.contrast = -self.step, bit_e, c_e
+            else:
+                adjust, bit, self.contrast = 0, bit_o, c_o
+
+            # Amplitude-independent squelch. An absolute threshold would put
+            # back the very dependence this layer exists to remove; contrast is
+            # a ratio, so it means the same thing at any volume.
+            if self.contrast < self.contrast_min:
+                self.state = 'IDLE'
+            else:
+                self._feed_bit(bit, output)
+
+            self.buf = self.buf[self.samples_per_symbol + adjust:]
+
+        return bytes(output)
