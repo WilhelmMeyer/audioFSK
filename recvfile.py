@@ -15,6 +15,7 @@ only its own air time and a bad one costs the timeout.
 """
 
 import argparse
+import queue
 import sys
 import time
 
@@ -93,46 +94,74 @@ def main():
     started = time.time()
     retries_used = 0
 
-    with sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
-                        device=args.device) as stream:
-        for _ in range(3):
-            stream.read(BLOCK)          # warm up before the first request
+    # Callback capture, not blocking reads: the WDM-KS host API on Windows --
+    # the only input here that bypasses the driver effects mangling the signal
+    # -- rejects the blocking API outright with "Blocking API not supported
+    # yet". The callback path works on every host API.
+    blocks = queue.Queue()
 
+    def on_audio(indata, frames, time_info, status):
+        blocks.put(indata[:, 0].copy())
+
+    stream = sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
+                            device=args.device, callback=on_audio)
+    stream.start()
+    time.sleep(0.3)                                   # let it settle
+
+    def progress(done_packets):
+        pct = done_packets * 100 // npackets
+        bar = "#" * (pct * 30 // 100)
+        elapsed = time.time() - started
+        eta = (elapsed / done_packets * (npackets - done_packets)) if done_packets else 0
+        return (f"[{bar:<30}] {pct:3d}%  {done_packets}/{npackets} pacotes  "
+                f"{len(chunks) * xfer.PAYLOAD_SIZE:4d}/{size} bytes  "
+                f"{elapsed:4.0f}s decorridos" + (f", ~{eta:.0f}s restantes" if eta else ""))
+
+    try:
         for seq in range(npackets):
             for attempt in range(1, args.retries + 1):
                 demod.reset()
                 buf = bytearray()
-                # Drain whatever the stream buffered while we were parsing,
-                # so the packet is not preceded by stale audio.
-                while stream.read_available >= BLOCK:
-                    stream.read(BLOCK)
+                while not blocks.empty():             # drop audio captured
+                    blocks.get_nowait()               # while we were parsing
 
                 reply = rem.cmd(f"sendpkt {args.remote_file} {seq}")
-                if reply is None or reply.startswith(("caixa", "seq", "uso", "sendpkt")):
+                if reply is None or not reply.startswith("tx "):
                     print(f"  pkt {seq}: recusado pelo remoto: {reply}")
                     break
+                print(f"  -> remoto envia {reply}")
 
                 deadline = time.time() + per_packet + args.margin
-                got = None
+                last_tick, got = time.time(), None
                 while time.time() < deadline:
-                    data, _ = stream.read(BLOCK)
-                    buf += demod.demodulate(data[:, 0].copy())
+                    try:
+                        data = blocks.get(timeout=0.5)
+                    except queue.Empty:
+                        continue
+                    buf += demod.demodulate(data)
                     got = xfer.parse(buf, want_seq=seq)
                     if got:
                         break
+                    if time.time() - last_tick >= 3.0:
+                        last_tick = time.time()
+                        heard = len(buf) * 100 // (xfer.PAYLOAD_SIZE + xfer.HEADER +
+                                                   xfer.TRAILER + len(xfer.LEAD))
+                        print(f"      ... pkt {seq}: {min(heard, 99):2d}% ouvido "
+                              f"({len(buf)} bytes brutos)")
 
                 if got:
                     chunks[seq] = got[1]
-                    done = len(chunks)
-                    bar = "#" * (done * 30 // npackets)
-                    print(f"  [{bar:<30}] pkt {seq:2d}/{npackets - 1}  "
-                          f"{len(got[1]):3d} bytes  tentativa {attempt}")
+                    print(f"  {progress(len(chunks))}   pkt {seq} OK "
+                          f"({len(got[1])} bytes, tentativa {attempt})")
                     break
                 retries_used += 1
                 print(f"  pkt {seq:2d}: tentativa {attempt} falhou "
                       f"({len(buf)} bytes brutos, CRC nao fechou)")
             else:
                 print(f"  pkt {seq}: DESISTINDO apos {args.retries} tentativas")
+    finally:
+        stream.stop()
+        stream.close()
 
     rem.cmd("spk off")
     rem.close()

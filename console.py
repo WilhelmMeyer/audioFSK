@@ -453,7 +453,8 @@ def execute(node, cmd):
         if not node.out_stream:
             return "caixa desligada - rode 'spk on' antes"
         node.tx_bytes.put((xfer.build(seq, parts[seq]), True))
-        return f"pkt {seq}/{len(parts) - 1} {len(parts[seq])} bytes"
+        return (f"tx {seq + 1}/{len(parts)} ({(seq + 1) * 100 // len(parts)}%) "
+                f"{len(parts[seq])} bytes na fila")
     if verb == "rx":
         data = bytes(node.rx_buffer)
         node.rx_buffer.clear()
