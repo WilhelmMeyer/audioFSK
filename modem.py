@@ -311,6 +311,8 @@ class MFSKDemodulator:
         self.state = 'IDLE'
         self.bit_idx = 0
         self.current_byte = 0
+        self.last_bit = 1
+        self.framing_errors = 0
         self.input_rms = 0.0
         self.input_peak = 0.0
         self.contrast = 0.0
@@ -339,10 +341,16 @@ class MFSKDemodulator:
             if self.bit_idx == 8:
                 self.state = 'STOP'
         elif self.state == 'STOP':
-            if bit == 1:
-                output.append(self.current_byte)
-            # A bad stop bit means framing is lost. Drop the byte and hunt for
-            # the next start rather than emitting known-corrupt data.
+            # Emit even when the stop bit is wrong, unlike the Bell 202 path.
+            # Dropping it would turn one bad bit into a missing *byte*, and a
+            # deletion shifts every byte after it, which is the one error a
+            # CRC-checked packet cannot absorb -- one loss and the rest of the
+            # packet is garbage. A substitution stays local, and the CRC is
+            # what decides whether the packet is good. Keeping the byte keeps
+            # the alignment; that is worth more than the byte being right.
+            if bit != 1:
+                self.framing_errors += 1
+            output.append(self.current_byte)
             self.state = 'IDLE'
 
     def demodulate(self, samples):
@@ -367,6 +375,14 @@ class MFSKDemodulator:
                 adjust, bit, self.contrast = -self.step, bit_e, c_e
             else:
                 adjust, bit, self.contrast = 0, bit_o, c_o
+
+            # Steering was once gated on transitions -- freeze the clock
+            # through a run of identical symbols, the way a PLL flywheel
+            # coasts, since a run carries no timing information. It was
+            # reverted: it showed no measurable benefit and cost accuracy on a
+            # reverberant channel, where timing genuinely drifts and needs
+            # correcting every symbol rather than only at edges.
+            self.last_bit = bit
 
             # Amplitude-independent squelch. An absolute threshold would put
             # back the very dependence this layer exists to remove; contrast is
