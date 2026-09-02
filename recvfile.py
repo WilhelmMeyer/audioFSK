@@ -22,8 +22,9 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import fec
 import xfer
-from modem import MFSKDemodulator
+from modem import MFSKDemodulator, MaryDemodulator, MARY_BITS
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -64,6 +65,12 @@ def main():
     p.add_argument("--out", required=True, help="onde gravar deste lado")
     p.add_argument("--device", type=int, default=None, help="indice do dispositivo de entrada")
     p.add_argument("--gain", type=float, default=0.35, help="ganho de saida da outra maquina")
+    p.add_argument("--fec", action="store_true",
+                   help="pacotes com correcao de erro em vez do fluxo 8N1")
+    p.add_argument("--mode", choices=("mfsk", "mary"), default="mfsk",
+                   help="camada fisica; mary = 16 tons, 4 bits por simbolo")
+    p.add_argument("--packet-size", type=int, default=xfer.PAYLOAD_SIZE,
+                   help="bytes de carga por pacote; maior amortiza o preambulo")
     p.add_argument("--retries", type=int, default=4, help="tentativas por pacote")
     p.add_argument("--margin", type=float, default=3.0, help="segundos extras de escuta por pacote")
     args = p.parse_args()
@@ -73,7 +80,7 @@ def main():
         print("outra maquina nao responde no canal serial.", file=sys.stderr)
         return 1
 
-    for setup in ("mode mfsk", "spk on", f"gain {args.gain}", "mic off"):
+    for setup in (f"mode {args.mode}", "spk on", f"gain {args.gain}", "mic off"):
         print(f"  remoto: {setup:16s} -> {rem.cmd(setup)}")
 
     info = rem.cmd(f"fileinfo {args.remote_file}")
@@ -86,10 +93,26 @@ def main():
     want_crc = int(fields["crc32"], 16)
     print(f"\n{args.remote_file}: {size} bytes, {npackets} pacotes, crc32 {want_crc:08x}")
 
-    per_packet = xfer.air_seconds(len(xfer.build(0, b"x" * xfer.PAYLOAD_SIZE)), MFSK_BAUD)
+    # fileinfo reports packets at the default size; recompute for ours.
+    npackets = -(-size // args.packet_size)
+    packet_bytes = len(xfer.build(0, b"x" * args.packet_size))
+
+    if args.fec:
+        # A coded block is one sync word, the rate-1/3 code repeated, plus the
+        # preamble the receiver needs to lock its symbol clock. That preamble
+        # is paid once per packet, which is why a bigger packet is cheaper per
+        # byte -- 28% of the air time at 32 bytes, 19% at 64.
+        bits_per_symbol = MARY_BITS if args.mode == "mary" else 1
+        coded = len(fec.frame(b"x" * packet_bytes, repeat=1))
+        per_packet = (120 + coded / bits_per_symbol + 6) / MFSK_BAUD
+    else:
+        per_packet = xfer.air_seconds(packet_bytes, MFSK_BAUD)
     print(f"~{per_packet:.1f}s de audio por pacote, ~{per_packet * npackets / 60:.1f} min no melhor caso\n")
 
-    demod = MFSKDemodulator(fs=FS, baud=MFSK_BAUD)
+    if args.mode == "mary":
+        demod = MaryDemodulator(fs=FS, baud=MFSK_BAUD)
+    else:
+        demod = MFSKDemodulator(fs=FS, baud=MFSK_BAUD)
     chunks = {}
     started = time.time()
     retries_used = 0
@@ -125,7 +148,10 @@ def main():
                 while not blocks.empty():             # drop audio captured
                     blocks.get_nowait()               # while we were parsing
 
-                reply = rem.cmd(f"sendpkt {args.remote_file} {seq}")
+                if args.fec:
+                    reply = rem.cmd(f"fecpkt {args.remote_file} {seq} {args.packet_size}")
+                else:
+                    reply = rem.cmd(f"sendpkt {args.remote_file} {seq}")
                 if reply is None or not reply.startswith("tx "):
                     print(f"  pkt {seq}: recusado pelo remoto: {reply}")
                     break
@@ -133,10 +159,17 @@ def main():
 
                 deadline = time.time() + per_packet + args.margin
                 last_tick, got = time.time(), None
+                soft = []
                 while time.time() < deadline:
                     try:
                         data = blocks.get(timeout=0.5)
                     except queue.Empty:
+                        continue
+                    if args.fec:
+                        # A coded block cannot be parsed as it arrives: the
+                        # decoder needs the whole thing before any of it means
+                        # anything, so collect first and decode at the end.
+                        soft.append(demod.demodulate_soft(data))
                         continue
                     buf += demod.demodulate(data)
                     got = xfer.parse(buf, want_seq=seq)
@@ -149,6 +182,14 @@ def main():
                         print(f"      ... pkt {seq}: {min(heard, 99):2d}% ouvido "
                               f"({len(buf)} bytes brutos)")
 
+                if args.fec:
+                    llr = np.concatenate(soft) if soft else np.zeros(0)
+                    start = fec.find_sync(llr)
+                    if start is not None:
+                        block = fec.decode(llr[start:], packet_bytes, repeat=1)
+                        got = xfer.parse(block, want_seq=seq)
+                    buf = llr
+
                 if got:
                     chunks[seq] = got[1]
                     print(f"  {progress(len(chunks))}   pkt {seq} OK "
@@ -156,7 +197,8 @@ def main():
                     break
                 retries_used += 1
                 print(f"  pkt {seq:2d}: tentativa {attempt} falhou "
-                      f"({len(buf)} bytes brutos, CRC nao fechou)")
+                      f"({len(buf)} {'simbolos' if args.fec else 'bytes brutos'}, "
+                      f"CRC nao fechou)")
             else:
                 print(f"  pkt {seq}: DESISTINDO apos {args.retries} tentativas")
     finally:
@@ -178,7 +220,7 @@ def main():
             filled.append(chunks[i])
         else:
             last = i == npackets - 1
-            gap = (size - (npackets - 1) * xfer.PAYLOAD_SIZE) if last else xfer.PAYLOAD_SIZE
+            gap = (size - (npackets - 1) * args.packet_size) if last else args.packet_size
             filled.append(b"\x00" * max(0, gap))
     data = b"".join(filled)
     elapsed = time.time() - started

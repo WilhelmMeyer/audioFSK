@@ -437,6 +437,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   fecrep <n>          repeticoes de cada bit codificado (padrao 2)
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
   sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
+  fecpkt <arq> <n>    o mesmo, com correcao de erro (mfsk ou mary)
   rx                  mostra e limpa o buffer recebido
   echo on|off         imprime bytes recebidos conforme chegam
   meter on|off|<seg>  medidor de nivel continuo
@@ -603,6 +604,31 @@ def execute(node, cmd):
         node.tx_bytes.put((xfer.build(seq, parts[seq]), True))
         return (f"tx {seq + 1}/{len(parts)} ({(seq + 1) * 100 // len(parts)}%) "
                 f"{len(parts[seq])} bytes na fila")
+    if verb == "fecpkt":
+        # The error-corrected twin of `sendpkt`, and stateless in the same
+        # way: this side is told which packet to play and plays it. The
+        # receiver decides what to ask for and when to ask again, so a lost
+        # packet costs one retry rather than the whole file.
+        bits = arg.split()
+        if not 2 <= len(bits) <= 3:
+            return "uso: fecpkt <arquivo> <seq> [tamanho]"
+        try:
+            size = int(bits[2]) if len(bits) > 2 else xfer.PAYLOAD_SIZE
+            with open(bits[0], "rb") as fh:
+                parts = xfer.split(fh.read(), size)
+            seq = int(bits[1])
+        except (OSError, ValueError) as e:
+            return f"fecpkt: {e}"
+        if not 0 <= seq < len(parts):
+            return f"seq fora de faixa: {seq} (0..{len(parts) - 1})"
+        if node.mode not in ('mfsk', 'mary'):
+            return "fecpkt so em mfsk ou mary"
+        if not node.out_stream:
+            return "caixa desligada - rode 'spk on' antes"
+        packet = xfer.build(seq, parts[seq])
+        node.tx_bytes.put((('fec', packet, node.fec_repeat), 'raw-samples'))
+        return (f"tx {seq + 1}/{len(parts)} ({(seq + 1) * 100 // len(parts)}%) "
+                f"{len(packet)} bytes codificados")
     if verb == "rx":
         data = bytes(node.rx_buffer)
         node.rx_buffer.clear()
