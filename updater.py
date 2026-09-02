@@ -18,6 +18,7 @@ import py_compile
 import subprocess
 import sys
 import tempfile
+import time
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 
@@ -204,4 +205,22 @@ def restart(cleanup=None):
     sys.stdout.flush()
     sys.stderr.flush()
     argv = list(getattr(sys, "orig_argv", [])) or [sys.executable] + sys.argv
+
+    if os.name == "nt":
+        # execv does not mean the same thing on Windows. There is no image
+        # replacement in the C runtime's exec family: it spawns a new process
+        # and kills this one, and the replacement loses the console it was
+        # started from. Observed twice from the Linux side -- the agent went
+        # silent on `restart` and never answered again, which reads exactly
+        # like code that will not import, and was not.
+        #
+        # Spawn deliberately instead, then leave. The pause is for the serial
+        # port: cleanup() has closed it, but the handle is not necessarily
+        # free the instant close() returns, and the replacement opening it too
+        # early fails on the one channel that could report the failure.
+        time.sleep(1.0)
+        subprocess.Popen(argv, close_fds=False)
+        sys.stdout.flush()
+        os._exit(0)
+
     os.execv(argv[0], argv)
