@@ -84,6 +84,8 @@ def main():
                     help="seconds to keep recording after the burst should have ended")
     ap.add_argument('--text', help="send this exact text instead of a random "
                                    "payload (for a readable demonstration)")
+    ap.add_argument('--repeat', type=int, default=2,
+                    help="how many times each coded bit is sent")
     ap.add_argument('--parallel', action='store_true',
                     help="with --fec, give each tone pair its own bit instead "
                          "of having them all vote on one")
@@ -109,6 +111,7 @@ def main():
     ask(ctl, "spk on")
     if args.fec:
         ask(ctl, f"fecpar {'on' if args.parallel else 'off'}")
+        ask(ctl, f"fecrep {args.repeat}")
     if args.gain is not None:
         ask(ctl, f"gain {args.gain}")
 
@@ -149,7 +152,7 @@ def main():
         # A FEC block is one sync word plus rate-1/3 coding repeated twice,
         # so it spends far longer on the air than its byte count suggests.
         if args.fec:
-            coded = (len(payload) * 8 + 6) * 3 * 2
+            coded = (len(payload) * 8 + 6) * 3 * args.repeat
             if args.parallel:
                 airtime = (31 + 80 + coded / 5) / baud
             else:
@@ -182,7 +185,7 @@ def main():
         stem = recording.save(args.out, samples, payload,
                               label=args.label or args.mode, mode=args.mode,
                               kind='fec' if args.fec else 'stream',
-                              fec_repeat=2 if args.fec else 0,
+                              fec_repeat=args.repeat if args.fec else 0,
                               parallel=bool(args.fec and args.parallel),
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,

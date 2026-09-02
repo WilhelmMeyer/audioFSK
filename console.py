@@ -45,6 +45,7 @@ PREAMBLE = bytes([0x55] * 10 + [0xFF])
 
 MFSK_BAUD = 100       # multi-tone layer: slower, but amplitude-independent
 FEC_REPEAT = 2        # rate 1/3 x2: holds to 25% of bits wrong, measured
+                      # (a floor, not a law -- `fecrep` moves it per link)
 
 TONE_CHUNK = 32       # bytes of 0x55 per modulated chunk, ~0.27 s
 TONE_DEPTH = 4        # keep ~1 s of tone buffered, no more
@@ -95,6 +96,7 @@ class AudioNode:
         self.tone = False
         self.echo = False
         self.fec_parallel = False
+        self.fec_repeat = FEC_REPEAT
         self.in_stream = None
         self.out_stream = None
 
@@ -186,8 +188,8 @@ class AudioNode:
         """The coded bit stream a `fecsend` would put on the air."""
         if self.fec_parallel:
             k = len(MFSK_PAIRS)
-            return fec.frame_parallel(data, k, repeat=FEC_REPEAT)
-        return fec.frame(data, repeat=FEC_REPEAT)
+            return fec.frame_parallel(data, k, repeat=self.fec_repeat)
+        return fec.frame(data, repeat=self.fec_repeat)
 
     def _fec_frame(self, data, repeat):
         """Alternating preamble, sync word, coded block, trailing idle.
@@ -409,6 +411,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   send <texto>        transmite <texto> pelo ar
   fecsend <texto>     transmite com correcao de erro (so mfsk, ~2 B/s)
   fecpar on|off       fec em paralelo: 5 bits por simbolo, ~4x mais rapido
+  fecrep <n>          repeticoes de cada bit codificado (padrao 2)
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
   sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
   rx                  mostra e limpa o buffer recebido
@@ -532,10 +535,20 @@ def execute(node, cmd):
         if not node.out_stream:
             return "caixa desligada - rode 'spk on' antes"
         data = arg.encode("utf-8", "replace")
-        node.tx_bytes.put((('fec', data, FEC_REPEAT), 'raw-samples'))
+        node.tx_bytes.put((('fec', data, node.fec_repeat), 'raw-samples'))
         bits = len(node.fec_bits(data))
         return (f"fecsend {len(data)} bytes -> {bits} simbolos "
                 f"({bits / MFSK_BAUD:.1f}s no ar)")
+    if verb == "fecrep":
+        # How many times each coded bit is sent. The right value is a property
+        # of the link, not of the code: what the decoder needs is a number of
+        # independent looks at each bit, and how many the air destroys is
+        # exactly what changes when a speaker or a room changes.
+        try:
+            node.fec_repeat = max(1, min(8, int(arg)))
+        except ValueError:
+            return f"fecrep invalido: {arg!r}"
+        return f"fec repeticao = {node.fec_repeat}"
     if verb == "fecpar":
         node.fec_parallel = flag()
         k = len(MFSK_PAIRS)
