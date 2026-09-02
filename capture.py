@@ -75,7 +75,7 @@ def main():
     ap.add_argument('--port', required=True, help="serial port to the other machine")
     ap.add_argument('--sync-baud', type=int, default=115200)
     ap.add_argument('--device', help="input device (index or name)")
-    ap.add_argument('--mode', choices=('fsk', 'mfsk'), default='mfsk')
+    ap.add_argument('--mode', choices=('fsk', 'mfsk', 'mary'), default='mfsk')
     ap.add_argument('--gain', type=float, help="far side output amplitude 0..1")
     ap.add_argument('--bytes', type=int, default=48)
     ap.add_argument('--seed', type=int, default=None)
@@ -144,7 +144,7 @@ def main():
         print(f"[capture] agora: ./venv/bin/python channel.py {stem.with_suffix('.json')}")
         return
 
-    baud = 100 if args.mode == 'mfsk' else 1200
+    baud = 1200 if args.mode == 'fsk' else 100
     for trial in range(1, args.trials + 1):
         seed = args.seed if args.seed is not None else int(time.time() * 1000) & 0xFFFFFF
         payload = (args.text.encode() if args.text
@@ -153,7 +153,9 @@ def main():
         # so it spends far longer on the air than its byte count suggests.
         if args.fec:
             coded = (len(payload) * 8 + 6) * 3 * args.repeat
-            if args.parallel:
+            if args.mode == 'mary':
+                airtime = (120 + 8 + coded / 4 + 6) / baud
+            elif args.parallel:
                 airtime = (31 + 80 + coded / 5) / baud
             else:
                 airtime = (31 + 80 + coded) / baud

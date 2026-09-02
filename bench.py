@@ -24,7 +24,8 @@ import numpy as np
 
 import fec
 import recording
-from modem import FSKDemodulator, MFSKDemodulator, MFSK_PAIRS
+from modem import (FSKDemodulator, MFSKDemodulator, MFSK_PAIRS,
+                   MaryDemodulator)
 from scoring import score
 
 BLOCK = 2048
@@ -72,6 +73,13 @@ def run_fec(meta, samples, nbytes, repeat):
     so there is no partial result to score generously. That is the point of
     it: the 8N1 path hands back plausible-looking garbage.
     """
+    if meta.get('mode') == 'mary':
+        d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'])
+        llr = np.concatenate([d.demodulate_soft(samples[i:i + BLOCK])
+                              for i in range(0, len(samples), BLOCK)])
+        start = fec.find_sync(llr)
+        return b'' if start is None else fec.decode(llr[start:], nbytes, repeat=repeat)
+
     par = bool(meta.get('parallel'))
     npairs = len(MFSK_PAIRS)
     d = MFSKDemodulator(fs=meta['fs'], baud=meta['baud'], parallel=par)
@@ -113,7 +121,8 @@ def main():
             ok = got == payload
             hits = sum(a == b for a, b in zip(got, payload))
             print(f"\n{meta['recorded']}  {meta.get('label','')}  FEC"
-                  f"{' PARALELO' if meta.get('parallel') else ' voto'}  {len(payload)}B  "
+                  f"{' MARY' if meta.get('mode') == 'mary' else (' PARALELO' if meta.get('parallel') else ' voto')}"
+                  f"  {len(payload)}B  "
                   f"rms={meta.get('rms',0):.4f}")
             print(f"  {'viterbi soft':<20}  {'OK, bloco inteiro' if ok else f'falhou ({hits}/{len(payload)} bytes)'}")
             totals.setdefault('viterbi soft', []).append(100.0 if ok else 0.0)

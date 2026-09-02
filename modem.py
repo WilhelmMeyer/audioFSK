@@ -528,3 +528,199 @@ class MFSKDemodulator:
         if not vals:
             return np.zeros((0, len(self.tones_0))) if self.parallel else np.zeros(0)
         return np.array(vals).ravel() if self.parallel else np.array(vals)
+
+
+# --- M-ary FSK: one tone at a time, four bits per tone ----------------------
+#
+# The two multi-tone layers above spend several frequencies to carry one bit,
+# or one frequency per bit. This one spends *all* of them on one symbol: 16
+# tones, exactly one sounding at a time, and which tone it is names four bits.
+#
+# The reason is power, and it is the largest single lever measured on this
+# link. A chord of five tones has to be divided by five to stay inside the
+# same peak amplitude, so every tone leaves the speaker 14 dB down. Measured
+# on recorded audio, a transmitted tone arrived only 2 to 7 dB above the same
+# frequency when it was not transmitted -- which is where 15-30% per-pair
+# error rates come from. Sounding one tone at a time gets that 14 dB back.
+#
+# The cost is that a tone parked in a null of the room's comb response can
+# never win a comparison, so its symbol is never detected. The defence is that
+# with 16 tones each one is silent 15/16 of the time, so its long-run average
+# energy *is* the noise floor at that frequency. Dividing by it before
+# comparing is a per-frequency calibrated detector -- and unlike the
+# normalisation that failed on the chord layers, the estimate is not
+# contaminated by the signal it is meant to measure.
+MARY_TONES = (888, 1050, 1212, 1375, 1538, 1700, 1862, 2025,
+              2188, 2350, 2512, 2675, 2838, 3000, 3162, 3325)
+MARY_BITS = 4
+
+
+def _gray(i):
+    return i ^ (i >> 1)
+
+
+# Neighbouring tones are the ones the channel confuses, so Gray coding makes
+# that confusion cost one bit instead of up to four.
+_GRAY = [_gray(i) for i in range(1 << MARY_BITS)]
+_UNGRAY = {g: i for i, g in enumerate(_GRAY)}
+
+
+class MaryModulator:
+    """One tone per symbol, at full amplitude. Four bits per symbol."""
+
+    def __init__(self, fs=48000, baud=100, tones=MARY_TONES):
+        self.fs = fs
+        self.baud = baud
+        self.tones = tuple(tones)
+        self.samples_per_symbol = int(fs / baud)
+        # Every tone's phase advances every symbol, whether or not it sounded,
+        # so each behaves as a free-running oscillator that is switched on and
+        # off. Restarting a tone's phase when it returns would splice a
+        # discontinuity into it, which is a click and out-of-band energy.
+        self.phase = np.zeros(len(self.tones))
+
+    def reset(self):
+        self.phase[:] = 0.0
+
+    def _advance(self):
+        w = 2 * np.pi * np.array(self.tones) / self.fs
+        self.phase = (self.phase + w * self.samples_per_symbol) % (2 * np.pi)
+
+    def _symbol(self, value):
+        idx = _GRAY[value & ((1 << MARY_BITS) - 1)]
+        n = np.arange(self.samples_per_symbol)
+        w = 2 * np.pi * self.tones[idx] / self.fs
+        out = np.sin(w * n + self.phase[idx])
+        self._advance()
+        return out
+
+    def modulate_bits(self, bits):
+        bits = list(bits)
+        if len(bits) % MARY_BITS:
+            bits += [0] * (MARY_BITS - len(bits) % MARY_BITS)
+        chunks = []
+        for i in range(0, len(bits), MARY_BITS):
+            v = 0
+            for j, b in enumerate(bits[i:i + MARY_BITS]):
+                v |= (b & 1) << j
+            chunks.append(self._symbol(v))
+        return np.concatenate(chunks) if chunks else np.array([])
+
+    def modulate(self, data: bytes):
+        bits = []
+        for byte in data:
+            bits += [(byte >> i) & 1 for i in range(8)]
+        return self.modulate_bits(bits)
+
+    def idle(self, symbols):
+        """A tail so the receiver's last symbols are not stranded in its
+        buffer. Alternating, not constant: timing recovery needs transitions
+        and a repeated symbol teaches it nothing."""
+        return self.modulate_bits([0, 1, 0, 1] * symbols)
+
+
+class MaryDemodulator:
+    """Pick the loudest tone, after dividing each by its own noise floor."""
+
+    def __init__(self, fs=48000, baud=100, tones=MARY_TONES, guard=0.15,
+                 contrast_min=0.15, floor_alpha=0.02):
+        self.fs = fs
+        self.baud = baud
+        self.tones = np.array(tones, dtype=np.float64)
+        self.samples_per_symbol = int(fs / baud)
+        self.contrast_min = contrast_min
+        self.floor_alpha = floor_alpha
+        self.guard = int(guard * self.samples_per_symbol)
+
+        n = np.arange(self.guard, self.samples_per_symbol)
+        self.probe = np.exp(-2j * np.pi * np.outer(self.tones, n) / fs)
+
+        self.delta = max(1, self.samples_per_symbol // 8)
+        self.step = max(1, self.samples_per_symbol // 32)
+        self.reset()
+
+    def reset(self):
+        self.buf = np.zeros(0, dtype=np.float64)
+        self.floor = np.zeros(len(self.tones))
+        self.input_rms = 0.0
+        self.input_peak = 0.0
+        self.contrast = 0.0
+
+    def _energies(self, start):
+        seg = self.buf[start + self.guard:start + self.samples_per_symbol]
+        return np.abs(self.probe @ seg) ** 2
+
+    def _score(self, start):
+        e = self._energies(start)
+        # Divide by the running floor before comparing. A tone in a null and a
+        # tone on a peak are then judged against what each of them looks like
+        # when nobody is transmitting on it, which is the only fair comparison
+        # on a channel whose response swings 17 dB between neighbours.
+        norm = e / np.maximum(self.floor, 1e-30)
+        order = np.argsort(norm)
+        top, second = norm[order[-1]], norm[order[-2]]
+        contrast = (top - second) / max(top + second, 1e-30)
+        return int(order[-1]), contrast, norm
+
+    def _update_floor(self, e):
+        # Each tone is silent 15 symbols out of 16, so its average energy is
+        # its noise floor. The winner is left out of the update so the floor
+        # never chases the signal it exists to measure.
+        mask = np.ones(len(self.tones), dtype=bool)
+        mask[int(np.argmax(e))] = False
+        if not self.floor.any():
+            self.floor[:] = e.mean()
+            return
+        a = self.floor_alpha
+        self.floor[mask] += a * (e[mask] - self.floor[mask])
+
+    def _symbols(self, samples):
+        samples = np.asarray(samples, dtype=np.float64)
+        if len(samples):
+            self.input_rms = float(np.sqrt(np.mean(np.square(samples))))
+            self.input_peak = float(np.max(np.abs(samples)))
+        self.buf = np.concatenate((self.buf, samples))
+
+        need = self.samples_per_symbol + 2 * self.delta
+        while len(self.buf) >= need:
+            i_e, c_e, n_e = self._score(0)
+            i_o, c_o, n_o = self._score(self.delta)
+            i_l, c_l, n_l = self._score(2 * self.delta)
+            if c_l > c_o and c_l >= c_e:
+                adjust, idx, self.contrast, norm, at = self.step, i_l, c_l, n_l, 2 * self.delta
+            elif c_e > c_o and c_e > c_l:
+                adjust, idx, self.contrast, norm, at = -self.step, i_e, c_e, n_e, 0
+            else:
+                adjust, idx, self.contrast, norm, at = 0, i_o, c_o, n_o, self.delta
+
+            self._update_floor(self._energies(at))
+            self.buf = self.buf[self.samples_per_symbol + adjust:]
+            yield idx, self.contrast, norm
+
+    def demodulate(self, samples):
+        out = []
+        bits = []
+        for idx, contrast, _norm in self._symbols(samples):
+            v = _UNGRAY[idx]
+            bits += [(v >> j) & 1 for j in range(MARY_BITS)]
+        for i in range(0, len(bits) - 7, 8):
+            out.append(sum(b << j for j, b in enumerate(bits[i:i + 8])))
+        return bytes(out)
+
+    def demodulate_soft(self, samples):
+        """One log-likelihood per bit, max-log style.
+
+        For each bit position, the best tone that would have carried a 1 is
+        compared against the best that would have carried a 0. Working in the
+        log domain means the comparison is between *ratios* of energy, so it
+        means the same at any volume -- the property every decision in this
+        project is built on.
+        """
+        out = []
+        for _idx, _c, norm in self._symbols(samples):
+            log_e = np.log(np.maximum(norm, 1e-30))
+            for j in range(MARY_BITS):
+                ones = [log_e[_GRAY[v]] for v in range(1 << MARY_BITS) if (v >> j) & 1]
+                zeros = [log_e[_GRAY[v]] for v in range(1 << MARY_BITS) if not (v >> j) & 1]
+                out.append(max(ones) - max(zeros))
+        return np.array(out)

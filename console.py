@@ -35,7 +35,8 @@ import fec
 import updater
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
-                   MFSKModulator, MFSKDemodulator, MFSK_PAIRS)
+                   MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
+                   MaryModulator, MaryDemodulator, MARY_BITS)
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -86,6 +87,12 @@ class AudioNode:
             # crosses between the two readings of the same frequencies.
             'mfsk-par': (MFSKModulator(fs=FS, baud=MFSK_BAUD, parallel=True),
                          MFSKDemodulator(fs=FS, baud=MFSK_BAUD, parallel=True)),
+            # 16 tones, one sounding at a time, four bits per symbol. The
+            # chord layers divide their amplitude among five tones and lose
+            # 14 dB each; this one spends it all on the tone that carries the
+            # symbol.
+            'mary': (MaryModulator(fs=FS, baud=MFSK_BAUD),
+                     MaryDemodulator(fs=FS, baud=MFSK_BAUD)),
         }
         self.mode = 'fsk'
         self.gain = gain
@@ -141,7 +148,7 @@ class AudioNode:
 
     def set_mode(self, mode):
         if mode not in self.layers:
-            return f"modo desconhecido: {mode!r} (use 'fsk' ou 'mfsk')"
+            return f"modo desconhecido: {mode!r} (use 'fsk', 'mfsk' ou 'mary')"
         self.mode = mode
         self.mod.reset()
         self.demod.reset()
@@ -149,7 +156,9 @@ class AudioNode:
         with self.stats_lock:
             self._reset_stats()
         baud = BAUD if mode == 'fsk' else MFSK_BAUD
-        return f"modo = {mode} ({baud} baud)"
+        bits = MARY_BITS if mode == 'mary' else 1
+        return (f"modo = {mode} ({baud} baud"
+                + (f", {bits} bits por simbolo)" if bits > 1 else ")"))
 
     def _reset_stats(self):
         self.peak = 0.0
@@ -201,6 +210,20 @@ class AudioNode:
         byte stream, a block missing its tail does not decode at all.
         """
         k = len(MFSK_PAIRS)
+        if self.mode == 'mary':
+            mod = self.layers['mary'][0]
+            bits = fec.frame(data, repeat=repeat)
+            # Alternate between the two extreme tones. A preamble that repeats
+            # one symbol is a steady tone, and timing recovery learns nothing
+            # from it -- it needs transitions to lock onto.
+            pre = []
+            for i in range(120):
+                v = 0 if i % 2 else (1 << MARY_BITS) - 1
+                pre += [(v >> j) & 1 for j in range(MARY_BITS)]
+            samples = np.concatenate([mod.modulate_bits(pre),
+                                      mod.modulate_bits(list(bits)),
+                                      mod.idle(6)])
+            return (samples * self.gain).astype(np.float32)
         mod = self.layers['mfsk-par' if self.fec_parallel else 'mfsk'][0]
         bits = self.fec_bits(data)
         # The preamble alternates on every pair at once so timing recovery
@@ -419,7 +442,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   meter on|off|<seg>  medidor de nivel continuo
   level               uma leitura de nivel
   gain <0..1>         amplitude de saida
-  mode fsk|mfsk       camada fisica: fsk 1200 baud, mfsk 100 baud por razao
+  mode fsk|mfsk|mary  camada fisica: fsk 1200 baud, mfsk por razao, mary 16 tons
   squelch <valor>     limiar: squelch (fsk) ou contraste 0..1 (mfsk)
   dev in|out <n>      troca o dispositivo de audio (reinicia o stream)
   devs                lista dispositivos de audio
@@ -530,8 +553,8 @@ def execute(node, cmd):
         # meaning depending on hidden state.
         if not arg:
             return "uso: fecsend <texto>"
-        if node.mode != 'mfsk':
-            return "fecsend so no modo mfsk - rode 'mode mfsk' antes"
+        if node.mode not in ('mfsk', 'mary'):
+            return "fecsend so em mfsk ou mary - rode 'mode mfsk' antes"
         if not node.out_stream:
             return "caixa desligada - rode 'spk on' antes"
         data = arg.encode("utf-8", "replace")
