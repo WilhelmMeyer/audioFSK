@@ -1,0 +1,16 @@
+{
+  "label": "caixa-pc-mfsk",
+  "mode": "mfsk",
+  "baud": 100,
+  "fs": 48000,
+  "seed": 7903892,
+  "gain": null,
+  "device": "None",
+  "rms": 0.07026360929012299,
+  "peak": 0.36727631092071533,
+  "airtime_s": 4.0,
+  "payload_hex": "6779784a537a6142764459537043765164354c63384f3556",
+  "payload_len": 24,
+  "samples": 339968,
+  "recorded": "20260902-155410"
+}

@@ -186,6 +186,12 @@ class AudioNode:
                 # would just add a second sync byte for the parser to reject.
                 payload, raw = data
                 samples = self.mod.modulate(payload if raw else PREAMBLE + payload)
+                if self.mode == 'mfsk':
+                    # The MFSK demodulator keeps just over a symbol buffered,
+                    # so a burst that stops dead leaves its last byte stranded
+                    # there -- every send losing its tail, silently. Bell 202
+                    # needs no such tail and its modulator offers none.
+                    samples = np.concatenate([samples, self.mod.idle(4)])
                 self.out_queue.put((samples * self.gain).astype(np.float32))
                 continue
             if self.tone and self.out_queue.qsize() < TONE_DEPTH:
