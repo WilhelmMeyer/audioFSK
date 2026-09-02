@@ -405,7 +405,7 @@ class AudioNode:
         return "caixa desligada"
 
     def set_device(self, which, value):
-        dev = None if value in ("default", "none", "-") else (
+        dev = None if value.lower() in ("default", "none", "auto", "padrao", "-") else (
             int(value) if value.isdigit() else value)
         if which == "in":
             was_on = self.in_stream is not None
@@ -446,6 +446,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   mode fsk|mfsk|mary  camada fisica: fsk 1200 baud, mfsk por razao, mary 16 tons
   squelch <valor>     limiar: squelch (fsk) ou contraste 0..1 (mfsk)
   dev in|out <n>      troca o dispositivo de audio (reinicia o stream)
+  dev in|out auto     volta ao dispositivo padrao do sistema
   devs                lista dispositivos de audio
   status              estado deste lado
   ping                testa o canal serial
@@ -537,7 +538,15 @@ def execute(node, cmd):
     if verb == "dev":
         bits = arg.split()
         if len(bits) != 2 or bits[0] not in ("in", "out"):
-            return "uso: dev in <n> | dev out <n>"
+            return "uso: dev in <n>|auto | dev out <n>|auto"
+        # `auto` hands the choice back to the host audio system. A pinned
+        # index is the right thing until it is not: device numbering shifts
+        # when anything is plugged in or removed, and an index that has gone
+        # stale fails with errors that read like broken hardware -- observed,
+        # five different PortAudio errors from five indices on a machine whose
+        # audio was fine. Without this there is no way to say "use the default
+        # again" from the far end, and the only fix is someone walking over to
+        # the other machine.
         return node.set_device(bits[0], bits[1])
     if verb == "send":
         if not arg:
