@@ -75,7 +75,11 @@ class Control:
 # escaped on the wire and restored on arrival.
 
 def pack(text):
-    return text.replace("\\", "\\\\").replace("\n", "\\n")
+    # \r matters as much as \n: the reader splits on both, so a lone CR
+    # inside a reply (Windows device names carry them) would truncate it.
+    return (text.replace("\\", "\\\\")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r"))
 
 
 def unpack(text):
@@ -86,6 +90,10 @@ def unpack(text):
             nxt = text[i + 1]
             if nxt == "n":
                 out.append("\n")
+                i += 2
+                continue
+            if nxt == "r":
+                out.append("\r")
                 i += 2
                 continue
             if nxt == "\\":
