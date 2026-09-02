@@ -35,7 +35,7 @@ import fec
 import updater
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
-                   MFSKModulator, MFSKDemodulator)
+                   MFSKModulator, MFSKDemodulator, MFSK_PAIRS)
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -80,6 +80,11 @@ class AudioNode:
                     FSKDemodulator(fs=FS, baud=BAUD, squelch=squelch)),
             'mfsk': (MFSKModulator(fs=FS, baud=MFSK_BAUD),
                      MFSKDemodulator(fs=FS, baud=MFSK_BAUD)),
+            # Same tones, same timing recovery, but every pair carries its own
+            # bit. Kept as a separate instance pair so no filter or phase state
+            # crosses between the two readings of the same frequencies.
+            'mfsk-par': (MFSKModulator(fs=FS, baud=MFSK_BAUD, parallel=True),
+                         MFSKDemodulator(fs=FS, baud=MFSK_BAUD, parallel=True)),
         }
         self.mode = 'fsk'
         self.gain = gain
@@ -89,6 +94,7 @@ class AudioNode:
 
         self.tone = False
         self.echo = False
+        self.fec_parallel = False
         self.in_stream = None
         self.out_stream = None
 
@@ -176,6 +182,13 @@ class AudioNode:
 
     # --- worker threads
 
+    def fec_bits(self, data):
+        """The coded bit stream a `fecsend` would put on the air."""
+        if self.fec_parallel:
+            k = len(MFSK_PAIRS)
+            return fec.frame_parallel(data, k, repeat=FEC_REPEAT)
+        return fec.frame(data, repeat=FEC_REPEAT)
+
     def _fec_frame(self, data, repeat):
         """Alternating preamble, sync word, coded block, trailing idle.
 
@@ -185,9 +198,14 @@ class AudioNode:
         a block that stops dead strands its last symbols there -- and unlike a
         byte stream, a block missing its tail does not decode at all.
         """
-        mod = self.layers['mfsk'][0]
-        bits = fec.frame(data, repeat=repeat)
-        samples = np.concatenate([mod.modulate_bits([0, 1] * 40),
+        k = len(MFSK_PAIRS)
+        mod = self.layers['mfsk-par' if self.fec_parallel else 'mfsk'][0]
+        bits = self.fec_bits(data)
+        # The preamble alternates on every pair at once so timing recovery
+        # sees the same thing either way, and so the far side can lock before
+        # it knows anything about which pairs are working.
+        pre = [0, 1] * 40 * (k if self.fec_parallel else 1)
+        samples = np.concatenate([mod.modulate_bits(pre),
                                   mod.modulate_bits(list(bits)),
                                   mod.idle(4)])
         return (samples * self.gain).astype(np.float32)
@@ -390,6 +408,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   chirp [f0 f1 seg]   varredura de frequencia, para medir a resposta do canal
   send <texto>        transmite <texto> pelo ar
   fecsend <texto>     transmite com correcao de erro (so mfsk, ~2 B/s)
+  fecpar on|off       fec em paralelo: 5 bits por simbolo, ~4x mais rapido
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
   sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
   rx                  mostra e limpa o buffer recebido
@@ -514,9 +533,14 @@ def execute(node, cmd):
             return "caixa desligada - rode 'spk on' antes"
         data = arg.encode("utf-8", "replace")
         node.tx_bytes.put((('fec', data, FEC_REPEAT), 'raw-samples'))
-        bits = len(fec.frame(data, repeat=FEC_REPEAT))
+        bits = len(node.fec_bits(data))
         return (f"fecsend {len(data)} bytes -> {bits} simbolos "
                 f"({bits / MFSK_BAUD:.1f}s no ar)")
+    if verb == "fecpar":
+        node.fec_parallel = flag()
+        k = len(MFSK_PAIRS)
+        return (f"fec paralelo {'ON' if node.fec_parallel else 'off'} "
+                f"({k} bits por simbolo)" if node.fec_parallel else "fec paralelo off (voto)")
     if verb == "fileinfo":
         try:
             with open(arg, "rb") as fh:

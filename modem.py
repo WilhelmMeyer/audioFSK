@@ -255,7 +255,13 @@ class MFSKModulator:
     """Multi-tone FSK. One chord per bit, UART 8N1 framing as above."""
 
     def __init__(self, fs=48000, baud=100, tones_0=MFSK_TONES_0,
-                 tones_1=MFSK_TONES_1):
+                 tones_1=MFSK_TONES_1, parallel=False):
+        # parallel=False: every pair sounds the same bit and the receiver
+        # votes -- robust, one bit per symbol. parallel=True: each pair carries
+        # its own bit, so a symbol carries as many bits as there are pairs.
+        # Same symbol duration either way; the speed comes from spending the
+        # frequencies on separate bits instead of all of them on one.
+        self.parallel = parallel
         self.fs = fs
         self.baud = baud
         self.tones_0 = tuple(tones_0)
@@ -271,7 +277,12 @@ class MFSKModulator:
             self.phase[f] = 0.0
 
     def _symbol(self, bit):
-        tones = self.tones_1 if bit else self.tones_0
+        """One symbol: a single bit, or one bit per pair when parallel."""
+        if self.parallel:
+            tones = [(self.tones_1 if b else self.tones_0)[i]
+                     for i, b in enumerate(bit)]
+        else:
+            tones = self.tones_1 if bit else self.tones_0
         n = np.arange(self.samples_per_symbol)
         out = np.zeros(self.samples_per_symbol)
         for f in tones:
@@ -283,7 +294,14 @@ class MFSKModulator:
         return out / len(tones)
 
     def modulate_bits(self, bits):
-        chunks = [self._symbol(b) for b in bits]
+        if self.parallel:
+            k = len(self.tones_0)
+            bits = list(bits)
+            if len(bits) % k:                       # pad out the last symbol
+                bits += [0] * (k - len(bits) % k)
+            chunks = [self._symbol(bits[i:i + k]) for i in range(0, len(bits), k)]
+        else:
+            chunks = [self._symbol(b) for b in bits]
         return np.concatenate(chunks) if chunks else np.array([])
 
     def modulate_byte(self, byte_val):
@@ -299,7 +317,8 @@ class MFSKModulator:
     def idle(self, symbols):
         """Continuous mark. Timing recovery needs transitions, so a link-layer
         preamble should alternate rather than idle."""
-        return self.modulate_bits([1] * symbols)
+        k = len(self.tones_0) if self.parallel else 1
+        return self.modulate_bits([1] * symbols * k)
 
 
 class MFSKDemodulator:
@@ -314,13 +333,15 @@ class MFSKDemodulator:
     """
 
     def __init__(self, fs=48000, baud=100, tones_0=MFSK_TONES_0,
-                 tones_1=MFSK_TONES_1, guard=0.15, contrast_min=0.3):
+                 tones_1=MFSK_TONES_1, guard=0.15, contrast_min=0.3,
+                 parallel=False):
         self.fs = fs
         self.baud = baud
         self.tones_0 = tuple(tones_0)
         self.tones_1 = tuple(tones_1)
         self.samples_per_symbol = int(fs / baud)
         self.contrast_min = contrast_min
+        self.parallel = parallel
 
         # Skip the head of every symbol: that is where the previous symbol's
         # reverberation is still ringing. Measured, this took accuracy from
@@ -408,7 +429,8 @@ class MFSKDemodulator:
         # measured, the difference between correcting 8% of bits wrong and
         # 13%. Each pair's term is a ratio, so this stays amplitude-independent
         # like everything else in this layer.
-        llr = float(np.sum((e1 - e0) / np.maximum(e1 + e0, 1e-30)))
+        per_pair = (e1 - e0) / np.maximum(e1 + e0, 1e-30)
+        llr = per_pair if self.parallel else float(np.sum(per_pair))
 
         presence = float(np.median(win / np.maximum(lose, 1e-30)))
         if presence < MFSK_PRESENCE_MIN:
@@ -494,11 +516,15 @@ class MFSKDemodulator:
         return bytes(output)
 
     def demodulate_soft(self, samples):
-        """One log-likelihood per symbol, for the error-correcting decoder.
+        """Log-likelihoods for the error-correcting decoder.
 
-        No squelch and no framing. A weak symbol is reported as a weak
-        opinion, which is information the decoder can weigh, where dropping it
-        would silently shorten the block and misalign everything after it --
-        the very failure that framing inside a block causes.
+        One value per symbol when voting, one per pair per symbol when
+        parallel. No squelch and no framing: a weak symbol is reported as a
+        weak opinion, which the decoder can weigh, where dropping it would
+        silently shorten the block and misalign everything after it -- the
+        very failure that framing inside a block causes.
         """
-        return np.array([llr for _b, _c, llr in self._symbols(samples)])
+        vals = [llr for _b, _c, llr in self._symbols(samples)]
+        if not vals:
+            return np.zeros((0, len(self.tones_0))) if self.parallel else np.zeros(0)
+        return np.array(vals).ravel() if self.parallel else np.array(vals)

@@ -84,6 +84,9 @@ def main():
                     help="seconds to keep recording after the burst should have ended")
     ap.add_argument('--text', help="send this exact text instead of a random "
                                    "payload (for a readable demonstration)")
+    ap.add_argument('--parallel', action='store_true',
+                    help="with --fec, give each tone pair its own bit instead "
+                         "of having them all vote on one")
     ap.add_argument('--fec', action='store_true',
                     help="transmit an error-corrected block instead of a raw "
                          "byte stream")
@@ -104,6 +107,8 @@ def main():
     print(f"[capture] agent respondeu. modo={args.mode}")
     ask(ctl, f"mode {args.mode}")
     ask(ctl, "spk on")
+    if args.fec:
+        ask(ctl, f"fecpar {'on' if args.parallel else 'off'}")
     if args.gain is not None:
         ask(ctl, f"gain {args.gain}")
 
@@ -144,7 +149,11 @@ def main():
         # A FEC block is one sync word plus rate-1/3 coding repeated twice,
         # so it spends far longer on the air than its byte count suggests.
         if args.fec:
-            airtime = (31 + 80 + (len(payload) * 8 + 6) * 3 * 2) / baud
+            coded = (len(payload) * 8 + 6) * 3 * 2
+            if args.parallel:
+                airtime = (31 + 80 + coded / 5) / baud
+            else:
+                airtime = (31 + 80 + coded) / baud
         else:
             airtime = (len(payload) + 16) * 10 / baud
         duration = airtime + args.tail + 1.0
@@ -174,6 +183,7 @@ def main():
                               label=args.label or args.mode, mode=args.mode,
                               kind='fec' if args.fec else 'stream',
                               fec_repeat=2 if args.fec else 0,
+                              parallel=bool(args.fec and args.parallel),
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,
                               airtime_s=round(airtime, 2))

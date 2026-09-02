@@ -140,6 +140,80 @@ def decode_soft(llr, nbits, polys=POLYS_R12):
     return bits[:nbits]
 
 
+def pair_map(ncoded, repeat, npairs):
+    """Where each coded bit goes, when every tone pair carries its own bit.
+
+    Repetition only buys anything if the copies land somewhere different. The
+    coded length is a multiple of the pair count, so tiling the block puts
+    every copy of a bit on the *same* pair -- and a pair sitting in a null of
+    the room's comb response takes all of them down together. Measured, that
+    made repetition nearly free of benefit against reverberation: rate 1/3
+    repeated six times still failed where the voting layer succeeded at two.
+
+    So place copy r of coded bit i on pair (i + r) mod npairs. Copies land on
+    different frequencies, and because the copies are laid down pass by pass
+    they also land far apart in time. One bad pair can then cost a bit at most
+    one of its copies.
+
+    Returns one entry per transmitted slot, holding the coded-bit index that
+    slot carries, or -1 for padding.
+    """
+    cols = [[] for _ in range(npairs)]
+    for r in range(repeat):
+        for i in range(ncoded):
+            cols[(i + r) % npairs].append(i)
+    nsym = max(len(c) for c in cols)
+    order = np.full(nsym * npairs, -1, dtype=np.int64)
+    for p, col in enumerate(cols):
+        order[p:len(col) * npairs:npairs] = col
+    return order
+
+
+def frame_parallel(data, npairs, polys=POLYS_R13, repeat=1):
+    """Sync word then the coded block, laid out across the pairs."""
+    coded = encode_bits(bytes_to_bits(data), polys)
+    order = pair_map(len(coded), repeat, npairs)
+    body = np.where(order >= 0, coded[np.maximum(order, 0)], 0).astype(np.int8)
+    # The sync word goes out on every pair at once, the way the preamble does:
+    # it has to be findable before anything is known about which pairs work.
+    sync = np.repeat(SYNC, npairs)
+    return np.concatenate([sync, body])
+
+
+def decode_parallel(llr, nbytes, npairs, polys=POLYS_R13, repeat=1):
+    """Gather the copies back onto their coded bits, then decode.
+
+    Adding the copies is optimal combining -- independent observations of one
+    bit add in the log-likelihood domain -- so a copy that landed on a good
+    pair outweighs one that landed in a null without any thresholding.
+    """
+    nbits = nbytes * 8
+    ncoded = (nbits + K - 1) * len(polys)
+    order = pair_map(ncoded, repeat, npairs)
+
+    llr = np.asarray(llr, dtype=np.float64)[:len(order)]
+    if len(llr) < len(order):
+        llr = np.concatenate([llr, np.zeros(len(order) - len(llr))])
+
+    acc = np.zeros(ncoded)
+    keep = order >= 0
+    np.add.at(acc, order[keep], llr[keep])
+    return bits_to_bytes(decode_soft(acc, nbits, polys))
+
+
+def find_sync_parallel(llr, npairs, threshold=0.5):
+    """Block start when the sync word was sent on every pair at once."""
+    llr = np.asarray(llr, dtype=np.float64)
+    want = np.repeat(2.0 * SYNC - 1.0, npairs)
+    if len(llr) < len(want):
+        return None
+    scores = np.correlate(np.sign(llr), want, mode='valid') / len(want)
+    best = int(np.argmax(scores))
+    if scores[best] < threshold:
+        return None
+    return best + len(want)
+
+
 def interleave_index(n, depth):
     """Block interleaver as a permutation, so both directions share one map.
 
