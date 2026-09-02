@@ -69,6 +69,9 @@ def main():
                    help="pacotes com correcao de erro em vez do fluxo 8N1")
     p.add_argument("--mode", choices=("mfsk", "mary"), default="mfsk",
                    help="camada fisica; mary = 16 tons, 4 bits por simbolo")
+    p.add_argument("--repeat", type=int, default=1,
+                   help="repeticoes de cada bit codificado; tem de bater com o "
+                        "que a outra maquina usa, ou nada decodifica")
     p.add_argument("--packet-size", type=int, default=xfer.PAYLOAD_SIZE,
                    help="bytes de carga por pacote; maior amortiza o preambulo")
     p.add_argument("--retries", type=int, default=4, help="tentativas por pacote")
@@ -80,7 +83,15 @@ def main():
         print("outra maquina nao responde no canal serial.", file=sys.stderr)
         return 1
 
-    for setup in (f"mode {args.mode}", "spk on", f"gain {args.gain}", "mic off"):
+    # fecrep has to be sent, not assumed. The far side keeps its own value and
+    # a mismatch is undetectable at the decoder: it produces garbage that
+    # fails the CRC, which reads exactly like a bad channel. Observed -- the
+    # sender coding at repeat 2 against a receiver assuming 1, every packet
+    # retried to exhaustion on a link that was working.
+    setups = [f"mode {args.mode}", "spk on", f"gain {args.gain}", "mic off"]
+    if args.fec:
+        setups.append(f"fecrep {args.repeat}")
+    for setup in setups:
         print(f"  remoto: {setup:16s} -> {rem.cmd(setup)}")
 
     info = rem.cmd(f"fileinfo {args.remote_file}")
@@ -103,7 +114,7 @@ def main():
         # is paid once per packet, which is why a bigger packet is cheaper per
         # byte -- 28% of the air time at 32 bytes, 19% at 64.
         bits_per_symbol = MARY_BITS if args.mode == "mary" else 1
-        coded = len(fec.frame(b"x" * packet_bytes, repeat=1))
+        coded = len(fec.frame(b"x" * packet_bytes, repeat=args.repeat))
         per_packet = (120 + coded / bits_per_symbol + 6) / MFSK_BAUD
     else:
         per_packet = xfer.air_seconds(packet_bytes, MFSK_BAUD)
@@ -145,8 +156,14 @@ def main():
             for attempt in range(1, args.retries + 1):
                 demod.reset()
                 buf = bytearray()
-                while not blocks.empty():             # drop audio captured
-                    blocks.get_nowait()               # while we were parsing
+                # Drain before the request, never after: the far side starts
+                # playing the moment it is asked, so audio arriving during the
+                # serial round trip is already the head of the burst. Draining
+                # afterwards throws the preamble away, and without a preamble
+                # there is no symbol clock to lock -- every packet then fails
+                # on a link that is working.
+                while not blocks.empty():
+                    blocks.get_nowait()
 
                 if args.fec:
                     reply = rem.cmd(f"fecpkt {args.remote_file} {seq} {args.packet_size}")
@@ -166,10 +183,16 @@ def main():
                     except queue.Empty:
                         continue
                     if args.fec:
-                        # A coded block cannot be parsed as it arrives: the
-                        # decoder needs the whole thing before any of it means
-                        # anything, so collect first and decode at the end.
-                        soft.append(demod.demodulate_soft(data))
+                        # Keep the raw audio and demodulate after the window
+                        # closes. Demodulating inside this loop cannot keep up
+                        # with real time -- soft demodulation plus Viterbi is
+                        # slower than the audio arrives -- so the capture queue
+                        # falls further behind on every packet. Observed: the
+                        # first packet decoded and every one after it was read
+                        # from audio belonging to earlier packets, 37 seconds
+                        # of it inside a 9 second window. Nothing about the
+                        # link was wrong.
+                        soft.append(data)
                         continue
                     buf += demod.demodulate(data)
                     got = xfer.parse(buf, want_seq=seq)
@@ -183,10 +206,11 @@ def main():
                               f"({len(buf)} bytes brutos)")
 
                 if args.fec:
-                    llr = np.concatenate(soft) if soft else np.zeros(0)
+                    audio = np.concatenate(soft) if soft else np.zeros(0)
+                    llr = demod.demodulate_soft(audio)
                     start = fec.find_sync(llr)
                     if start is not None:
-                        block = fec.decode(llr[start:], packet_bytes, repeat=1)
+                        block = fec.decode(llr[start:], packet_bytes, repeat=args.repeat)
                         got = xfer.parse(block, want_seq=seq)
                     buf = llr
 
