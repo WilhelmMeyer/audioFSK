@@ -215,8 +215,40 @@ class FSKDemodulator:
 # evidence for the wrong symbol. Within one chord it is harmless -- it
 # reinforces the right answer. Both chords carry the same mean frequency, so a
 # tilted channel attenuates them equally.
-MFSK_TONES_0 = (1150, 2150, 2550)
-MFSK_TONES_1 = (1400, 1650, 2800)
+# The tones come in *pairs*, and each pair is one vote. Both members of a
+# pair sit 200 Hz apart, so whatever the channel does to one it does to the
+# other, and the comparison between them survives tilt, distance and volume.
+# Five pairs vote; the majority is the bit. That is what makes a lone loud
+# tone harmless: summing energy lets one strong spurious tone outweigh five
+# modest correct ones, but it can only ever carry one vote. Measured on a real
+# link, summing gave a chord twice the energy of its rival and 27% of bytes
+# right; a vote cannot be bought that way.
+#
+# Polarity alternates along the band -- on pairs 0, 2 and 4 the lower tone
+# means 0, on pairs 1 and 3 it means 1 -- so both chords end up with the same
+# mean frequency (1620 vs 1660 Hz) and a tilted channel favours neither bit.
+MFSK_PAIRS = (
+    # (tone for bit 0, tone for bit 1)
+    (700, 900),
+    (1320, 1120),
+    (1540, 1740),
+    (2160, 1960),
+    (2380, 2580),
+)
+
+MFSK_TONES_0 = tuple(p[0] for p in MFSK_PAIRS)
+MFSK_TONES_1 = tuple(p[1] for p in MFSK_PAIRS)
+
+# A vote is a ratio, so five tones of pure noise still elect a bit --
+# confidently, and forever. Observed: 485 bytes decoded out of an empty room.
+# So a vote is not enough on its own; the demodulator also has to know whether
+# anything was transmitted at all, and the reference for that is already in
+# hand. Each pair's losing tone is a frequency nobody sent: with a signal the
+# winner towers over it, with noise alone the two are the same size. No extra
+# probe frequencies needed -- and none would fit anyway, since the gaps
+# between pairs are only 220 Hz wide and a probe placed there would pick up
+# the very tones it is meant to ignore.
+MFSK_PRESENCE_MIN = 1.3   # winner/loser energy ratio, median across pairs
 
 
 class MFSKModulator:
@@ -299,6 +331,15 @@ class MFSKDemodulator:
         self.probe_0 = np.exp(-2j * np.pi * np.outer(self.tones_0, n) / fs)
         self.probe_1 = np.exp(-2j * np.pi * np.outer(self.tones_1, n) / fs)
 
+        # No per-tone equaliser here. One was tried -- divide each tone by a
+        # running average of its own energy, to stop a tone sitting on a room
+        # resonance from carrying a permanently louder vote. It cost the
+        # reverberant cases outright: the average absorbs the previous
+        # symbol's decaying tail and starts treating it as that tone's normal
+        # level. Pairing already does the job it was meant to do, and does it
+        # without memory -- the two tones of a pair are 200 Hz apart, so a
+        # resonance that lifts one lifts the other.
+
         # Early/late gate geometry. The on-time window starts `delta` into the
         # buffer, leaving margin on each side to look earlier and later.
         self.delta = max(1, self.samples_per_symbol // 8)
@@ -318,24 +359,42 @@ class MFSKDemodulator:
         self.contrast = 0.0
 
     def _score(self, start):
-        """Bit and contrast for the symbol window beginning at `start`.
+        """Bit and vote margin for the symbol window beginning at `start`.
 
-        Each tone is divided by its own running average before the chords are
-        summed. Without that, the decision is only as balanced as the channel:
-        measured on a real link, one chord arrived with twice the total energy
-        of the other -- 227 against 114 across the six tones -- and the
-        detector called almost everything the louder symbol, 27% of bytes
-        right. Frequency diversity is supposed to make a tone in a null cost
-        accuracy rather than the symbol, and it only does that if a loud tone
-        cannot outvote the rest by being loud.
+        Five pairs of tones, one vote each: within a pair the two frequencies
+        are 200 Hz apart, so the channel treats them alike and whichever
+        arrives stronger names the bit. The majority wins.
+
+        Summing the chords instead -- what this did before -- lets amplitude
+        buy the answer. Measured on a real link, one chord arrived with twice
+        the energy of the other, 227 against 114, and the detector called
+        almost everything the louder symbol: 27% of bytes right. Under a vote
+        a tone that is loud for the wrong reason still carries one vote, and
+        four others outrank it. That is the whole point of sounding five
+        frequencies at once, and summing threw it away.
         """
         seg = self.buf[start + self.guard:start + self.samples_per_symbol]
-        e0 = float(np.sum(np.abs(self.probe_0 @ seg) ** 2))
-        e1 = float(np.sum(np.abs(self.probe_1 @ seg) ** 2))
-        total = e0 + e1
-        if total <= 0.0:
+        e0 = np.abs(self.probe_0 @ seg) ** 2
+        e1 = np.abs(self.probe_1 @ seg) ** 2
+        if not np.any(e0) and not np.any(e1):
             return 1, 0.0
-        return (1 if e1 > e0 else 0), abs(e1 - e0) / total
+
+        votes = e1 > e0
+        ones = int(np.count_nonzero(votes))
+        bit = 1 if ones * 2 > len(votes) else 0
+        margin = abs(2 * ones - len(votes)) / len(votes)
+
+        # Did anyone actually transmit? Each pair's losing tone is a frequency
+        # that was not sent, so the winner/loser ratio separates a real symbol
+        # from a room decoding its own noise. The median ignores the pair that
+        # happened to land in a null.
+        win = np.where(votes, e1, e0)
+        lose = np.where(votes, e0, e1)
+        presence = float(np.median(win / np.maximum(lose, 1e-30)))
+        if presence < MFSK_PRESENCE_MIN:
+            return bit, 0.0
+
+        return bit, margin
 
     def _feed_bit(self, bit, output):
         """UART 8N1 on the recovered bit stream, the same framing the Bell 202
