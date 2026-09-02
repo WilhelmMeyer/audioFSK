@@ -22,6 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
+import fec
 import recording
 from modem import FSKDemodulator, MFSKDemodulator
 from scoring import score
@@ -64,6 +65,22 @@ VARIANTS = [
 ]
 
 
+def run_fec(meta, samples, nbytes, repeat):
+    """Soft-decode an error-corrected capture: sync, then Viterbi.
+
+    Returns the payload or b'' -- a FEC block either decodes or it does not,
+    so there is no partial result to score generously. That is the point of
+    it: the 8N1 path hands back plausible-looking garbage.
+    """
+    d = MFSKDemodulator(fs=meta['fs'], baud=meta['baud'])
+    llr = np.concatenate([d.demodulate_soft(samples[i:i + BLOCK])
+                          for i in range(0, len(samples), BLOCK)])
+    start = fec.find_sync(llr)
+    if start is None:
+        return b''
+    return fec.decode(llr[start:], nbytes, repeat=repeat)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -82,6 +99,17 @@ def main():
     totals = {v[0]: [] for v in variants}
 
     for samples, payload, meta in captures:
+        if meta.get('kind') == 'chirp':
+            continue
+        if meta.get('kind') == 'fec':
+            got = run_fec(meta, samples, len(payload), meta.get('fec_repeat', 2))
+            ok = got == payload
+            hits = sum(a == b for a, b in zip(got, payload))
+            print(f"\n{meta['recorded']}  {meta.get('label','')}  FEC  {len(payload)}B  "
+                  f"rms={meta.get('rms',0):.4f}")
+            print(f"  {'viterbi soft':<20}  {'OK, bloco inteiro' if ok else f'falhou ({hits}/{len(payload)} bytes)'}")
+            totals.setdefault('viterbi soft', []).append(100.0 if ok else 0.0)
+            continue
         print(f"\n{meta['recorded']}  {meta.get('label','')}  modo={meta['mode']} "
               f"{len(payload)}B  rms={meta.get('rms',0):.4f} pico={meta.get('peak',0):.3f}")
         for name, mode, factory in variants:

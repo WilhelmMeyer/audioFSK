@@ -31,6 +31,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import fec
 import updater
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
@@ -43,6 +44,7 @@ BLOCK = 2048
 PREAMBLE = bytes([0x55] * 10 + [0xFF])
 
 MFSK_BAUD = 100       # multi-tone layer: slower, but amplitude-independent
+FEC_REPEAT = 2        # rate 1/3 x2: holds to 25% of bits wrong, measured
 
 TONE_CHUNK = 32       # bytes of 0x55 per modulated chunk, ~0.27 s
 TONE_DEPTH = 4        # keep ~1 s of tone buffered, no more
@@ -174,6 +176,22 @@ class AudioNode:
 
     # --- worker threads
 
+    def _fec_frame(self, data, repeat):
+        """Alternating preamble, sync word, coded block, trailing idle.
+
+        The preamble alternates because timing recovery needs transitions and
+        learns nothing from a run of identical symbols. The idle tail is not
+        optional either: the demodulator keeps just over a symbol buffered, so
+        a block that stops dead strands its last symbols there -- and unlike a
+        byte stream, a block missing its tail does not decode at all.
+        """
+        mod = self.layers['mfsk'][0]
+        bits = fec.frame(data, repeat=repeat)
+        samples = np.concatenate([mod.modulate_bits([0, 1] * 40),
+                                  mod.modulate_bits(list(bits)),
+                                  mod.idle(4)])
+        return (samples * self.gain).astype(np.float32)
+
     def _chirp(self, f0, f1, secs):
         """Linear sweep, amplitude-flat, with short fades at each end.
 
@@ -205,7 +223,10 @@ class AudioNode:
                 # would just add a second sync byte for the parser to reject.
                 payload, raw = data
                 if raw == 'raw-samples':
-                    self.out_queue.put(self._chirp(*payload[1:]))
+                    if payload[0] == 'fec':
+                        self.out_queue.put(self._fec_frame(*payload[1:]))
+                    else:
+                        self.out_queue.put(self._chirp(*payload[1:]))
                     continue
                 samples = self.mod.modulate(payload if raw else PREAMBLE + payload)
                 if self.mode == 'mfsk':
@@ -368,6 +389,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   tone on|off         portadora continua 0x55 (precisa da caixa ligada)
   chirp [f0 f1 seg]   varredura de frequencia, para medir a resposta do canal
   send <texto>        transmite <texto> pelo ar
+  fecsend <texto>     transmite com correcao de erro (so mfsk, ~2 B/s)
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
   sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
   rx                  mostra e limpa o buffer recebido
@@ -478,6 +500,23 @@ def execute(node, cmd):
             return "caixa desligada - rode 'spk on' antes"
         node.tx_bytes.put((arg.encode("utf-8", "replace"), False))
         return f"enviando {len(arg)} bytes"
+    if verb == "fecsend":
+        # The error-corrected path, deliberately a separate verb rather than a
+        # mode: it produces a block, not a byte stream, so it does not compose
+        # with `tone`, `echo` or anything else that assumes bytes trickling
+        # out. Keeping it explicit means a `send` never silently changes
+        # meaning depending on hidden state.
+        if not arg:
+            return "uso: fecsend <texto>"
+        if node.mode != 'mfsk':
+            return "fecsend so no modo mfsk - rode 'mode mfsk' antes"
+        if not node.out_stream:
+            return "caixa desligada - rode 'spk on' antes"
+        data = arg.encode("utf-8", "replace")
+        node.tx_bytes.put((('fec', data, FEC_REPEAT), 'raw-samples'))
+        bits = len(fec.frame(data, repeat=FEC_REPEAT))
+        return (f"fecsend {len(data)} bytes -> {bits} simbolos "
+                f"({bits / MFSK_BAUD:.1f}s no ar)")
     if verb == "fileinfo":
         try:
             with open(arg, "rb") as fh:

@@ -82,6 +82,9 @@ def main():
     ap.add_argument('--trials', type=int, default=1)
     ap.add_argument('--tail', type=float, default=2.0,
                     help="seconds to keep recording after the burst should have ended")
+    ap.add_argument('--fec', action='store_true',
+                    help="transmit an error-corrected block instead of a raw "
+                         "byte stream")
     ap.add_argument('--chirp', nargs='?', const='300 22000 4', metavar='"f0 f1 s"',
                     help="record a frequency sweep instead of a payload, to "
                          "measure what the link does to each frequency")
@@ -135,7 +138,12 @@ def main():
     for trial in range(1, args.trials + 1):
         seed = args.seed if args.seed is not None else int(time.time() * 1000) & 0xFFFFFF
         payload = make_text_payload(seed, args.bytes)
-        airtime = (args.bytes + 16) * 10 / baud
+        # A FEC block is one sync word plus rate-1/3 coding repeated twice,
+        # so it spends far longer on the air than its byte count suggests.
+        if args.fec:
+            airtime = (31 + 80 + (args.bytes * 8 + 6) * 3 * 2) / baud
+        else:
+            airtime = (args.bytes + 16) * 10 / baud
         duration = airtime + args.tail + 1.0
 
         with sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
@@ -143,8 +151,9 @@ def main():
             for _ in range(3):          # let the device settle before it counts
                 stream.read(BLOCK)
 
-            reply = ask(ctl, "send " + payload.decode())
-            if reply is None or 'enviando' not in reply:
+            verb = "fecsend" if args.fec else "send"
+            reply = ask(ctl, f"{verb} " + payload.decode())
+            if reply is None or ('enviando' not in reply and 'fecsend' not in reply):
                 print(f"[capture] a outra maquina recusou o envio: {reply!r}")
                 break
             t0 = time.time()
@@ -160,6 +169,8 @@ def main():
 
         stem = recording.save(args.out, samples, payload,
                               label=args.label or args.mode, mode=args.mode,
+                              kind='fec' if args.fec else 'stream',
+                              fec_repeat=2 if args.fec else 0,
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,
                               airtime_s=round(airtime, 2))
