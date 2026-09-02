@@ -59,6 +59,12 @@ A polaridade alterna ao longo da banda (nos pares 0, 2 e 4 o tom grave significa
 
 ### M-ária — 16 tons, um por vez
 
+Na literatura em inglês isto é *M-ary FSK*; em português, **modulação M-ária**,
+formada como binário, ternário e quaternário. No código o modo se chama `mary`
+e as classes são `MaryModulator`/`MaryDemodulator` — o nome do identificador,
+não do conceito, e ele também está gravado como `"mode": "mary"` nos JSON do
+acervo, então renomear quebraria a leitura das gravações.
+
 Dezesseis tons entre 888 e 3325 Hz, **exatamente um soando por vez**, e qual deles é nomeia quatro bits. Codificação Gray, porque tons vizinhos são os que o canal confunde e assim a confusão custa um bit em vez de até quatro.
 
 **Por que ela ganha: potência.** Um acorde de cinco tons precisa ser dividido por cinco para caber na mesma amplitude de pico, então cada tom sai do alto-falante 14 dB abaixo. Foi isso que produziu os 2 a 7 dB de contraste medidos entre um tom transmitido e o mesmo tom quando não era transmitido — e daí os 15 a 30% de erro por par. Um tom por vez recupera esses 14 dB inteiros, e isso apareceu direto no microfone: o `rms` recebido pulou de 0,07–0,09 dos acordes para 0,13–0,15.
