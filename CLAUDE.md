@@ -36,7 +36,7 @@ Interpreter is the venv, not system Python:
 ./venv/bin/python linktest.py --role tx --port COM4 --trials 5   # other machine
 
 # interactive remote control of both machines' audio (see console.py)
-./venv/bin/python console.py --role agent   --port /dev/ttyUSB0  # headless side
+./venv/bin/python -u console.py --role agent --port /dev/ttyUSB0 # headless side; -u matters, see below
 ./agent.sh                                                       # same, supervised
 ./venv/bin/python console.py --role console --port COM4          # side with the keyboard
 ./venv/bin/pip install -r requirements.txt
@@ -107,6 +107,8 @@ stdout/PTY <── rx_byte_queue <── [demodulator thread] <── rx_audio_q
 **`pull` follows `updater.DEFAULT_REF` (`origin/main`), never the branch's own tracking ref.** Deriving the default from `@{u}` looks tidier and is a trap: a follower left on an old feature branch resolves it to whatever that branch tracks and hard-resets *backwards*, deleting the files currently serving the link. Observed — it removed `console.py` and took the serial channel down with it. Pass `pull <ref>` for anything else.
 
 **A pull that cannot run must undo itself, because nothing else can.** `updater._broken()` compiles `console.py`, `serial_link.py`, `modem.py`, and `updater.py` after the reset; if any fails, the pull reverts to the previous commit and reports the error over the wire. `request_restart` refuses for the same reason. The asymmetry is the point: on this machine the serial channel is the only way in, and it is made of the same files being replaced — so once a restart lands on code that will not import, the process dies and takes with it the channel that would have carried the fix. Compiling is not proof the code is correct, only proof the machine will still answer.
+
+**Run the agent side with `-u`.** Its output usually goes to a file or a pipe rather than a terminal, and there Python switches from line buffering to block buffering: the log stays empty for minutes and reads exactly like a process that never started. `agent.sh` passes it. This is the same failure the next entry describes, arriving by a different route.
 
 **`updater.restart` execs with `sys.orig_argv`, not `sys.argv`.** `sys.argv` drops the interpreter's own flags, so a process started as `python -u console.py` came back fully buffered and its log went silent — indistinguishable from a restart that never happened.
 

@@ -24,7 +24,12 @@ fast_failures=0
 while true; do
     echo "[agent.sh] $(date '+%H:%M:%S') iniciando em $PORT"
     started=$SECONDS
-    ./venv/bin/python console.py --role agent --port "$PORT" "${@:2}"
+    # -u is not cosmetic here. This side is headless, so its output usually
+    # goes to a file or a pipe, and there Python switches from line buffering
+    # to block buffering: the log stays empty for minutes and reads exactly
+    # like a process that never started. That misdiagnosis has already cost
+    # this project an afternoon.
+    ./venv/bin/python -u console.py --role agent --port "$PORT" "${@:2}"
     code=$?
     ran=$((SECONDS - started))
 

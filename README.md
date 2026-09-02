@@ -201,9 +201,18 @@ O cabo serial é canal de controle **fora de banda**. Ele nunca carrega dados: c
 Lado sem teclado:
 
 ```bash
-./venv/bin/python console.py --role agent --port /dev/ttyUSB0
+./venv/bin/python -u console.py --role agent --port /dev/ttyUSB0
 ./agent.sh    # o mesmo, supervisionado: reinicia depois de um crash
 ```
+
+O `-u` importa neste lado. Num terminal, Python usa buffer de linha e você vê
+tudo na hora — mas se a saída for para arquivo ou pipe (que é o normal numa
+máquina sem ninguém), ele passa a buffer de bloco e o log fica mudo por
+minutos. Um log mudo é **indistinguível de um processo que não subiu**, e essa
+confusão já custou uma tarde aqui. O `agent.sh` já passa `-u`. Pelo mesmo
+motivo, `updater.restart` re-executa com `sys.orig_argv` e não `sys.argv`:
+`sys.argv` descarta as flags do interpretador, então um `restart` devolveria o
+processo sem o `-u` que ele tinha.
 
 Lado com o teclado (REPL):
 
