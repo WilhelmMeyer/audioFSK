@@ -382,7 +382,18 @@ class MFSKDemodulator:
         votes = e1 > e0
         ones = int(np.count_nonzero(votes))
         bit = 1 if ones * 2 > len(votes) else 0
-        margin = abs(2 * ones - len(votes)) / len(votes)
+
+        # The vote decides the bit; it must not also steer the clock. A tally
+        # of five is quantised -- the margin can only be 0.2, 0.6 or 1.0 --
+        # and the early/late gate needs to tell "almost centred" from
+        # "centred", which three values cannot express. Measured: with the
+        # tally steering, symbol timing never locked on a real capture and
+        # recovery sat at 6%; brute-forcing the correct offset on the same
+        # audio gave 87-94% of bits right, so the votes were never the
+        # problem. Steer on the per-pair contrast instead, which is
+        # continuous, and let it stay a ratio so it means the same at any
+        # volume.
+        contrast = float(np.mean(np.abs(e1 - e0) / np.maximum(e1 + e0, 1e-30)))
 
         # Did anyone actually transmit? Each pair's losing tone is a frequency
         # that was not sent, so the winner/loser ratio separates a real symbol
@@ -394,7 +405,7 @@ class MFSKDemodulator:
         if presence < MFSK_PRESENCE_MIN:
             return bit, 0.0
 
-        return bit, margin
+        return bit, contrast
 
     def _feed_bit(self, bit, output):
         """UART 8N1 on the recovered bit stream, the same framing the Bell 202
