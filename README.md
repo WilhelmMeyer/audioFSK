@@ -211,14 +211,18 @@ Lado sem teclado:
 ./agent.sh    # o mesmo, supervisionado: reinicia depois de um crash
 ```
 
-O `-u` importa neste lado. Num terminal, Python usa buffer de linha e você vê
-tudo na hora — mas se a saída for para arquivo ou pipe (que é o normal numa
-máquina sem ninguém), ele passa a buffer de bloco e o log fica mudo por
-minutos. Um log mudo é **indistinguível de um processo que não subiu**, e essa
-confusão já custou uma tarde aqui. O `agent.sh` já passa `-u`. Pelo mesmo
-motivo, `updater.restart` re-executa com `sys.orig_argv` e não `sys.argv`:
-`sys.argv` descarta as flags do interpretador, então um `restart` devolveria o
-processo sem o `-u` que ele tinha.
+**Use `-u` sempre que a saída não for direto para o terminal.** Num terminal,
+Python usa buffer de linha e você vê tudo na hora; redirecionado para arquivo
+ou pipe, ele passa a buffer de bloco e a saída fica muda por minutos. Isso vale
+para qualquer coisa demorada aqui — o agent, o `recvfile.py`, o `capture.py` —
+e o estrago não é estético: **saída muda é indistinguível de um processo que
+não subiu**. Custou uma tarde neste projeto, duas vezes, uma delas
+diagnosticada como "o `restart` remoto falhou" quando ele tinha funcionado.
+
+O `agent.sh` já passa `-u`. Pelo mesmo motivo, `updater.restart` re-executa com
+`sys.orig_argv` e não `sys.argv`: `sys.argv` descarta as flags do
+interpretador, então um `restart` devolveria o processo sem o `-u` que ele
+tinha.
 
 Lado com o teclado (REPL):
 
@@ -268,16 +272,18 @@ Um índice de dispositivo fixo é a coisa certa até deixar de ser. A numeraçã
 ARQ pare-e-espere dirigido inteiramente pela ponta receptora. A outra máquina fica sem estado: mandam nela `fecpkt <arquivo> <n>` e ela toca aquele pacote, nada mais. Este lado decide o que pedir e quando pedir de novo, e é isso que faz um pacote perdido custar uma retransmissão em vez do arquivo todo.
 
 ```bash
-./venv/bin/python recvfile.py --port /dev/ttyUSB0 \
+./venv/bin/python -u recvfile.py --port /dev/ttyUSB0 \
     --remote-file testcard.bmp --out recebida.bmp \
-    --fec --mode mary --gain 0.5 --packet-size 64 --repeat 1 --retries 3
+    --fec --mode mary --packet-size 64 --repeat 1 --retries 3
 ```
 
 **`--repeat` tem de bater com o que a outra máquina usa.** O `recvfile.py` manda `fecrep` no setup justamente por isso — um decodificador não tem como detectar essa incompatibilidade, ele só produz lixo que falha no CRC, indistinguível de canal ruim.
 
 **`--packet-size` importa mais do que parece.** Cada pacote paga o próprio preâmbulo para o receptor travar o relógio de símbolo, e esse preâmbulo dura 1,2 s: 28% do tempo no ar com pacotes de 32 bytes, 19% com 64, 12% com 128. Para a mesma imagem de 1334 bytes isso é 3,0 minutos contra 1,8.
 
-O `--gain` padrão do `recvfile.py` é 0,35, herdado da era MFSK. Para M-ária passe `--gain 0.5`.
+O `--gain` padrão é 0,5, que é o que a M-ária mede melhor — veja a seção sobre
+ganho acima. Era 0,35, herdado da era MFSK, e foi trocado quando a medição
+mostrou que aquele valor não serve para um tom sozinho em amplitude cheia.
 
 ## A porta serial aceita um dono só
 

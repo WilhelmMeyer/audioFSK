@@ -48,7 +48,7 @@ Interpreter is the venv, not system Python:
 ./venv/bin/python channel.py captures/<stem>.json --bins 76   # measured frequency response
 
 # pull a file across the link, stop-and-wait ARQ driven from this end
-./venv/bin/python recvfile.py --port /dev/ttyUSB0 --remote-file testcard.bmp --out got.bmp \
+./venv/bin/python -u recvfile.py --port /dev/ttyUSB0 --remote-file testcard.bmp --out got.bmp \
     --fec --mode mary --gain 0.5 --packet-size 64 --repeat 1
 ```
 
@@ -108,7 +108,7 @@ stdout/PTY <── rx_byte_queue <── [demodulator thread] <── rx_audio_q
 
 **A pull that cannot run must undo itself, because nothing else can.** `updater._broken()` compiles `console.py`, `serial_link.py`, `modem.py`, and `updater.py` after the reset; if any fails, the pull reverts to the previous commit and reports the error over the wire. `request_restart` refuses for the same reason. The asymmetry is the point: on this machine the serial channel is the only way in, and it is made of the same files being replaced — so once a restart lands on code that will not import, the process dies and takes with it the channel that would have carried the fix. Compiling is not proof the code is correct, only proof the machine will still answer.
 
-**Run the agent side with `-u`.** Its output usually goes to a file or a pipe rather than a terminal, and there Python switches from line buffering to block buffering: the log stays empty for minutes and reads exactly like a process that never started. `agent.sh` passes it. This is the same failure the next entry describes, arriving by a different route.
+**Run anything long with `-u` when its output is redirected.** To a terminal Python line-buffers and all is well; to a file or a pipe it switches to block buffering and the output stays empty for minutes. That applies to the agent, to `recvfile.py` and to `capture.py`, and the damage is not cosmetic: **silent output is indistinguishable from a process that never started**. It has cost this project an afternoon twice, once diagnosed as a failed remote `restart` that had in fact succeeded. `agent.sh` passes it. This is the same failure the next entry describes, arriving by a different route.
 
 **`updater.restart` execs with `sys.orig_argv`, not `sys.argv`.** `sys.argv` drops the interpreter's own flags, so a process started as `python -u console.py` came back fully buffered and its log went silent — indistinguishable from a restart that never happened.
 
