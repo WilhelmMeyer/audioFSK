@@ -82,6 +82,9 @@ def main():
     ap.add_argument('--trials', type=int, default=1)
     ap.add_argument('--tail', type=float, default=2.0,
                     help="seconds to keep recording after the burst should have ended")
+    ap.add_argument('--chirp', nargs='?', const='300 22000 4', metavar='"f0 f1 s"',
+                    help="record a frequency sweep instead of a payload, to "
+                         "measure what the link does to each frequency")
     ap.add_argument('--out', default='captures')
     ap.add_argument('--label', default='', help="goes in the filename; name the setup")
     args = ap.parse_args()
@@ -102,6 +105,32 @@ def main():
     # 10 bits per byte framed, plus the console's 11-byte preamble and the
     # modulator's idle tail. Generous rather than tight: a truncated capture
     # is worthless, and disk is free.
+    if args.chirp:
+        f0, f1, secs = (float(x) for x in args.chirp.split())
+        with sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
+                            device=args.device) as stream:
+            for _ in range(3):
+                stream.read(BLOCK)
+            reply = ask(ctl, f"chirp {f0:.0f} {f1:.0f} {secs}")
+            if reply is None or 'chirp' not in reply:
+                sys.exit(f"[capture] a outra maquina recusou o chirp: {reply!r}")
+            t0 = time.time()
+            chunks = []
+            while time.time() - t0 < secs + 2.0:
+                data, _ = stream.read(BLOCK)
+                chunks.append(data[:, 0].copy())
+        samples = np.concatenate(chunks)
+        stem = recording.save(args.out, samples, b'', kind='chirp',
+                              label=args.label or 'chirp', mode=args.mode,
+                              baud=0, fs=FS, chirp=[f0, f1, secs],
+                              gain=args.gain, device=str(args.device),
+                              rms=float(np.sqrt(np.mean(np.square(samples)))),
+                              peak=float(np.max(np.abs(samples))))
+        print(f"[capture] {stem.name}  {len(samples)/FS:.1f}s")
+        ctl.close()
+        print(f"[capture] agora: ./venv/bin/python channel.py {stem.with_suffix('.json')}")
+        return
+
     baud = 100 if args.mode == 'mfsk' else 1200
     for trial in range(1, args.trials + 1):
         seed = args.seed if args.seed is not None else int(time.time() * 1000) & 0xFFFFFF

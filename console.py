@@ -174,6 +174,25 @@ class AudioNode:
 
     # --- worker threads
 
+    def _chirp(self, f0, f1, secs):
+        """Linear sweep, amplitude-flat, with short fades at each end.
+
+        Flat in amplitude so the recording measures the channel and not the
+        sweep. The fades are not cosmetic: a sinusoid that starts and stops at
+        full amplitude is a step, and a step is broadband -- it would paint
+        energy across the whole spectrum being measured.
+        """
+        n = int(secs * FS)
+        t = np.arange(n) / FS
+        k = (f1 - f0) / secs
+        sig = np.sin(2 * np.pi * (f0 * t + 0.5 * k * t * t))
+        fade = int(0.01 * FS)
+        if n > 2 * fade:
+            ramp = np.linspace(0.0, 1.0, fade)
+            sig[:fade] *= ramp
+            sig[-fade:] *= ramp[::-1]
+        return (sig * self.gain).astype(np.float32)
+
     def _feeder(self):
         while True:
             try:
@@ -185,6 +204,9 @@ class AudioNode:
                 # xfer.build does; prefixing the console's preamble as well
                 # would just add a second sync byte for the parser to reject.
                 payload, raw = data
+                if raw == 'raw-samples':
+                    self.out_queue.put(self._chirp(*payload[1:]))
+                    continue
                 samples = self.mod.modulate(payload if raw else PREAMBLE + payload)
                 if self.mode == 'mfsk':
                     # The MFSK demodulator keeps just over a symbol buffered,
@@ -344,6 +366,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   mic on|off          liga/desliga o microfone
   spk on|off          liga/desliga a caixa de som
   tone on|off         portadora continua 0x55 (precisa da caixa ligada)
+  chirp [f0 f1 seg]   varredura de frequencia, para medir a resposta do canal
   send <texto>        transmite <texto> pelo ar
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
   sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
@@ -395,6 +418,26 @@ def execute(node, cmd):
             return "caixa desligada - rode 'spk on' antes"
         node.tone = on
         return f"tone {'ON' if on else 'off'}"
+    if verb == "chirp":
+        # A measurement, not a modulation: everything else in this table sends
+        # bytes and asks what came back, which confounds the code with the
+        # channel. A sweep asks only what the room, the speaker and the
+        # microphone do to each frequency -- the answer that should have been
+        # chosen tone frequencies in the first place, instead of a band
+        # assumed from theory.
+        if not node.out_stream:
+            return "caixa desligada - rode 'spk on' antes"
+        bits = arg.split()
+        try:
+            f0 = float(bits[0]) if len(bits) > 0 else 300.0
+            f1 = float(bits[1]) if len(bits) > 1 else 22000.0
+            secs = float(bits[2]) if len(bits) > 2 else 4.0
+        except ValueError:
+            return "uso: chirp [f0 f1 segundos]"
+        f1 = min(f1, FS / 2 - 500)
+        secs = max(0.5, min(secs, 20.0))
+        node.tx_bytes.put((('chirp', f0, f1, secs), 'raw-samples'))
+        return f"chirp {f0:.0f}-{f1:.0f} Hz em {secs:.1f}s"
     if verb == "echo":
         node.echo = flag()
         return f"echo {'ON' if node.echo else 'off'}"
