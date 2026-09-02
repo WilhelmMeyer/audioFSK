@@ -195,23 +195,50 @@ def decode_parallel(llr, nbytes, npairs, polys=POLYS_R13, repeat=1):
     if len(llr) < len(order):
         llr = np.concatenate([llr, np.zeros(len(order) - len(llr))])
 
+    # Centring and scaling each pair before combining was tried here and
+    # dropped: it decoded the same five captures out of nine, centred, scaled
+    # or raw. It is not that a pair stuck in a null does no harm -- it is that
+    # the repetition map already keeps any one pair from carrying more than
+    # one copy of a bit, so its confident wrong answer is outnumbered by
+    # construction rather than by weighting. The same normalisation *is* worth
+    # it in find_sync_parallel, where the pairs all carry one bit and nothing
+    # outnumbers anything.
     acc = np.zeros(ncoded)
     keep = order >= 0
     np.add.at(acc, order[keep], llr[keep])
     return bits_to_bytes(decode_soft(acc, nbits, polys))
 
 
-def find_sync_parallel(llr, npairs, threshold=0.5):
-    """Block start when the sync word was sent on every pair at once."""
+def find_sync_parallel(llr, npairs, threshold=0.35):
+    """Block start when the sync word was sent on every pair at once.
+
+    The sync word is the one part of a parallel block where all the pairs
+    carry the same bit, so it is read by voting -- average the pairs first,
+    then correlate one value per symbol. Matching position by position
+    instead fails on this channel: a pair sitting in a null answers the same
+    way regardless of what was sent, and two such pairs are enough to hold the
+    score under any useful threshold. Measured on recorded audio, that missed
+    the sync word in eight captures out of nine, which looked exactly like a
+    decoder too weak for the channel and was not.
+
+    Each pair is centred first. Over a scrambled block a pair's soft values
+    average to zero, so whatever offset remains is the channel leaning on that
+    frequency, not information.
+    """
     llr = np.asarray(llr, dtype=np.float64)
-    want = np.repeat(2.0 * SYNC - 1.0, npairs)
-    if len(llr) < len(want):
+    nsym = len(llr) // npairs
+    if nsym < len(SYNC):
         return None
-    scores = np.correlate(np.sign(llr), want, mode='valid') / len(want)
+    m = llr[:nsym * npairs].reshape(nsym, npairs)
+    m = m - m.mean(axis=0)
+    per_symbol = m.mean(axis=1)
+
+    want = 2.0 * SYNC - 1.0
+    scores = np.correlate(np.sign(per_symbol), want, mode='valid') / len(SYNC)
     best = int(np.argmax(scores))
     if scores[best] < threshold:
         return None
-    return best + len(want)
+    return (best + len(SYNC)) * npairs
 
 
 def interleave_index(n, depth):
