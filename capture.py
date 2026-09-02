@@ -82,6 +82,8 @@ def main():
     ap.add_argument('--trials', type=int, default=1)
     ap.add_argument('--tail', type=float, default=2.0,
                     help="seconds to keep recording after the burst should have ended")
+    ap.add_argument('--text', help="send this exact text instead of a random "
+                                   "payload (for a readable demonstration)")
     ap.add_argument('--fec', action='store_true',
                     help="transmit an error-corrected block instead of a raw "
                          "byte stream")
@@ -137,13 +139,14 @@ def main():
     baud = 100 if args.mode == 'mfsk' else 1200
     for trial in range(1, args.trials + 1):
         seed = args.seed if args.seed is not None else int(time.time() * 1000) & 0xFFFFFF
-        payload = make_text_payload(seed, args.bytes)
+        payload = (args.text.encode() if args.text
+                   else make_text_payload(seed, args.bytes))
         # A FEC block is one sync word plus rate-1/3 coding repeated twice,
         # so it spends far longer on the air than its byte count suggests.
         if args.fec:
-            airtime = (31 + 80 + (args.bytes * 8 + 6) * 3 * 2) / baud
+            airtime = (31 + 80 + (len(payload) * 8 + 6) * 3 * 2) / baud
         else:
-            airtime = (args.bytes + 16) * 10 / baud
+            airtime = (len(payload) + 16) * 10 / baud
         duration = airtime + args.tail + 1.0
 
         with sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
