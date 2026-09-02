@@ -432,7 +432,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   tone on|off         portadora continua 0x55 (precisa da caixa ligada)
   chirp [f0 f1 seg]   varredura de frequencia, para medir a resposta do canal
   send <texto>        transmite <texto> pelo ar
-  fecsend <texto>     transmite com correcao de erro (so mfsk, ~2 B/s)
+  fecsend <texto>     transmite com correcao de erro (mfsk ~2 B/s, mary ~9 B/s)
   fecpar on|off       fec em paralelo: 5 bits por simbolo, ~4x mais rapido
   fecrep <n>          repeticoes de cada bit codificado (padrao 2)
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
@@ -444,7 +444,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   level               uma leitura de nivel
   gain <0..1>         amplitude de saida
   mode fsk|mfsk|mary  camada fisica: fsk 1200 baud, mfsk por razao, mary 16 tons
-  squelch <valor>     limiar: squelch (fsk) ou contraste 0..1 (mfsk)
+  squelch <valor>     limiar: squelch (fsk) ou contraste 0..1 (mfsk e mary)
   dev in|out <n>      troca o dispositivo de audio (reinicia o stream)
   dev in|out auto     volta ao dispositivo padrao do sistema
   devs                lista dispositivos de audio

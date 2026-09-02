@@ -4,7 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Acoustic FSK modem. Bell 202 tones (mark 1200 Hz, space 2200 Hz), 1200 baud, UART 8N1 framing. Sends bytes as sound over the soundcard and recovers them on the other side. Exposes the acoustic channel as a virtual serial device.
+Acoustic modem. Sends bytes as sound over the soundcard and recovers them on the other side, and exposes the acoustic channel as a virtual serial device.
+
+It started as Bell 202 alone (mark 1200 Hz, space 2200 Hz, 1200 baud, UART 8N1) and now carries **three physical layers plus an error-correcting layer**, because Bell 202 never delivered a message over the real acoustic link. Which one to use is a measured question, not a preference:
+
+| layer | rate | measured on the air |
+|---|---|---|
+| Bell 202, 1200 baud | 120 B/s on paper | never delivered a message |
+| MFSK voted + FEC, 100 baud | ~1.8 B/s | 4 of 4 blocks whole |
+| MFSK parallel + FEC | ~5.9 B/s | 5 of 9 blocks |
+| **M-ary 16 tones + FEC, gain 0.5** | **~9.4 B/s** | **9 of 11 blocks** |
+
+Whole-file transfer does not work yet: 1 packet of 21 with 81-byte packets, where 24-58 byte blocks decoded 9 of 11 over the same link.
 
 This is a git repository.
 
@@ -30,11 +41,18 @@ Interpreter is the venv, not system Python:
 ./venv/bin/python console.py --role console --port COM4          # side with the keyboard
 ./venv/bin/pip install -r requirements.txt
 
-./venv/bin/python capture.py --port /dev/ttyUSB0 --mode mfsk --label caixa-pc  # record the far side transmitting a known payload
-./venv/bin/python bench.py             # score demodulator variants against saved recordings, offline
+# record the far side transmitting a known payload, then score demodulators offline
+./venv/bin/python capture.py --port /dev/ttyUSB0 --mode mary --fec --gain 0.5 --trials 3 --label o-que-mudou
+./venv/bin/python capture.py --port /dev/ttyUSB0 --chirp "400 4200 10" --label varredura
+./venv/bin/python bench.py                                    # scores captures/
+./venv/bin/python channel.py captures/<stem>.json --bins 76   # measured frequency response
+
+# pull a file across the link, stop-and-wait ARQ driven from this end
+./venv/bin/python recvfile.py --port /dev/ttyUSB0 --remote-file testcard.bmp --out got.bmp \
+    --fec --mode mary --gain 0.5 --packet-size 64 --repeat 1
 ```
 
-`loopback_test.py` covers both physical layers, and judges MFSK against the impairments actually measured on the two-machine link (a −16 dB high-frequency tilt, the output limiter's envelope, 80 ms reverberation) rather than generic AWGN. It is the whole test suite — one script, no framework, prints `SUCCESS!`/`FAILED`. There is no lint or build step.
+`loopback_test.py` covers the Bell 202 and MFSK layers, and judges MFSK against the impairments actually measured on the two-machine link (a −16 dB high-frequency tilt, the output limiter's envelope, 80 ms reverberation) rather than generic AWGN. It is the whole test suite — one script, no framework, prints `SUCCESS!`/`FAILED`. There is no lint or build step.
 
 Needs PortAudio at the system level (`libportaudio2`) only for `app.py`. `loopback_test.py` runs without it.
 
@@ -53,6 +71,10 @@ Two layers, deliberately separated:
 - **`bench.py` — offline.** Scores demodulator variants against the recordings. No audio device, no serial. Adding an idea means adding one entry to its `VARIANTS` list.
 - **`recording.py` — disk only.** The on-disk format for a capture: a 32-bit float WAV plus a JSON sidecar sharing a stem. Same layering rule as `modem.py`: no device, no port.
 - **`scoring.py` — payload generation and alignment-tolerant scoring**, factored out of `linktest.py` so the offline bench scores a capture exactly the way the live test scores the wire. If these drifted, a gain measured on recordings would not mean the same thing on the link.
+- **`fec.py` — error correction, no I/O and no state.** Convolutional K=7 with a soft-decision Viterbi decoder, interleaving, repetition, and the sync word. Same layering rule as `modem.py`: bits and log-likelihoods in, bytes out.
+- **`channel.py` — offline.** Turns a `--chirp` capture into a usable-frequency map. Disk only, like `recording.py`.
+- **`xfer.py` — packets: split, build, parse, CRC.** Above the modem, below the tools. `recvfile.py` and `console.py` both use it.
+- **`recvfile.py` — runtime.** Pulls a file with stop-and-wait ARQ driven entirely from the receiving end; the far side stays stateless and only answers `sendpkt`/`fecpkt`. Owns serial and audio, so the console must be stopped first.
 
 Data flow:
 
@@ -90,7 +112,15 @@ stdout/PTY <── rx_byte_queue <── [demodulator thread] <── rx_audio_q
 
 **A `pull` never restarts by itself.** Re-exec drops both audio streams, so a pull landing mid-measurement would silently undo the levels the far side just dialed in. `pull` sets `updater.pending_restart` (only when a `.py` actually changed) and says so; the far side sends `restart` when it is ready. Both loops act on that flag *after* the reply is already on the wire — exec never returns, so restarting any earlier would leave the far side timing out on a command that in fact succeeded. `shutdown()` must close the serial port before the exec: file descriptors survive the image swap, and the replacement process would find its own port busy.
 
-**There are two physical layers in `modem.py`, and they fail differently.** `FSKModulator`/`FSKDemodulator` is Bell 202 at 1200 baud, deciding bits by the *sign* of a delay-and-multiply discriminator — fast, but any channel that weakens one tone relative to the other biases every decision the same way. `MFSKModulator`/`MFSKDemodulator` is multi-tone at 100 baud: five tones sound at once for each bit, and the bit is decided by a vote. Scaling the signal scales both sides, so gain drops out entirely: measured, it decodes identically from ×2 down to ×0.001, on the same tilt where the Bell 202 path loses the whole payload. Twelve times slower, and worth it whenever amplitude cannot be trusted. `console.py mode fsk|mfsk` switches; each layer keeps its own instances so no filter or phase state crosses over.
+**There are three physical layers in `modem.py`, and they fail differently.** `FSKModulator`/`FSKDemodulator` is Bell 202 at 1200 baud, deciding bits by the *sign* of a delay-and-multiply discriminator — fast, but any channel that weakens one tone relative to the other biases every decision the same way. `MFSKModulator`/`MFSKDemodulator` is multi-tone at 100 baud: five tones sound at once for each bit, and the bit is decided by a vote. Scaling the signal scales both sides, so gain drops out entirely: measured, it decodes identically from ×2 down to ×0.001, on the same tilt where the Bell 202 path loses the whole payload. Twelve times slower, and worth it whenever amplitude cannot be trusted. `MaryModulator`/`MaryDemodulator` is the third: 16 tones, exactly one sounding at a time, four bits per symbol. `console.py mode fsk|mfsk|mary` switches; each layer keeps its own instances so no filter or phase state crosses over.
+
+**The M-ary layer exists for power, and that is the largest lever measured here.** A chord of five tones has to be divided by five to stay inside the same peak amplitude, so every tone leaves the speaker 14 dB down — which is why a transmitted tone arrived only 2 to 7 dB above the same frequency when it was *not* transmitted, and why per-pair error sat at 15-30%. One tone at a time gets that back: received rms went from 0.07-0.09 on the chord layers to 0.14 on the same link, and it is the fastest and most reliable path measured on the air.
+
+**M-ary divides each tone by its own running floor before comparing, and here that is sound.** A tone parked in a null of the room's comb response can never win a comparison. With 16 tones each is silent 15 symbols out of 16, so its long-run average energy *is* the noise floor at that frequency — the estimate is not contaminated by the signal it exists to measure, which is exactly what went wrong when the same idea was tried on the chord layers. `_update_floor` also leaves the winning tone out of each update, for the same reason. Neighbouring tones are Gray-coded so the confusion the channel actually makes costs one bit, not four.
+
+**M-ary is the layer that reverberation hurts most, and the guard interval does not save it.** The previous symbol's tone competes directly with the current one instead of fading both chords together: at 80 ms of simulated tail a third of symbols land wrong, and widening the guard from 0.15 to 0.60 changes nothing — the tone is lingering, not the window straddling a boundary. This matters less than it reads, because the real link has *no* measurable reverberation (see below); the 80 ms case is a property of `loopback_test.py`, not of the room.
+
+**Transmit gain is layer-dependent, and getting it wrong looks like a broken channel.** M-ary puts one tone at full amplitude where a five-tone chord put one fifth, so the far side's output limiter clips it. Measured, same payload and same link: gain 0.8 recovered 5 blocks of 15, gain 0.5 recovered 4 of 4, gain 0.25 recovered 2 of 4. Use `gain 0.5` in `mary`. The symptom of the wrong gain is blocks failing at random with received peak ≥ 0.8, with no relation to block size — which is easy to misread as timing drift, and was.
 
 **MFSK votes, it does not sum.** The ten tones are five pairs (constant `MFSK_PAIRS`), each pair 200 Hz apart so the channel treats both members alike; each pair casts one vote for whichever of its two tones arrived stronger, and the majority is the bit. Summing the two chords' total energy instead — which is what the code did before — lets amplitude buy the answer: measured on a real link, one chord arrived with twice the energy of the other and the detector called almost everything the louder symbol, 27% of bytes right. Under a vote, a tone that is loud for the wrong reason still carries exactly one vote and the other four outrank it. Sounding five frequencies at once exists for this; summing threw it away.
 
@@ -106,16 +136,46 @@ stdout/PTY <── rx_byte_queue <── [demodulator thread] <── rx_audio_q
 
 **MFSK needs an alternating preamble and a trailing idle; neither is optional.** Timing recovery is an early/late gate steered by decision contrast, which peaks when the window sits inside one symbol — so it needs *transitions* to lock onto, and a preamble that idles at mark teaches it nothing. At the other end the demodulator keeps just over a symbol buffered, so a burst that stops dead strands its last byte there. `MFSKModulator.idle()` supplies the tail, and `console.py`'s transmit feeder appends `idle(4)` after an MFSK burst for this reason — without it every `send` in MFSK mode silently lost its final byte. The guard interval (35% of each symbol, skipped before measuring) is what makes reverberation survivable: measured, it took accuracy from 76.5% to 100% on a channel with an 80 ms tail.
 
-**`squelch` means a different quantity in each layer.** Bell 202 gates on absolute baseband amplitude (~0.005); MFSK gates on `contrast_min`, a ratio in 0–1 (~0.15). They are not interchangeable — setting 0.005 as a contrast threshold is barely a gate at all. `AudioNode.threshold()` routes the console's one `squelch` command to whichever the active mode uses.
+**`squelch` means a different quantity in each layer.** Bell 202 gates on absolute baseband amplitude (~0.005); MFSK and M-ary gate on `contrast_min`, a ratio in 0–1 (~0.15). They are not interchangeable — setting 0.005 as a contrast threshold is barely a gate at all. `AudioNode.threshold()` routes the console's one `squelch` command to whichever the active mode uses.
 
 **Throughput measured on a continuous `0x55` tone overstates the link.** Framed 8N1, `0x55` is `0` `10101010` `1` — a perfectly periodic square wave at half the baud rate. The start-bit detector looks for a falling edge, and every symbol boundary offers one, so it can lock onto the wrong edge and still produce plausible bytes. Measured over a real acoustic link: a steady tone decoded at up to 100 B/s (of 120 theoretical) while the received bytes alternated between `0x55` and `0x75` — one bit off, the signature of framing on the wrong edge. The same link recovered nothing from an actual message. A periodic signal also reaches acoustic steady state, so it survives room reverberation that smears aperiodic data. Grade a link with `linktest.py` and its random payload; treat tone throughput as "carrier arrives", nothing more.
 
 **`AudioNode.level()` resets its window, and must keep doing so.** It reports the interval since the previous reading, not since the process started. With the accumulators left running the reading is a lifetime average over a peak that never decays, so a tone that stopped seconds ago still reads −25 dBFS and three different microphones return byte-identical numbers. A meter that cannot fall is worse than no meter: it reports a healthy level while you are chasing silence.
 
+**Bits have to be repairable where they land; a CRC only reports the damage.** The link delivers 10-25% of its bits wrong, so almost every block is ruined and retransmission has nothing to fall back on. `fec.py` is convolutional K=7 with soft-decision Viterbi. Measured on 64-byte blocks against simulated bit errors: rate 1/2 hard fails past 8%; rate 1/2 soft holds to 8%; rate 1/3 soft is whole to 13% and 90% at 16%; rate 1/3 repeated twice is whole to 25% and 90% at 30%. Two of those columns cost nothing — soft decision is a number the demodulator already computed and used to throw away, and it alone moves the tolerable error rate from 8% to 13%.
+
+**A coded block carries a 31-bit m-sequence sync word, and it is found by correlation, never by counting symbols.** The early/late gate consumes a different number of samples per symbol as it steers, so the block start drifts over a preamble, and a block beginning one bit late decodes to nothing. Observed: reverberant cases recovered 1 byte of 24 with a counted offset and all 24 with a correlated sync.
+
+**In parallel MFSK the sync word is read by voting, not position by position.** It is the one part of a parallel block where every pair carries the same bit, so average the pairs and correlate one value per symbol. Matching position by position asks every pair to agree, and a pair sitting in a null answers the same way whatever was sent — two such pairs hold the score under any useful threshold. Observed: eight parallel captures out of nine never found their sync word, which read exactly like a decoder too weak for the channel and was not.
+
+**Repetition only buys anything if the copies land on different pairs.** The coded length is a multiple of the pair count, so tiling the block puts every copy of a bit on the *same* pair, and one pair in a null takes all of them down together — rate 1/3 repeated six times still failed where voting succeeded at two. `fec.pair_map` places copy r of coded bit i on pair (i + r) mod npairs. With that, repetition of two clears the same reverberation.
+
+**Parallelism does not create robustness; it creates a dial.** What protects a bit is the number of independent observations of it. Voting at repetition 2 gives ten per bit and spends six symbols; parallel at repetition 10 gives ten per bit and spends the same six. The gain is being able to spend *less* redundancy on a channel with margin — not free reliability. `fecpar on` and `fecrep <n>` are the two knobs, and `fecrep` in particular is a property of the link, not of the code.
+
+**`fecrep` must be sent to the far side, never assumed.** A mismatch is undetectable at the decoder: it produces garbage that fails the CRC, which reads exactly like a bad channel. Observed — the sender coding at repeat 2 against a receiver assuming 1, every packet retried to exhaustion on a link that was working. `recvfile.py` sends it during setup for this reason.
+
+**`MaryDemodulator.demodulate_soft` returns four values per symbol, not one.** Four bits per symbol means four log-likelihoods. A length in that array is not a count of symbols, and reading it as one makes a normal 9-second window look like 37 seconds of backlogged audio — which was diagnosed, wrongly, as a starved capture queue.
+
+**Drain the capture queue before the request goes out, never after.** The far side starts playing the moment it is asked, so audio arriving during the serial round trip is already the head of the burst. Draining afterwards throws the preamble away, and with no preamble there is no symbol clock to lock: every packet then fails on a link that is working.
+
+**The measured channel, which supersedes anything assumed about it.** Band 550-3500 Hz is usable. Above 4 kHz SNR collapses (12 dB at 4000, 8 dB at 4500, ~0 at 5000) and above 6 kHz it is negative, with the level pinned at the noise floor — so **ultrasound is not viable on this hardware**; the argument for it is right (rooms are quiet up there) and the transducers simply do not reach. The response is a *comb*, not a curve: at 50 Hz resolution neighbouring bins differ by 13-18 dB, and two of the original ten MFSK tones sat in nulls and voted like coins. And there is **no measurable reverberation** — the tail after a burst does not decay, it stops at the noise floor. Re-measure with `capture.py --chirp` plus `channel.py` before choosing any frequency.
+
+**A pinned audio device index rots, and the failure reads like broken hardware.** Numbering shifts when anything is plugged in or removed. Observed on a machine whose audio was fine: five indices gave `Invalid device`, `Device unavailable`, `Invalid sample rate` and a `DirectSound error` — four *different* errors, which is the tell, since a genuinely wrong device fails the same way every time. `dev out auto` hands the choice back to the host and fixed it. Ask whether the far machine plays any sound at all before suspecting the code.
+
+**`os.execv` does not mean the same thing on Windows.** On POSIX it replaces the process image and the PID survives; on Windows the C runtime spawns a new process, terminates the caller, and the replacement loses its console — so the agent went silent on `restart` and never answered again, twice, reading exactly like a pull that landed on code that would not import. `updater.restart` spawns explicitly and exits there, after a pause for the serial port to actually come free.
+
+**`pack` escapes CR as well as LF.** The line reader splits on both, so a bare carriage return in a reply truncated it and discarded the rest silently. Windows device names carry CRs, so `devs` from that side stopped mid-list at exactly the entry being looked for.
+
+**`loopback_test.py` cannot see a timing-acquisition regression.** Its frame opens with a bit-level alternating preamble that hands the gate a lock before the payload starts, so symbol timing never has to be *acquired*. A change that broke acquisition outright — recovery on the real link fell to 6% while brute-forcing the correct offset over the same audio gave 87-94% of bits right — passed the suite without complaint. Anything touching timing must also be scored against `captures/`.
+
+**With few recordings, byte recovery is a noisy way to choose a parameter.** Neighbouring settings scored 8% and 22% with no trend, purely from which blocks happened to land. To decide a fine adjustment, measure *bit* accuracy at a brute-forced alignment, which is stable, or record far more.
+
 **Recordings exist because judging an idea by transmitting it measures the idea and the room at once, and the room does not hold still** — two runs of identical code disagree. A recording is a fixed channel, so ten variants in `bench.py`'s `VARIANTS` list can be scored against the same seconds of real reverberation and the numbers are comparable. It also drops the cost of testing a one-line change from a two-machine round trip to seconds.
 
 **Preamble (`0x55 × 10 + 0xFF`) lives in `app.py`, not `modem.py`.** It's a link-layer concern. Any future framing, CRC, or ARQ belongs at that same level — above the modem, not inside it.
 
-**There is no error detection.** UART framing was chosen so the modem behaves as a dumb serial line and can be plugged into `/dev/pts/N` for the existing serial ecosystem. A corrupted byte arrives corrupted. The preamble is also not stripped on RX — stdio mode does a crude filter (`b < 128 and b != 0xff`), PTY mode passes everything raw.
+**The 8N1 path still has no error detection, and that is deliberate.** UART framing was chosen so the modem behaves as a dumb serial line and can be plugged into `/dev/pts/N` for the existing serial ecosystem. On that path a corrupted byte arrives corrupted, and the preamble is not stripped on RX either — stdio mode does a crude filter (`b < 128 and b != 0xff`), PTY mode passes everything raw. Error detection and correction live *above* it, in `xfer.py` (CRC, packets) and `fec.py` (correction), reached through `fecsend`/`fecpkt` and `recvfile.py --fec`. Do not push either down into `modem.py`.
+
+**Dropping 8N1 framing inside a coded block removes a failure mode rather than mitigating it.** Under 8N1 a single corrupted start or stop bit shifts every byte after it, so one bad bit destroys the remainder. A fixed-length block has nothing to shift. This is a large part of why the coded path works where the byte-stream path never did.
 
 `pyserial` is in `requirements.txt` but nothing in the project imports it.

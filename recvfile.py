@@ -64,7 +64,12 @@ def main():
     p.add_argument("--remote-file", required=True, help="caminho do arquivo na outra maquina")
     p.add_argument("--out", required=True, help="onde gravar deste lado")
     p.add_argument("--device", type=int, default=None, help="indice do dispositivo de entrada")
-    p.add_argument("--gain", type=float, default=0.35, help="ganho de saida da outra maquina")
+    # 0.5, not the 0.35 inherited from the MFSK era: M-ary puts one tone at
+    # full amplitude where a five-tone chord put one fifth, so it reaches the
+    # far side's output limiter first. Measured, same payload and link: 0.8
+    # recovered 5 blocks of 15, 0.5 recovered 4 of 4, 0.25 recovered 2 of 4.
+    p.add_argument("--gain", type=float, default=0.5,
+                   help="ganho de saida da outra maquina (0.5 mede melhor em mary)")
     p.add_argument("--fec", action="store_true",
                    help="pacotes com correcao de erro em vez do fluxo 8N1")
     p.add_argument("--mode", choices=("mfsk", "mary"), default="mfsk",
@@ -106,7 +111,21 @@ def main():
 
     # fileinfo reports packets at the default size; recompute for ours.
     npackets = -(-size // args.packet_size)
-    packet_bytes = len(xfer.build(0, b"x" * args.packet_size))
+
+    def packet_len(seq):
+        """Bytes on the air for packet `seq`, which the last one does not share.
+
+        The final packet carries the remainder, so it is shorter than all the
+        others -- 71 bytes against 81 for a 1334-byte file in 64-byte pieces.
+        A coded block is decoded against a length the receiver states up front,
+        so assuming the common length makes the last packet undecodable no
+        matter how cleanly it arrived.
+        """
+        last = seq == npackets - 1
+        payload = (size - (npackets - 1) * args.packet_size) if last else args.packet_size
+        return len(xfer.build(seq, b"x" * max(payload, 0)))
+
+    packet_bytes = packet_len(0)
 
     if args.fec:
         # A coded block is one sync word, the rate-1/3 code repeated, plus the
@@ -210,7 +229,8 @@ def main():
                     llr = demod.demodulate_soft(audio)
                     start = fec.find_sync(llr)
                     if start is not None:
-                        block = fec.decode(llr[start:], packet_bytes, repeat=args.repeat)
+                        block = fec.decode(llr[start:], packet_len(seq),
+                                           repeat=args.repeat)
                         got = xfer.parse(block, want_seq=seq)
                     buf = llr
 
