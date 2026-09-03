@@ -15,7 +15,7 @@
 # quem diz qual e este teste.
 set -u
 PY=./venv/bin/python
-A2B="$PY -u capture_a2b.py --port /dev/ttyUSB0 --out-device 20"
+A2B="$PY -u capture_a2b.py --port /dev/ttyUSB0 --out-device 20 --serial-only"
 GAIN=1.0        # o melhor dos quatro em bits, e o mais alto em nivel; ver 08
 
 run () {

@@ -38,6 +38,13 @@ from pathlib import Path
 # A capture is about 1 MB as int16 and 2 MB as float. 64 MB is far above
 # anything this project records and far below anything that would fill a disk
 # by accident.
+# A fixed port, not an ephemeral one. Ephemeral is tidier -- nothing to
+# reserve, nothing left behind by a run that died holding it -- and it is the
+# wrong trade the moment a firewall is in the way: a rule has to name a port,
+# and a port that changes every run cannot be named. Measured here, `ufw` on
+# the receiving machine drops inbound silently, which reads as a timeout and is
+# indistinguishable from the access point isolating its clients.
+DEFAULT_PORT = 8765
 MAX_BYTES = 64 * 1024 * 1024
 SAFE_NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$')
 
@@ -112,12 +119,13 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 class Receiver:
     """An HTTP endpoint that accepts files into one directory, briefly.
 
-    Port 0 on purpose: the kernel picks a free one and the URL travels over
-    the serial cable, so nothing has to be reserved, agreed in advance, or
-    cleaned up if a previous run died holding it.
+    The port is fixed (see DEFAULT_PORT) so that a firewall rule can name it
+    once; pass `port=0` to let the kernel pick a free one when nothing is
+    filtering. The URL still travels over the serial cable either way, so the
+    address itself never has to be agreed in advance.
     """
 
-    def __init__(self, directory, host=None, port=0):
+    def __init__(self, directory, host=None, port=DEFAULT_PORT):
         self.directory = str(directory)
         self.received = []
         handler = type('_H', (_Handler,),

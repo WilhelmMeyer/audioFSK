@@ -13,7 +13,12 @@ GAIN="${1:?uso: run_a2b_rest.sh <ganho-mary>}"
 PY=./venv/bin/python
 PORT=/dev/ttyUSB0
 OUTDEV=20
-A2B="$PY -u capture_a2b.py --port $PORT --out-device $OUTDEV"
+# `--serial-only` porque a rede nao passou: as duas maquinas ficam na mesma
+# sub-rede e nao se alcancam, o que sobrou como ponto de acesso isolando
+# clientes depois que a regra de ufw foi aberta. Sem isto cada trial gasta
+# alguns segundos provando uma rota que nao existe -- e sao ~50 trials.
+# Tire a opcao quando `rede <url>` responder `pong` da outra ponta.
+A2B="$PY -u capture_a2b.py --port $PORT --out-device $OUTDEV --serial-only"
 
 run () {
   local dir="$1"; shift

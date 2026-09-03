@@ -70,6 +70,22 @@ class Control:
         while self.poll() is not None:
             pass
 
+    def set_baud(self, baud):
+        """Change the line rate on the open port, both directions at once.
+
+        pyserial reprograms the UART in place, so the file descriptor and the
+        reader thread survive. Anything already buffered was clocked at the old
+        rate and is meaningless at the new one, so it goes.
+        """
+        with self._write_lock:
+            try:
+                self.ser.flush()
+            except Exception:
+                pass
+            self.ser.baudrate = int(baud)
+        self.drain()
+        return self.ser.baudrate
+
     def close(self):
         self._stop = True
         try:
