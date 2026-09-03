@@ -281,6 +281,39 @@ def legend(width, entries, scale=2, pad=8):
     return strip
 
 
+def draw_grid(img, start, sps, tone_frac, hop, win, cols, rows):
+    """Faint dashed verticals where each symbol is expected to begin and end.
+
+    Without them the eye has no ruler: a mark drawn slightly left of where it
+    belongs looks like a mark, not like a mark that is late. With the grid the
+    timing error reads directly off the picture -- which is the whole reason
+    this measurement was worth taking.
+
+    Dashed rather than solid, and dim rather than bright, because the grid is
+    the reference and not the finding. A solid line across a heat map competes
+    with the data for attention and wins.
+    """
+    k = 0
+    while True:
+        p = start + k * sps
+        c = int((p - win // 2) / hop)
+        if c >= cols:
+            break
+        k += 1
+        if c < 0:
+            continue
+        for y in range(0, rows, 6):          # o tracejado
+            img[y:y + 3, c] = np.maximum(img[y:y + 3, c], (78, 78, 96))
+        if tone_frac >= 1.0:
+            continue
+        # Where the tone is meant to stop and the transmitted gap begins.
+        ce = int((p + tone_frac * sps - win // 2) / hop)
+        if 0 <= ce < cols:
+            for y in range(3, rows, 6):
+                img[y:y + 2, ce] = np.maximum(img[y:y + 2, ce], (58, 58, 72))
+    return img
+
+
 def blended(measured, ideal, decided):
     """Everything on one picture, the overlays added rather than blended.
 
@@ -379,14 +412,20 @@ def main():
                                  args.cols, args.rows, win, len(samples),
                                  want_mask=True)
         if args.fundido:
-            tiles = [(blended(measured, ideal, dec_mask),
+            hop = max(1, (len(samples) - win) // max(args.cols - 1, 1))
+            fused = blended(measured, ideal, dec_mask)
+            fused = draw_grid(fused[::-1], start, sps, tone_frac, hop, win,
+                              args.cols, args.rows)[::-1]
+            tiles = [(fused,
                       'fundido: vermelho=ideal, verde=interpretado, '
-                      'amarelo=os dois, cinza=espectro real')]
+                      'amarelo=os dois, cinza=espectro real, '
+                      'tracejado=grade de simbolo esperada')]
             legend_strip = legend(args.cols, [
                 ((235, 40, 40), "IDEAL"),
                 ((40, 235, 40), "LIDO"),
                 ((235, 235, 40), "AMBOS"),
                 ((120, 120, 120), "ESPECTRO"),
+                ((110, 110, 135), "PASSO"),
             ])
         else:
             tiles.append(((over * 255).astype(np.uint8), 'sobreposto'))
