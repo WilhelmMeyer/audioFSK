@@ -96,6 +96,14 @@ def main():
     setups = [f"mode {args.mode}", "spk on", f"gain {args.gain}", "mic off"]
     if args.fec:
         setups.append(f"fecrep {args.repeat}")
+        # And for the same reason, off rather than unmentioned. `fecpkt` goes
+        # through the same `_fec_frame` as `fecsend`, so a far side left with
+        # `syncsweep on` would put 80 ms of swept tone at each end of every
+        # packet -- which this receiver does not look for, and which lands
+        # where the first preamble symbols should be. Sending it explicitly
+        # costs one serial round trip at setup and removes a failure that
+        # would read as a channel that got worse.
+        setups.append("syncsweep off")
     for setup in setups:
         print(f"  remoto: {setup:16s} -> {rem.cmd(setup)}")
 

@@ -153,10 +153,7 @@ def tx_tone_indices(payload, repeat):
     instead of decorative -- it is the actual transmitted sequence, not an
     illustration of one.
     """
-    pre = []
-    for i in range(120):
-        v = 0 if i % 2 else (1 << MARY_BITS) - 1
-        pre += [(v >> j) & 1 for j in range(MARY_BITS)]
+    pre = fec.preamble_bits('mary', symbol_bits=MARY_BITS)
     bits = list(pre) + list(fec.frame(payload, repeat=repeat))
     return [_GRAY[sum(int(b) << j for j, b in enumerate(bits[i:i + MARY_BITS]))]
             for i in range(0, len(bits) - (MARY_BITS - 1), MARY_BITS)]

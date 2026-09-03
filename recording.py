@@ -53,13 +53,19 @@ def save(directory, samples, payload, **meta):
     directory.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
     label = meta.get('label') or meta.get('mode') or 'capture'
+    # A dot in the label is not a file extension. `with_suffix` cannot tell
+    # the difference and silently ate one: a capture labelled `g0.4` was
+    # written as `...-g0.wav`, so the gain it was recorded at -- the whole
+    # point of the label -- vanished from the name, and `g0.4` and `g0.2`
+    # collided. Build the names by concatenation instead.
     stem = directory / f"{stamp}-{label}"
 
-    stem.with_suffix('.wav').write_bytes(_wav_bytes(samples, meta.get('fs', FS)))
+    stem.with_name(stem.name + '.wav').write_bytes(
+        _wav_bytes(samples, meta.get('fs', FS)))
     info = dict(meta)
     info.update(payload_hex=payload.hex(), payload_len=len(payload),
                 samples=len(samples), recorded=stamp)
-    stem.with_suffix('.json').write_text(json.dumps(info, indent=2) + "\n")
+    stem.with_name(stem.name + '.json').write_text(json.dumps(info, indent=2) + "\n")
     return stem
 
 
@@ -68,7 +74,8 @@ def load(json_path):
     json_path = Path(json_path)
     meta = json.loads(json_path.read_text())
     payload = bytes.fromhex(meta['payload_hex'])
-    return _read_wav(json_path.with_suffix('.wav')), payload, meta
+    wav = json_path.with_name(json_path.name[:-len('.json')] + '.wav')
+    return _read_wav(wav), payload, meta
 
 
 def load_all(directory):

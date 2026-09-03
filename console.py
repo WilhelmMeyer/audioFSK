@@ -36,7 +36,8 @@ import updater
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
-                   MaryModulator, MaryDemodulator, MARY_BITS)
+                   MaryModulator, MaryDemodulator, MARY_BITS,
+                   chirp, find_chirp, find_chirp_pair, SYNC_CHIRP)
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -51,6 +52,24 @@ MARY_BAND = 0.0       # Hz either side of each tone to include in its energy
 MARY_CHORD = False    # a nibble as three tones instead of one
 MFSK_GROUPED = False  # low five tones mean 0, high five mean 1
                       # (a floor, not a law -- `fecrep` moves it per link)
+
+# A swept tone at each end of an M-ary coded frame, so the receiver acquires
+# the symbol clock instead of converging on it. Measured over eight recordings
+# of the same link: the early/late gate recovered 5 blocks of 8, the leading
+# sweep alone 8 of 8, both sweeps with the period measured 8 of 8 at 89.0% of
+# bits against an oracle's 89.3%. What it buys is not a better average -- the
+# gate sits about a point below the best offset eight times in nine -- but
+# insurance against its collapse: on one recording it read 49.0% of bits where
+# a frozen clock at the right offset read 84.9%.
+#
+# Default OFF, and that is the whole reason it is a runtime switch rather than
+# a format change. The sweeps alter the frame, so the two machines must agree:
+# a `pull` reaching one end only would otherwise land a receiver expecting
+# sweeps against a transmitter sending none, and take the link down with no
+# way in but the link. Off by default, both ends keep decoding exactly as
+# before after a pull; `syncsweep on` is then sent to each side explicitly.
+SYNC_SWEEP = False
+SYNC_HUSH = 0.03      # silence between each sweep and the frame, seconds
 
 TONE_CHUNK = 32       # bytes of 0x55 per modulated chunk, ~0.27 s
 TONE_DEPTH = 4        # keep ~1 s of tone buffered, no more
@@ -114,6 +133,8 @@ class AudioNode:
         self.mary_band = MARY_BAND
         self.mary_chord = MARY_CHORD
         self.mfsk_grouped = MFSK_GROUPED
+        self.sync_sweep = SYNC_SWEEP
+        self.sync_hush = SYNC_HUSH
         # Receiving an error-corrected block, the mirror of fecsend. Without
         # it only the console side could decode FEC, through capture.py and
         # recvfile.py -- separate programs that own their own audio -- so the
@@ -300,8 +321,15 @@ class AudioNode:
         """
         k = len(MFSK_PAIRS)
         if self.mode == 'mary':
-            nbits = len(fec.frame(data, repeat=self.fec_repeat))
-            symbols = 120 + -(-nbits // MARY_BITS) + 6
+            symbols = self.mary_frame_symbols(len(data), self.fec_repeat)
+            if self.sync_sweep:
+                # The sweeps and their silences are air time like any other,
+                # and this number is what a caller uses to decide how long to
+                # listen. Reporting the body alone would have every recording
+                # stop 220 ms before the frame does.
+                symbols += int(round(2 * (len(chirp(FS, *SYNC_CHIRP))
+                                          + int(self.sync_hush * FS))
+                                     * MFSK_BAUD / FS))
         elif self.fec_parallel:
             nbits = len(fec.frame_parallel(data, k, repeat=self.fec_repeat))
             symbols = 80 + -(-nbits // k) + 4
@@ -309,6 +337,23 @@ class AudioNode:
             nbits = len(fec.frame(data, repeat=self.fec_repeat))
             symbols = 80 + nbits + 4
         return symbols, symbols / MFSK_BAUD
+
+    def mary_frame_symbols(self, nbytes, repeat):
+        """Symbols an M-ary coded frame occupies, for a payload of that size.
+
+        Transmitter and receiver both need this number and must get the same
+        one: the receiver turns the interval between the two sweeps into a
+        period by dividing by the symbols they span, and a span that is wrong
+        by one symbol is a period wrong by a fifth of a sample -- which is a
+        tenth of a symbol across a 500-symbol block. The receiver does not
+        have the payload, only its length, which `fecrx on <n>` already gave
+        it; the coded length depends on nothing else, so both sides can reach
+        the same answer from it. One function, called by both, so they cannot
+        drift.
+        """
+        pre = fec.preamble_bits('mary', symbol_bits=MARY_BITS)
+        nbits = len(fec.frame(bytes(nbytes), repeat=repeat))
+        return len(pre) // MARY_BITS + -(-nbits // MARY_BITS) + 6
 
     def _fec_frame(self, data, repeat):
         """Alternating preamble, sync word, coded block, trailing idle.
@@ -323,23 +368,25 @@ class AudioNode:
         if self.mode == 'mary':
             mod = self.layers[self.fec_layer][0]
             bits = fec.frame(data, repeat=repeat)
-            # Alternate between the two extreme tones. A preamble that repeats
-            # one symbol is a steady tone, and timing recovery learns nothing
-            # from it -- it needs transitions to lock onto.
-            pre = []
-            for i in range(120):
-                v = 0 if i % 2 else (1 << MARY_BITS) - 1
-                pre += [(v >> j) & 1 for j in range(MARY_BITS)]
+            pre = fec.preamble_bits('mary', symbol_bits=MARY_BITS)
             samples = np.concatenate([mod.modulate_bits(pre),
                                       mod.modulate_bits(list(bits)),
                                       mod.idle(6)])
-            return (samples * self.gain).astype(np.float32)
+            samples = samples * self.gain
+            if self.sync_sweep:
+                # The sweep goes out at the same amplitude as the data, so the
+                # far side's limiter treats both alike and a level calibrated
+                # on one is calibrated on the other. The silence around it is
+                # not padding: it separates the sweep's own decay from the
+                # first symbol, so the matched filter's peak is not sitting on
+                # top of data.
+                lead = chirp(FS, *SYNC_CHIRP) * self.gain
+                hush = np.zeros(int(self.sync_hush * FS))
+                samples = np.concatenate([lead, hush, samples, hush, lead])
+            return samples.astype(np.float32)
         mod = self.layers[self.fec_layer][0]
         bits = self.fec_bits(data)
-        # The preamble alternates on every pair at once so timing recovery
-        # sees the same thing either way, and so the far side can lock before
-        # it knows anything about which pairs are working.
-        pre = [0, 1] * 40 * (k if self.fec_parallel else 1)
+        pre = fec.preamble_bits(self.mode, npairs=k, parallel=self.fec_parallel)
         samples = np.concatenate([mod.modulate_bits(pre),
                                   mod.modulate_bits(list(bits)),
                                   mod.idle(4)])
@@ -370,6 +417,54 @@ class AudioNode:
         self.fec_rx = False
         return f"fecrx desligado ({sum(len(a) for a in self.fec_llr)} valores)"
 
+    def _sweep_llr(self, want):
+        """Re-read the stored audio with the clock the two sweeps measured.
+
+        Returns (llr, note) or (None, ""). It works from `fec_audio` rather
+        than from the accumulated `fec_llr` because it cannot do otherwise:
+        the streaming path has already demodulated every block as it arrived,
+        steering as it went, and an offset found afterwards cannot be applied
+        backwards to a decision already made. The audio is kept for exactly
+        this kind of second reading.
+
+        One sweep gives the start; two also give the period, because the
+        symbols between them occupied a known count and a measured interval.
+        A period far from nominal means one of the peaks was not a sweep, and
+        trusting it would be worse than not having it -- so that case falls
+        back to the leading sweep alone, which still recovered 8 blocks of 8
+        where the gate recovered 5.
+        """
+        if not self.fec_audio:
+            return None, ""
+        audio = np.concatenate(self.fec_audio)
+        tmpl = chirp(FS, *SYNC_CHIRP)
+        sps = FS / MFSK_BAUD
+        hush = int(self.sync_hush * FS)
+        # What the two detections span, as transmitted: the silences plus the
+        # frame between them. In symbols rather than samples so it divides
+        # straight into the measured interval.
+        span = self.mary_frame_symbols(want, self.fec_repeat) + 2 * hush / sps
+        skip = period = None
+        pair = find_chirp_pair(audio, tmpl, min_gap=int(0.5 * span * sps))
+        if pair is not None:
+            first, second = pair
+            p = (second - first) / span
+            if 0.98 * sps <= p <= 1.02 * sps:
+                skip, period = first + int(round(hush * p / sps)), p
+        if skip is None:
+            at = find_chirp(audio, tmpl)
+            if at is None:
+                return None, ""
+            skip = at + hush
+        d = MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
+                            band=self.mary_band, chord=self.mary_chord,
+                            steer=False, skip=skip, period=period)
+        llr = np.concatenate([d.demodulate_soft(audio[i:i + BLOCK])
+                              for i in range(0, len(audio), BLOCK)])
+        note = ("duas varreduras, %.2f amostras/simbolo" % period if period
+                else "uma varredura, relogio nominal")
+        return llr, note
+
     def fec_read(self, nbytes=None):
         """Sync, then Viterbi, over everything heard since arming.
 
@@ -383,20 +478,33 @@ class AudioNode:
             return "uso: fecrx <bytes esperados>"
         if not self.fec_llr:
             return "nada acumulado -- 'fecrx on <bytes>' primeiro"
-        llr = np.concatenate(self.fec_llr)
+        note = ""
+        llr = None
+        if self.sync_sweep and self.fec_layer == 'mary':
+            llr, note = self._sweep_llr(want)
+            if llr is None:
+                # Falling back rather than failing, because the sweeps can be
+                # absent for a reason that is not an error: the far side may
+                # not have `syncsweep on` yet. The gate still decodes what the
+                # gate can, and the note says which path produced the answer
+                # so a bad block is not blamed on the wrong half.
+                note = "varredura nao encontrada, caindo no gate"
+        if llr is None:
+            llr = np.concatenate(self.fec_llr)
+        note = f" [{note}]" if note else ""
         npairs = len(MFSK_PAIRS)
         if self.fec_layer == 'mfsk-par':
             start = fec.find_sync_parallel(llr, npairs)
             if start is None:
-                return f"sync nao encontrado ({len(llr)} valores)"
+                return f"sync nao encontrado ({len(llr)} valores){note}"
             data = fec.decode_parallel(llr[start:], want, npairs,
                                        repeat=self.fec_repeat)
         else:
             start = fec.find_sync(llr)
             if start is None:
-                return f"sync nao encontrado ({len(llr)} valores)"
+                return f"sync nao encontrado ({len(llr)} valores){note}"
             data = fec.decode(llr[start:], want, repeat=self.fec_repeat)
-        return f"{len(data)} bytes ({len(llr)} valores): {printable(data)}"
+        return f"{len(data)} bytes ({len(llr)} valores){note}: {printable(data)}"
 
     def measure(self, freq, secs=0.3, bw=45.0):
         """How much of the recent input sits within bw Hz of freq.
@@ -657,6 +765,10 @@ class AudioNode:
             # count that no longer matches the transmitter, looks exactly
             # like a dead link -- and neither could be read from here.
             f"fec rep {self.fec_repeat}" + (" paralelo" if self.fec_parallel else ""),
+            # Visible for the same reason: the sweeps change the frame, so a
+            # side that has them on against a side that does not is a link
+            # that stopped working for a reason no meter shows.
+            f"sweep   {'ON' if self.sync_sweep else 'off'} (mary)",
             (f"fecrx   ARMADO em {self.fec_layer}, esperando {self.fec_nbytes} "
              f"bytes ({sum(len(a) for a in self.fec_llr)} valores ouvidos)"
              if self.fec_rx else "fecrx   off"),
@@ -738,6 +850,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   marygap <fracao>    silencio no fim de cada simbolo mary (ex 0.2); os DOIS lados
   maryband <Hz>       mede uma faixa +-Hz ao redor de cada tom (ex 20)
   marychord on|off    nibble como 3 tons em vez de 1; os DOIS lados
+  syncsweep on|off    varredura nas duas pontas do frame mary; os DOIS lados
   mfskgroup on|off    mfsk: 5 graves = 0, 5 agudos = 1; os DOIS lados
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
   sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
@@ -958,6 +1071,19 @@ def execute(node, cmd):
             return "marygap fora de faixa (0 a 0.6)"
         node.set_mary_gap(frac)
         return f"mary gap = {frac} ({int(frac * 100)}% de silencio por simbolo)"
+    if verb == "syncsweep":
+        # Both machines, always, and this one bites harder than the others: a
+        # receiver expecting sweeps that finds none falls back to the gate and
+        # merely loses the improvement, but a transmitter sending them to a
+        # receiver that is not looking puts 80 ms of swept tone where the
+        # first preamble symbols should be. Send it to both ends -- `b
+        # syncsweep on` -- and never to one.
+        if not arg:
+            return f"syncsweep {'on' if node.sync_sweep else 'off'}"
+        on = arg.split()[0].lower() in ("on", "1", "true", "sim")
+        node.sync_sweep = on
+        return (f"syncsweep {'LIGADO' if on else 'desligado'} "
+                f"(so em mary; {2 * (SYNC_CHIRP[2] + node.sync_hush) * 1000:.0f} ms por frame)")
     if verb == "mfskgroup":
         # Both machines, always: a receiver reading grouped tones from an
         # interleaved transmitter compares two halves of a band that never

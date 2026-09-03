@@ -6,3 +6,4 @@ __pycache__/
 received*.bmp
 captures/
 figuras/
+captures-*/

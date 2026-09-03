@@ -48,6 +48,12 @@ Interpreter is the venv, not system Python:
 ./venv/bin/python capture.py --port COM4 --mode mary --fec --gain 0.5 --trials 3 --label o-que-mudou
 ./venv/bin/python capture.py --port COM4 --chirp "400 4200 10" --label varredura
 ./venv/bin/python bench.py                                    # scores captures/
+
+# one machine only: speaker out, microphone in, no serial cable and no far side
+./venv/bin/python selfcapture.py --mode mary --fec --gain 0.5 --trials 3 \
+    --in-device 26 --out-device 20 --link bluetooth --out captures-self
+./venv/bin/python selfcapture.py --mode mary --fec --sync-chirp --trials 8   # com as varreduras
+./venv/bin/python align.py captures-self      # quanto do erro e sincronismo, e quanto e canal
 ./venv/bin/python channel.py captures/<stem>.json --bins 76   # measured frequency response
 
 # pull a file across the link, stop-and-wait ARQ driven from this end
@@ -71,6 +77,8 @@ Two layers, deliberately separated:
 - **`updater.py` — git only, no serial and no audio.** Same layering rule as `modem.py`, one level up: it knows how to fetch, reset, and re-exec, and nothing about the wire that asked. `console.py` wires it to the command table.
 - **`agent.sh` — supervisor for the follower machine.** Restarts `console.py --role agent` after a crash. A voluntary `restart` execs in place and keeps the PID, so it never reaches this loop; the wrapper is for unplugged adapters and vanishing audio devices.
 - **`capture.py` — runtime.** Records the far machine transmitting a known payload and saves the audio plus a JSON of what was sent. Owns serial and audio; drives the far side through the `console.py` agent command table, so the Windows side needs nothing new. The local console must be stopped first, since the serial port takes one owner.
+- **`selfcapture.py` — runtime, one machine.** Records this machine transmitting to itself through the air. Same on-disk format as `capture.py`, so the offline tools do not distinguish them; no serial port and no far side. For developing an idea when the second machine is not on the desk.
+- **`align.py` — offline.** Splits the M-ary error rate into the part synchronisation could fix and the part that is the channel, by brute-forcing the symbol offset and by handing the detector divisors it could not have computed. Answers "is this worth building" before anything is built.
 - **`bench.py` — offline.** Scores demodulator variants against the recordings. No audio device, no serial. Adding an idea means adding one entry to its `VARIANTS` list.
 - **`recording.py` — disk only.** The on-disk format for a capture: a 32-bit float WAV plus a JSON sidecar sharing a stem. Same layering rule as `modem.py`: no device, no port.
 - **`scoring.py` — payload generation and alignment-tolerant scoring**, factored out of `linktest.py` so the offline bench scores a capture exactly the way the live test scores the wire. If these drifted, a gain measured on recordings would not mean the same thing on the link.
@@ -189,6 +197,31 @@ Rate-1/3 convolutional coding *alone* recovers essentially nothing in either dir
 
 **`pack` escapes CR as well as LF.** The line reader splits on both, so a bare carriage return in a reply truncated it and discarded the rest silently. Windows device names carry CRs, so `devs` from that side stopped mid-list at exactly the entry being looked for.
 
+**Two sync sweeps bracketing a frame beat the early/late gate, and the second one is what makes it worth doing.** `modem.chirp` puts an 80 ms swept tone at each end of a coded frame and `find_chirp_pair` recovers both by matched filter. The first peak gives the frame's start as an absolute sample index; the interval between the two, divided by the symbols it spans, gives the *measured* samples per symbol -- 479.96 with a spread of 0.07 where the nominal is 480. Scored on eight recordings of the same link:
+
+| alignment | bits right | blocks whole |
+|---|---|---|
+| early/late gate | 87.7% | 5 of 8 |
+| brute-forced best offset (knows the answer) | 89.3% | 7 of 8 |
+| leading sweep only | 88.4% | 8 of 8 |
+| both sweeps, period measured | 89.0% | 8 of 8 |
+
+Two sweeps land within 0.3 points of an oracle that was handed the correct offset, for 220 ms on a 6.4 s frame. The gate is not bad on average -- it sits about a point below the best offset eight times in nine -- it *collapses*: on one recording it read 49.0% of bits where a frozen clock at the right offset read 84.9%. Insurance against that collapse, not a better average, is what this buys.
+
+**Swept, not clicked, and ordered by position, not by height.** A click has the same detectability and a far worse crest factor, and this layer already runs at `gain 0.5` because of the far side's limiter. Worse: the two sweeps are identical and the channel decides which arrives louder -- measured, the *trailing* one won four times in eight, by margins under 2%. Taking the strongest peak as the leading one therefore reversed the pair half the time, and a reversed pair is not a weak detection but a confident wrong answer: both peaks stood at 44-52x the noise floor while the frame could not be found at all. Sort the peaks by index.
+
+**The sweeps are a runtime switch, `syncsweep`, and they default off — the default is the safety.** They change the frame, so both machines must agree: a receiver expecting them that finds none falls back to the gate and only loses the improvement, but a transmitter sending them to a receiver that is not looking puts 80 ms of swept tone where the first preamble symbols should be. The hazard is not the mismatch itself, it is how the mismatch arrives — `pull` reaches one machine at a time, and on the follower the serial channel is made of the files being replaced. Defaulting off means a pull that lands on one end only changes nothing; `b syncsweep on` then turns both on in one command. Scored through `console.py`'s own `fec_read` over the eight `captures-chirp` recordings: the gate recovered 5 blocks of 8, the sweeps 8 of 8, with the period measured between 479.87 and 480.11 samples per symbol.
+
+**The receiver reads the sweeps off the stored audio, not off the accumulated soft values, and it has no choice.** The streaming path demodulates each block as it arrives and steers as it goes, so an offset found afterwards cannot be applied to decisions already made. `AudioNode._sweep_llr` re-demodulates `fec_audio` — kept for exactly this kind of second reading — with `steer=False`, the sweep-derived `skip`, and the measured `period`. Transmitter and receiver both get the frame's symbol count from `AudioNode.mary_frame_symbols`, one function called by both, because a span wrong by one symbol is a period wrong by a fifth of a sample and the receiver does not have the payload to derive it any other way — only its length, which `fecrx on <n>` already gave it.
+
+**`fecpkt` goes through the same `_fec_frame` as `fecsend`, so `recvfile.py` sends `syncsweep off` at setup.** It sends `fecrep` for the same reason and the failure has the same shape: the far side keeps its own value, a mismatch is undetectable at the decoder, and the packets that then fail read as a channel that got worse. One serial round trip at setup buys that away. Teaching `recvfile.py` to use the sweeps is worth doing and has not been measured.
+
+**A per-tone pilot is measured and dead, and the reason generalises.** The obvious use for a known symbol is to learn each tone's channel gain and divide by it. Measured against a *perfect* such divisor, computed offline from the known payload: 80.9% of bits, against 88.4% for the blind running floor already in the code. Dividing by the gain is the wrong operation -- the decision "is this tone present" wants energy over the *noise* at that frequency, not over the signal. And a perfect noise-floor divisor scores 88.4% against the blind estimate's 88.3%, so the blind estimate is already at its ceiling: with 16 tones each is silent 15 symbols in 16, and a pilot would offer far fewer samples of the same quantity. Nothing to teach it. The residual ~12% of bits wrong survives perfect timing *and* a perfect floor, and is the channel itself.
+
+**An inter-symbol silence helps the bits and does not pay for itself.** `marygap` measured over twelve recordings: gap 0 gave 86.7% of bits, 0.15 gave 88.0%, 0.30 gave 88.9%. Monotonic, and still a bad trade -- 30% of the air time for two points, where the same 30% spent on redundancy buys more. Block recovery disagreed with the bit trend (3/4, 4/4, 1/4) because at `fecrep 1` this link sits exactly on the rate-1/3 cliff, where four recordings per point cannot resolve a coin flip.
+
+**Bit accuracy has to be measured against one ruler.** The first version of `align.py` scored at the position `find_sync` chose when sync was found and at the best slide when it was not. The best slide is chosen to flatter and the sync position is not, so the *failures* scored higher than the successes: the setting with the worst block recovery reported the highest bit accuracy, which read as a paradox about the channel and was two rulers. Always take the best slide, for every row, and keep blocks recovered as the separate honest number.
+
 **`loopback_test.py` cannot see a timing-acquisition regression.** Its frame opens with a bit-level alternating preamble that hands the gate a lock before the payload starts, so symbol timing never has to be *acquired*. A change that broke acquisition outright — recovery on the real link fell to 6% while brute-forcing the correct offset over the same audio gave 87-94% of bits right — passed the suite without complaint. Anything touching timing must also be scored against `captures/`.
 
 **With few recordings, byte recovery is a noisy way to choose a parameter.** Neighbouring settings scored 8% and 22% with no trend, purely from which blocks happened to land. To decide a fine adjustment, measure *bit* accuracy at a brute-forced alignment, which is stable, or record far more.
@@ -200,5 +233,9 @@ Rate-1/3 convolutional coding *alone* recovers essentially nothing in either dir
 **The 8N1 path still has no error detection, and that is deliberate.** UART framing was chosen so the modem behaves as a dumb serial line and can be plugged into `/dev/pts/N` for the existing serial ecosystem. On that path a corrupted byte arrives corrupted, and the preamble is not stripped on RX either — stdio mode does a crude filter (`b < 128 and b != 0xff`), PTY mode passes everything raw. Error detection and correction live *above* it, in `xfer.py` (CRC, packets) and `fec.py` (correction), reached through `fecsend`/`fecpkt`/`fecrx` and `recvfile.py --fec`. Do not push either down into `modem.py`.
 
 **Dropping 8N1 framing inside a coded block removes a failure mode rather than mitigating it.** Under 8N1 a single corrupted start or stop bit shifts every byte after it, so one bad bit destroys the remainder. A fixed-length block has nothing to shift. This is a large part of why the coded path works where the byte-stream path never did.
+
+**A single machine can record a real acoustic link, and what it cannot reproduce is specific.** `selfcapture.py` plays through the speaker and records through the microphone on the same soundcard, writing the same `recording.py` pair `capture.py` writes, so `bench.py` and `align.py` score it without knowing the difference. The air, the room's comb, the limiter and the microphone are all real. What is missing: with a *wired* speaker both ends share the soundcard's clock, so sample-rate drift -- part of what the early/late gate exists to correct -- is absent and timing results come out optimistic. A *Bluetooth* speaker has its own crystal and puts the drift back, at the cost of a lossy codec the real link does not have. `--link` records which, and the two must not be averaged together.
+
+**A Bluetooth sink is not ready the moment the previous process lets go of it.** For a second or two it is present and advertises zero output channels, and an open in that window fails with `Invalid number of channels` -- which does not sound like a stale device and cost two gain sweeps their last setting before it was recognised. Retrying does not help; waiting does. `selfcapture.wait_ready` polls until the sink declares a channel, re-initialising PortAudio between tries because its device list is built once at import and never revisited. Devices travel as names, not indices, for the same reason.
 
 `pyserial` is in `requirements.txt` but nothing in the project imports it.

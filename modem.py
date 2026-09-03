@@ -795,7 +795,36 @@ class MaryDemodulator:
 
     def __init__(self, fs=48000, baud=100, tones=MARY_TONES, guard=0.15,
                  contrast_min=0.15, floor_alpha=0.02, gap=0.0, band=0.0,
-                 chord=False):
+                 chord=False, steer=True, skip=0, floor_fixed=None,
+                 period=None):
+        # `steer=False` freezes the symbol clock: every window is taken exactly
+        # one symbol after the last, and `skip` says where the first one
+        # starts. That is only correct when something else has already found
+        # the burst -- a sync burst at the head of the frame, or a brute-force
+        # search offline -- which is exactly the comparison it exists for.
+        # Measuring the frozen clock at its best offset against the gate says
+        # how much of the error rate is timing rather than the channel, and
+        # that question cannot be asked while the gate is free to move.
+        self.steer = steer
+        self.skip = int(skip)
+        # Samples per symbol as *measured*, not as nominal, and fractional on
+        # purpose. Two sync bursts bracketing a frame give the interval the
+        # symbols actually occupied; divide by how many there were and the
+        # clock is known rather than tracked. The nominal 480 is only right
+        # when both machines' crystals agree, which is exactly the assumption
+        # a two-machine link breaks -- and rounding the measurement to a whole
+        # sample throws away most of what measuring it bought, since half a
+        # sample per symbol is a quarter of a symbol over a 500-symbol block.
+        self.period = None if period is None else float(period)
+        # A per-tone divisor supplied from outside instead of estimated. The
+        # blind estimate assumes a tone's long-run average energy is its noise
+        # floor, which holds only because each tone is silent fifteen symbols
+        # in sixteen. Handing in a measured one -- from pilot symbols on the
+        # air, or from the known payload offline -- says what that assumption
+        # is costing, which is the question a pilot scheme has to answer
+        # before it is worth the air time it spends.
+        self.floor_fixed = (None if floor_fixed is None
+                            else np.asarray(floor_fixed, dtype=np.float64))
         self.fs = fs
         self.baud = baud
         self.tones = np.array(tones, dtype=np.float64)
@@ -832,7 +861,10 @@ class MaryDemodulator:
 
     def reset(self):
         self.buf = np.zeros(0, dtype=np.float64)
-        self.floor = np.zeros(len(self.tones))
+        self.pending_skip = 0
+        self.frozen_k = 0
+        self.floor = (np.zeros(len(self.tones)) if self.floor_fixed is None
+                      else self.floor_fixed.copy())
         # Bits left over when a block does not end on a byte boundary. A
         # symbol carries four bits and a byte takes two symbols, but audio
         # arrives in 2048-sample blocks holding 4.27 symbols -- so a block
@@ -898,6 +930,8 @@ class MaryDemodulator:
         return int(order[-1]), contrast, norm
 
     def _update_floor(self, e):
+        if self.floor_fixed is not None:
+            return
         # Each tone is silent 15 symbols out of 16, so its average energy is
         # its noise floor. The winner is left out of the update so the floor
         # never chases the signal it exists to measure.
@@ -915,6 +949,36 @@ class MaryDemodulator:
             self.input_rms = float(np.sqrt(np.mean(np.square(samples))))
             self.input_peak = float(np.max(np.abs(samples)))
         self.buf = np.concatenate((self.buf, samples))
+
+        if self.pending_skip:
+            drop = min(self.pending_skip, len(self.buf))
+            self.buf = self.buf[drop:]
+            self.consumed += drop
+            self.pending_skip -= drop
+
+        if not self.steer:
+            period = self.period or float(self.samples_per_symbol)
+            while True:
+                # Absolute sample where window k belongs, rounded once at the
+                # end. Accumulating a rounded step instead would let the error
+                # pile up symbol after symbol, which is the drift this exists
+                # to remove.
+                want = int(round(self.skip + self.frozen_k * period))
+                at = want - self.consumed
+                if at < 0:                      # already past it; give up on k
+                    self.frozen_k += 1
+                    continue
+                if len(self.buf) < at + self.samples_per_symbol:
+                    return
+                idx, contrast, norm = self._score(at)
+                self.contrast = contrast
+                self._update_floor(self._energies(at))
+                self.last_window = want
+                self.frozen_k += 1
+                self.buf = self.buf[at:]
+                self.consumed += at
+                yield idx, contrast, norm
+            return
 
         need = self.samples_per_symbol + 2 * self.delta
         while len(self.buf) >= need:
@@ -983,3 +1047,124 @@ class MaryDemodulator:
                 zeros = [log_e[place(v)] for v in range(1 << MARY_BITS) if not (v >> j) & 1]
                 out.append(max(ones) - max(zeros))
         return np.array(out)
+
+
+# --- Sync burst -------------------------------------------------------------
+#
+# A frame's timing is acquired today by an early/late gate: three candidate
+# windows per symbol, keep the best, nudge the next one. Measured against a
+# brute-forced frozen clock over nine recordings, that gate lands within about
+# a point of the best possible offset eight times -- and once collapses
+# outright, 49% of bits against 84.9% for the same audio decoded at a fixed
+# offset. A tracking loop that is usually right and occasionally catastrophic
+# costs a whole block each time it fails, and no amount of coding rate repairs
+# a block whose symbols were never sampled where the symbols are.
+#
+# So give it something to acquire against instead of a preamble to converge
+# on. A swept tone at the head of the frame correlates to one sharp peak, and
+# that peak is an absolute sample index rather than an estimate refined over
+# dozens of symbols.
+#
+# Swept, not clicked. A click has the same detectability and a far worse crest
+# factor, and the far side's output limiter is the thing that already forces
+# `gain 0.5` on this layer -- an impulse at full amplitude is exactly what it
+# flattens. A sweep spreads the same energy over its whole length, so it
+# arrives intact and its matched filter compresses it back to a point.
+
+SYNC_CHIRP = (700.0, 3400.0, 0.08)     # f0, f1, seconds
+
+
+def chirp(fs=48000, f0=SYNC_CHIRP[0], f1=SYNC_CHIRP[1], secs=SYNC_CHIRP[2]):
+    """A linear sweep, as samples. Phase is the integral of the frequency.
+
+    The band is the one this link measured as usable, 550-3500 Hz. Sweeping
+    wider would put energy where the channel returns none and dull the
+    correlation peak with it.
+    """
+    n = int(secs * fs)
+    t = np.arange(n) / fs
+    # A raised-cosine edge on each end. A sweep that starts and stops abruptly
+    # is a sweep plus two clicks, and the clicks are what the limiter mangles.
+    env = np.ones(n)
+    edge = max(1, n // 16)
+    ramp = 0.5 * (1 - np.cos(np.pi * np.arange(edge) / edge))
+    env[:edge] = ramp
+    env[-edge:] = ramp[::-1]
+    return np.sin(2 * np.pi * (f0 * t + (f1 - f0) * t * t / (2 * secs))) * env
+
+
+def find_chirp(samples, template, threshold=4.0, leading_only=True):
+    """Sample index just past the sweep, or None.
+
+    Matched filter: correlate against the known sweep and take the peak. The
+    score is the peak divided by the median of the correlation, so it is a
+    ratio and means the same at any volume -- and the median, not the mean,
+    because the peak itself would drag a mean upward and flatter the very
+    thing being tested.
+
+    Returns the index *after* the template, which is where the frame begins.
+    """
+    samples = np.asarray(samples, dtype=np.float64)
+    if len(samples) < len(template):
+        return None
+    corr = np.abs(np.correlate(samples, template, mode='valid'))
+    med = float(np.median(corr))
+    if med <= 0:
+        return None
+    peak = int(np.argmax(corr))
+    if corr[peak] / med < threshold:
+        return None
+    if not leading_only:
+        return peak + len(template)
+    # A frame may carry a sweep at each end, and the far one is as likely to
+    # be the louder. Take the earliest peak that clears the threshold, not the
+    # tallest.
+    first = int(np.argmax(corr / med >= threshold))
+    # argmax on a boolean gives the first True; walk forward to the local peak
+    # so the index lands on the sweep's centre rather than its leading edge.
+    window = corr[first:first + len(template)]
+    return first + int(np.argmax(window)) + len(template)
+
+
+def find_chirp_pair(samples, template, min_gap, threshold=4.0):
+    """Both sweeps bracketing a frame: (index after the first, index of the
+    second), or None.
+
+    One sweep gives the frame's start. Two give its start *and* its clock: the
+    symbols between them occupied a known count and a measured interval, so
+    the period follows by division instead of being tracked. Half a sample per
+    symbol of error is a quarter of a symbol across a 500-symbol block, which
+    is the whole difference between a block that decodes and one that does
+    not, so the period is worth measuring rather than assuming.
+
+    The peaks are found one at a time, the region around the first blanked
+    before the second is sought -- a matched filter's response to a sweep is
+    not a single sample wide, and taking the two largest values of the raw
+    correlation returns the same peak twice.
+    """
+    samples = np.asarray(samples, dtype=np.float64)
+    if len(samples) < len(template) + min_gap:
+        return None
+    corr = np.abs(np.correlate(samples, template, mode='valid'))
+    med = float(np.median(corr))
+    if med <= 0:
+        return None
+    strongest = int(np.argmax(corr))
+    if corr[strongest] / med < threshold:
+        return None
+    masked = corr.copy()
+    lo = max(0, strongest - min_gap)
+    hi = min(len(corr), strongest + min_gap)
+    masked[lo:hi] = 0.0
+    other = int(np.argmax(masked))
+    if corr[other] / med < threshold:
+        return None
+    # Order by position, never by height. The two sweeps are identical and the
+    # channel decides which arrives louder: measured over eight recordings the
+    # trailing one won four times, by margins under 2%. Taking the strongest
+    # as the leading one therefore reversed the pair half the time -- and a
+    # reversed pair is not a weak detection but a confident wrong answer,
+    # which is why both peaks stood at 44-52x the noise while the frame could
+    # not be found at all.
+    first, second = sorted((strongest, other))
+    return first + len(template), second

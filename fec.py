@@ -271,6 +271,33 @@ def frame(data, polys=POLYS_R13, depth=16, repeat=1):
     return np.concatenate([SYNC, encode(data, polys, depth, repeat)])
 
 
+def preamble_bits(mode, symbol_bits=4, npairs=1, parallel=False, symbols=120):
+    """The alternating run that precedes a coded block, as bits.
+
+    Timing recovery is an early/late gate steered by decision contrast, so it
+    locks onto *transitions* and learns nothing from a run of identical
+    symbols. Hence alternating, and hence long enough to converge before the
+    sync word arrives.
+
+    It lives here rather than beside the modulator because two tools build
+    this burst -- the live console and the single-machine recorder -- and a
+    preamble that drifted between them would produce recordings the live path
+    could not decode, which is the failure this module's neighbours were
+    factored out to prevent. Bits in, bits out: which tones carry them is the
+    modulator's business.
+    """
+    if mode == 'mary':
+        # Alternate between the two extreme tones: value 0 against all ones.
+        out = []
+        for i in range(symbols):
+            v = 0 if i % 2 else (1 << symbol_bits) - 1
+            out += [(v >> j) & 1 for j in range(symbol_bits)]
+        return out
+    # MFSK sends the same bit on every pair at once, so the far side can lock
+    # before it knows which pairs are working.
+    return [0, 1] * 40 * (npairs if parallel else 1)
+
+
 def find_sync(llr, threshold=0.55):
     """Where the block starts in a stream of soft values, or None.
 
