@@ -26,7 +26,9 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import fec
 import recording
+from modem import MARY_BITS
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -85,9 +87,37 @@ class Recorder:
             except queue.Empty:
                 return
 
-    def collect(self, secs):
-        """Everything heard over the next `secs`, in order."""
+    def collect(self, secs, warmup=3.0):
+        """Everything heard over the next `secs`, in order.
+
+        The clock starts at the *first block actually delivered*, not at the
+        call. A stream that has just been opened can take a moment to produce
+        anything -- the device exists and is simply not running yet -- and
+        starting the timer regardless spends the whole window waiting. Observed
+        here: three trials in a row recorded 0.0 to 1.4 seconds of exact
+        silence out of 10.3, which reads as a far side that never transmitted
+        and was a microphone that had not started.
+        """
         chunks = []
+        t_open = time.time()
+        while time.time() - t_open < warmup:
+            try:
+                blk = self.q.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            # A block of exact zeros is not a quiet room, it is a source that
+            # has not started -- or one that went away. Both happen right
+            # after another process released the device, which is exactly when
+            # a sweep opens its next capture. Waiting for real content is the
+            # difference between a trial and a row of zeros that scores as a
+            # dead link.
+            if np.any(blk):
+                chunks.append(blk)
+                break
+        if not chunks:
+            raise RuntimeError(
+                f"a entrada nao entregou audio em {warmup:.0f}s -- "
+                f"dispositivo ocupado, mudo, ou ainda subindo")
         t0 = time.time()
         while time.time() - t0 < secs:
             try:
@@ -103,6 +133,24 @@ class Recorder:
 
 
 _seq = [0]
+
+
+SYNC_HUSH = 0.03            # o mesmo silencio que `console.py` poe ao redor de cada varredura
+
+
+def sync_span(nbytes, repeat):
+    """Quantos simbolos separam as duas varreduras, contados como o
+    transmissor os montou.
+
+    Nao e deduzivel do audio, e por isso tem que ir para o JSON: o intervalo
+    entre as varreduras so vira periodo de simbolo depois de dividido por este
+    numero. Errar um simbolo aqui erra o periodo em um quinto de amostra, e o
+    receptor nao tem como descobrir isso sozinho -- ele conhece o comprimento
+    do bloco, nada mais.
+    """
+    pre = len(fec.preamble_bits('mary', symbol_bits=MARY_BITS)) // MARY_BITS
+    body = len(list(fec.frame(bytes(nbytes), repeat=repeat))) // MARY_BITS
+    return pre + body + 6 + 2 * (SYNC_HUSH * FS) / (FS / 100)
 
 
 def ask(ctl, cmd, timeout=8.0):
@@ -161,6 +209,10 @@ def main():
     ap.add_argument('--chirp', nargs='?', const='300 22000 4', metavar='"f0 f1 s"',
                     help="record a frequency sweep instead of a payload, to "
                          "measure what the link does to each frequency")
+    ap.add_argument('--sync-chirp', action='store_true',
+                    help="liga as varreduras de sincronismo nas duas pontas do "
+                         "frame mary, e carimba isso no JSON para o align.py "
+                         "saber que deve procura-las")
     ap.add_argument('--out', default='captures')
     ap.add_argument('--label', default='', help="goes in the filename; name the setup")
     args = ap.parse_args()
@@ -178,6 +230,14 @@ def main():
     if args.fec:
         ask(ctl, f"fecpar {'on' if args.parallel else 'off'}")
         ask(ctl, f"fecrep {args.repeat}")
+        # The sweeps change the frame, so both ends must agree: a receiver
+        # expecting them and finding none only loses the improvement, but a
+        # transmitter sending them to a receiver that is not looking puts 80 ms
+        # of swept tone where the first preamble symbols should be. Sent
+        # explicitly every run rather than assumed, for the same reason
+        # `fecrep` is -- a mismatch is undetectable at the decoder and reads as
+        # a channel that got worse.
+        ask(ctl, f"syncsweep {'on' if args.sync_chirp else 'off'}")
     if args.gap is not None:
         ask(ctl, f"marygap {args.gap}")
     if args.band is not None:
@@ -247,6 +307,10 @@ def main():
                               gap=args.gap or 0.0,
                               band=args.band or 0.0,
                               chord=bool(args.chord),
+                              sync_chirp=bool(args.sync_chirp),
+                              sync_hush=SYNC_HUSH if args.sync_chirp else 0.0,
+                              sync_span_symbols=(sync_span(len(payload), args.repeat)
+                                                 if args.sync_chirp else 0.0),
                               grouped=bool(args.grouped),
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,
