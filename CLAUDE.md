@@ -41,14 +41,17 @@ Interpreter is the venv, not system Python:
 ./venv/bin/python console.py --role console --port COM4          # side with the keyboard
 ./venv/bin/pip install -r requirements.txt
 
-# record the far side transmitting a known payload, then score demodulators offline
-./venv/bin/python capture.py --port /dev/ttyUSB0 --mode mary --fec --gain 0.5 --trials 3 --label o-que-mudou
-./venv/bin/python capture.py --port /dev/ttyUSB0 --chirp "400 4200 10" --label varredura
+# record the far side transmitting a known payload, then score demodulators offline.
+# capture.py and recvfile.py own the serial port AND the input audio, so they run on
+# the *console* side and record the *agent* transmitting -- point --port at whichever
+# machine holds the keyboard, not at the one making the sound.
+./venv/bin/python capture.py --port COM4 --mode mary --fec --gain 0.5 --trials 3 --label o-que-mudou
+./venv/bin/python capture.py --port COM4 --chirp "400 4200 10" --label varredura
 ./venv/bin/python bench.py                                    # scores captures/
 ./venv/bin/python channel.py captures/<stem>.json --bins 76   # measured frequency response
 
 # pull a file across the link, stop-and-wait ARQ driven from this end
-./venv/bin/python -u recvfile.py --port /dev/ttyUSB0 --remote-file testcard.bmp --out got.bmp \
+./venv/bin/python -u recvfile.py --port COM4 --remote-file testcard.bmp --out got.bmp \
     --fec --mode mary --gain 0.5 --packet-size 64 --repeat 1
 ```
 
@@ -136,7 +139,9 @@ stdout/PTY <── rx_byte_queue <── [demodulator thread] <── rx_audio_q
 
 **200 Hz within a pair is a measured optimum, not a round number.** Widening it to 250 Hz was tried and packet recovery under the loopback's simulated reverberation fell from 7/8 to 3/8. The symbol window after the guard interval is 8.5 ms, giving roughly 118 Hz of frequency resolution, and pushing the members of a pair apart necessarily pushes the pairs themselves closer together. The loopback packet test is what notices when this goes wrong; re-measure before changing it.
 
-**MFSK needs an alternating preamble and a trailing idle; neither is optional.** Timing recovery is an early/late gate steered by decision contrast, which peaks when the window sits inside one symbol — so it needs *transitions* to lock onto, and a preamble that idles at mark teaches it nothing. At the other end the demodulator keeps just over a symbol buffered, so a burst that stops dead strands its last byte there. `MFSKModulator.idle()` supplies the tail, and `console.py`'s transmit feeder appends `idle(4)` after an MFSK burst for this reason — without it every `send` in MFSK mode silently lost its final byte. The guard interval (35% of each symbol, skipped before measuring) is what makes reverberation survivable: measured, it took accuracy from 76.5% to 100% on a channel with an 80 ms tail.
+**MFSK needs an alternating preamble and a trailing idle; neither is optional.** Timing recovery is an early/late gate steered by decision contrast, which peaks when the window sits inside one symbol — so it needs *transitions* to lock onto, and a preamble that idles at mark teaches it nothing. At the other end the demodulator keeps just over a symbol buffered, so a burst that stops dead strands its last byte there. `MFSKModulator.idle()` supplies the tail, and `console.py`'s transmit feeder appends `idle(4)` after any non-Bell-202 burst for this reason — without it every `send` silently lost its final byte. **This is true of M-ary too**, and the feeder tested for `mode == 'mfsk'` alone until 5598abc: a ten-byte M-ary send arrived as `ABCDEFGHI` on a channel with no impairment whatsoever. Bell 202 needs no tail and its modulator offers none. The guard interval (35% of each symbol, skipped before measuring) is what makes reverberation survivable: measured, it took accuracy from 76.5% to 100% on a channel with an 80 ms tail.
+
+**The link must work in both directions, and for a long time it only worked in one.** Not for an acoustic reason: `console.py` could *transmit* an error-corrected block but not receive one, because soft decoding lived only in `bench.py` and `recvfile.py` — and both own their own audio, so both only ever run on the **console** side. Swap the roles and the receiver becomes the headless agent, which could only hard-decode. The working direction therefore followed whoever held the keyboard instead of being a property of the link. `fecrx` (5598abc) fixes it in the one place that makes it symmetric: the shared command table, where `execute()` is identical on both roles, so a single entry gives both machines the capability. Anything else that only one side can do belongs there too — and when adding it, check `fec_layer`: parallel MFSK keeps its own instance pair, so naming the layer as `self.mode` puts transmitter and receiver on different objects.
 
 **`squelch` means a different quantity in each layer.** Bell 202 gates on absolute baseband amplitude (~0.005); MFSK and M-ary gate on `contrast_min`, a ratio in 0–1 (~0.15). They are not interchangeable — setting 0.005 as a contrast threshold is barely a gate at all. `AudioNode.threshold()` routes the console's one `squelch` command to whichever the active mode uses.
 
@@ -176,7 +181,7 @@ stdout/PTY <── rx_byte_queue <── [demodulator thread] <── rx_audio_q
 
 **Preamble (`0x55 × 10 + 0xFF`) lives in `app.py`, not `modem.py`.** It's a link-layer concern. Any future framing, CRC, or ARQ belongs at that same level — above the modem, not inside it.
 
-**The 8N1 path still has no error detection, and that is deliberate.** UART framing was chosen so the modem behaves as a dumb serial line and can be plugged into `/dev/pts/N` for the existing serial ecosystem. On that path a corrupted byte arrives corrupted, and the preamble is not stripped on RX either — stdio mode does a crude filter (`b < 128 and b != 0xff`), PTY mode passes everything raw. Error detection and correction live *above* it, in `xfer.py` (CRC, packets) and `fec.py` (correction), reached through `fecsend`/`fecpkt` and `recvfile.py --fec`. Do not push either down into `modem.py`.
+**The 8N1 path still has no error detection, and that is deliberate.** UART framing was chosen so the modem behaves as a dumb serial line and can be plugged into `/dev/pts/N` for the existing serial ecosystem. On that path a corrupted byte arrives corrupted, and the preamble is not stripped on RX either — stdio mode does a crude filter (`b < 128 and b != 0xff`), PTY mode passes everything raw. Error detection and correction live *above* it, in `xfer.py` (CRC, packets) and `fec.py` (correction), reached through `fecsend`/`fecpkt`/`fecrx` and `recvfile.py --fec`. Do not push either down into `modem.py`.
 
 **Dropping 8N1 framing inside a coded block removes a failure mode rather than mitigating it.** Under 8N1 a single corrupted start or stop bit shifts every byte after it, so one bad bit destroys the remainder. A fixed-length block has nothing to shift. This is a large part of why the coded path works where the byte-stream path never did.
 
