@@ -512,6 +512,16 @@ class AudioNode:
             f"gain    {self.gain}",
             f"modo    {self.mode} ({BAUD if self.mode == 'fsk' else MFSK_BAUD} baud)",
             f"squelch {self.threshold()[1]}  ({self.threshold()[0]})",
+            # FEC state has to be visible. It is not a mode you can see or
+            # hear: `fecsend` is a per-burst verb, and an armed `fecrx` puts
+            # the demod thread on the soft path, so the plain rx buffer
+            # silently stops filling. A receiver left armed, or a repeat
+            # count that no longer matches the transmitter, looks exactly
+            # like a dead link -- and neither could be read from here.
+            f"fec rep {self.fec_repeat}" + (" paralelo" if self.fec_parallel else ""),
+            (f"fecrx   ARMADO em {self.fec_layer}, esperando {self.fec_nbytes} "
+             f"bytes ({sum(len(a) for a in self.fec_llr)} valores ouvidos)"
+             if self.fec_rx else "fecrx   off"),
             f"rx buf  {len(self.rx_buffer)} bytes",
         ])
 
