@@ -255,6 +255,32 @@ MFSK_TONES_1 = tuple(p[1] for p in MFSK_PAIRS)
 #
 # It is not uniformly better: on a comb plus reverberation it loses, 81.5%
 # against 85.8%. Which channel this room is on the day decides it.
+def _schroeder(n):
+    """Phase offsets that keep a chord's peak down without costing it power.
+
+    Tones started at the same phase all crest together, so the sum peaks at N
+    times one tone and must be divided by N to fit -- most of the amplitude
+    budget spent on a single instant. Schroeder's quadratic offsets spread the
+    crests: a five-tone chord's crest factor falls from 2.97 to 1.81, and with
+    forty tones it stays there instead of climbing.
+
+    Only the transmitter cares. The receiver measures energy and is blind to
+    phase, so a machine sending these is understood by one that has never
+    heard of them -- no coordination needed, unlike every other knob here.
+
+    Measured on the chord layer with the default receiver: 80.5% to 85.2%
+    under 80 ms of reverberation, 74.2% to 81.0% with noise on top, 85.2% to
+    90.8% on a comb plus reverberation.
+
+    And yet it ships off. Enabling it broke the pinned reverberation-tuned
+    case in loopback_test.py -- guard 0.35 with contrast 0.15, which is
+    supposed to recover and stopped recovering. Two settings of the same
+    receiver disagreeing about the same change is exactly the situation where
+    a simulation is not enough to decide, so the room decides.
+    """
+    return [np.pi * k * k / max(n, 1) for k in range(n)]
+
+
 MFSK_LOW = tuple(sorted(t for p in MFSK_PAIRS for t in p)[:len(MFSK_PAIRS)])
 MFSK_HIGH = tuple(sorted(t for p in MFSK_PAIRS for t in p)[len(MFSK_PAIRS):])
 
@@ -274,7 +300,8 @@ class MFSKModulator:
     """Multi-tone FSK. One chord per bit, UART 8N1 framing as above."""
 
     def __init__(self, fs=48000, baud=100, tones_0=MFSK_TONES_0,
-                 tones_1=MFSK_TONES_1, parallel=False, grouped=False):
+                 tones_1=MFSK_TONES_1, parallel=False, grouped=False,
+                 low_crest=False):
         if grouped:
             tones_0, tones_1 = MFSK_LOW, MFSK_HIGH
         # parallel=False: every pair sounds the same bit and the receiver
@@ -283,6 +310,11 @@ class MFSKModulator:
         # Same symbol duration either way; the speed comes from spending the
         # frequencies on separate bits instead of all of them on one.
         self.parallel = parallel
+        # Fixed per-tone phase offsets, so the tones of a chord do not all
+        # crest at the same instant. Transmitter-only: the receiver measures
+        # energy and cannot tell.
+        self.low_crest = low_crest
+        self._offsets = _schroeder(len(tones_0))
         self.fs = fs
         self.baud = baud
         self.tones_0 = tuple(tones_0)
@@ -306,13 +338,21 @@ class MFSKModulator:
             tones = self.tones_1 if bit else self.tones_0
         n = np.arange(self.samples_per_symbol)
         out = np.zeros(self.samples_per_symbol)
-        for f in tones:
+        offs = self._offsets if self.low_crest else None
+        for i, f in enumerate(tones):
             w = 2 * np.pi * f / self.fs
-            out += np.sin(w * n + self.phase[f])
+            out += np.sin(w * n + self.phase[f] + (offs[i] if offs else 0.0))
             self.phase[f] = (self.phase[f] + w * self.samples_per_symbol) % (2 * np.pi)
         # Normalised by chord size, so a chord never clips where a single tone
-        # would not, and both chords carry equal power.
-        return out / len(tones)
+        # would not, and both chords carry equal power. With the crest offsets
+        # in place the peak lands well under that bound, so scale up to use the
+        # headroom they earned -- which is the whole point of spreading the
+        # crests rather than merely a tidier waveform.
+        out = out / len(tones)
+        peak = float(np.max(np.abs(out)))
+        if self.low_crest and peak > 0:
+            out = out * (0.98 / peak)
+        return out
 
     def modulate_bits(self, bits):
         if self.parallel:
