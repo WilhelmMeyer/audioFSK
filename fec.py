@@ -363,3 +363,25 @@ def decode(llr, nbytes, polys=POLYS_R13, depth=16, repeat=1):
     # copy outweighs a doubtful one without any thresholding.
     return bits_to_bytes(decode_soft(deint.reshape(repeat, ncoded).sum(axis=0),
                                      nbits, polys))
+
+
+def frame_symbols(nbytes, repeat, symbol_bits, idle_symbols=6):
+    """Symbols a coded frame occupies: preamble, body, trailing idle.
+
+    One function because three places need this number and two of them got it
+    differently. The transmitter uses it to build the frame; the recorder
+    stamps it into the capture so an offline reader can turn the interval
+    between the two sync sweeps into a symbol period. Divide that interval by
+    a span that is one symbol short and the period comes out 0.2 samples long,
+    which over a 2450-symbol block accumulates to a whole symbol of drift --
+    measured, that read 78.1% of bits and recovered 0 blocks of 4 where the
+    correct span read 95.7% and 4 of 4, on the same audio.
+
+    The body rounds *up*: the modulator pads the coded bits out to a whole
+    symbol, so a block whose bit count is not a multiple of `symbol_bits`
+    still puts that last partial symbol on the air. Flooring it here is
+    exactly the bug above.
+    """
+    pre = preamble_bits('mary', symbol_bits=symbol_bits)
+    nbits = len(frame(bytes(nbytes), repeat=repeat))
+    return len(pre) // symbol_bits + -(-nbits // symbol_bits) + idle_symbols

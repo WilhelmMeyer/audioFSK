@@ -382,9 +382,7 @@ class AudioNode:
         the same answer from it. One function, called by both, so they cannot
         drift.
         """
-        pre = fec.preamble_bits('mary', symbol_bits=MARY_BITS)
-        nbits = len(fec.frame(bytes(nbytes), repeat=repeat))
-        return len(pre) // MARY_BITS + -(-nbits // MARY_BITS) + 6
+        return fec.frame_symbols(nbytes, repeat, MARY_BITS)
 
     def _fec_frame(self, data, repeat):
         """Alternating preamble, sync word, coded block, trailing idle.

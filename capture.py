@@ -147,10 +147,20 @@ def sync_span(nbytes, repeat):
     numero. Errar um simbolo aqui erra o periodo em um quinto de amostra, e o
     receptor nao tem como descobrir isso sozinho -- ele conhece o comprimento
     do bloco, nada mais.
+
+    O corpo vem de `fec.frame_symbols`, a mesma funcao que o transmissor usa,
+    porque esta conta ja divergiu uma vez: aqui ela arredondava o corpo para
+    baixo e o transmissor para cima, entao um bloco de 192 bytes em `fecrep 2`
+    era carimbado com 2452 simbolos onde o ar levava 2453. Um simbolo de
+    diferenca em 2452 e 0,2 amostra de periodo, que ao longo do bloco acumula
+    um simbolo inteiro de deriva: 78,1% dos bits e 0 blocos de 4, contra 95,7%
+    e 4 de 4 sobre exatamente o mesmo audio.
+
+    O termo final sao os dois silencios que cercam as varreduras, que separam
+    o decaimento de cada varredura do primeiro simbolo de dado.
     """
-    pre = len(fec.preamble_bits('mary', symbol_bits=MARY_BITS)) // MARY_BITS
-    body = len(list(fec.frame(bytes(nbytes), repeat=repeat))) // MARY_BITS
-    return pre + body + 6 + 2 * (SYNC_HUSH * FS) / (FS / 100)
+    return (fec.frame_symbols(nbytes, repeat, MARY_BITS)
+            + 2 * (SYNC_HUSH * FS) / (FS / 100))
 
 
 def ask(ctl, cmd, timeout=8.0):

@@ -40,7 +40,12 @@ from serial_link import Control
 
 def remote_fn(ctl, timeout=20.0):
     """`fetch_recording` wants a callable that talks to the far side."""
-    return lambda cmd, timeout=timeout: ask(ctl, cmd, timeout=timeout)
+    # `''` and not `None`: `fetch_file` was written against console.py's own
+    # `remote()`, which answers with a string even when the far side stays
+    # quiet, and it calls `.split()` on the answer without checking. `ask`
+    # returns None on a timeout, so one lost packet in the ~20000 this
+    # campaign pulls would end the run in an AttributeError three frames deep.
+    return lambda cmd, timeout=timeout: (ask(ctl, cmd, timeout=timeout) or '')
 
 
 def wait_recording(ctl, timeout):
@@ -97,6 +102,8 @@ def main():
     ap.add_argument('--out', default='captures-a2b')
     ap.add_argument('--label', default='')
     args = ap.parse_args()
+    if args.fec and args.mode == 'fsk':
+        ap.error("--fec so existe em mfsk ou mary; o Bell 202 e linha serial burra")
 
     dev_out = args.out_device
     if dev_out is not None and dev_out.isdigit():
@@ -114,7 +121,20 @@ def main():
 
     node = AudioNode(gain=args.gain, dev_out=dev_out, dev_in=None,
                      on_event=lambda t: None)
-    print("[a2b] local:", execute(node, "spk on"))
+    # A Bluetooth sink that another process just released is present and
+    # advertises zero channels for a second or two, and an open in that window
+    # fails with `Invalid number of channels`. Retrying does not help; waiting
+    # does. This script is launched once per point, so it hits that window on
+    # every point of a sweep.
+    for attempt in range(1, 5):
+        try:
+            print("[a2b] local:", execute(node, "spk on"))
+            break
+        except Exception as e:
+            print(f"[a2b] a saida nao abriu ({e}); tentativa {attempt} de 4")
+            time.sleep(3.0)
+    else:
+        sys.exit("[a2b] a caixa local nao abriu em 4 tentativas")
     print("[a2b] local:", execute(node, f"mode {args.mode}"))
     print("[a2b] local:", execute(node, f"gain {args.gain}"))
     if args.fec:
@@ -137,16 +157,16 @@ def main():
         """Arm the far side, transmit, bring the pair back, stamp the JSON."""
         extra = {}
         if args.silence is not None:
-            secs, payload, cmd, kind = args.silence, b'', None, 'room'
+            secs, payload, cmd, kind, want = args.silence, b'', None, 'room', ''
         elif args.chirp:
             f0, f1, cs = (float(x) for x in args.chirp.split())
             secs, payload = cs + 2.0, b''
-            cmd, kind = f"chirp {f0:.0f} {f1:.0f} {cs}", 'chirp'
+            cmd, kind, want = f"chirp {f0:.0f} {f1:.0f} {cs}", 'chirp', 'chirp'
             extra['chirp'] = [f0, f1, cs]
         elif args.tone:
             hz, ts = (float(x) for x in args.tone.split())
             secs, payload = ts + 2.0, b''
-            cmd, kind = f"tonef {hz:.0f} {ts}", 'tone'
+            cmd, kind, want = f"tonef {hz:.0f} {ts}", 'tone', 'tonef'
             extra['tone_hz'] = hz
         else:
             seed = (args.seed if args.seed is not None
@@ -159,10 +179,10 @@ def main():
                 # time here is how a recording ends up stopping before the
                 # frame does.
                 _, airtime = node.fec_plan(payload)
-                cmd, kind = "fecsend " + payload.decode(), 'fec'
+                cmd, kind, want = "fecsend " + payload.decode(), 'fec', 'fecsend'
             else:
                 airtime = (len(payload) + 16) * 10 / baud
-                cmd, kind = "send " + payload.decode(), 'stream'
+                cmd, kind, want = "send " + payload.decode(), 'stream', 'enviando'
             secs = airtime + args.tail + 1.0
             extra.update(seed=seed, airtime_s=round(airtime, 2),
                          fec_repeat=args.repeat if args.fec else 0,
@@ -171,16 +191,35 @@ def main():
                                             if args.sync_chirp else 0.0))
 
         secs = min(secs, 120.0)
+        if secs > 120.0:
+            # `grave` clamps to 120 s without saying so, and a clamped window
+            # is a burst cut off mid-frame: audio that scores as a dead link
+            # and looks like one.
+            print(f"[a2b] {secs:.0f}s passa do limite de 120s do `grave` -- "
+                  f"reduza --bytes ou --repeat")
+            return False
         reply = ask(ctl, f"grave {secs:.1f} {label}")
-        if not reply or 'gravando' not in reply:
+        # `startswith`, not `in`: the refusal for a recording already running
+        # is "ja esta gravando (...)", which contains the word and would pass a
+        # substring test. That path leaves the previous `rec_stem` in place, so
+        # `gravou` would then hand back the *previous* recording and this
+        # script would stamp the new payload onto the old audio -- garbage that
+        # scores as a bad channel and says nothing about one.
+        if not reply.startswith('gravando '):
             print(f"[a2b] a outra maquina recusou gravar: {reply!r}")
             return False
         # The far side is already collecting; a beat of margin keeps the
         # first preamble symbols off the edge of its window.
         time.sleep(0.4)
         if cmd is not None:
-            out = execute(node, cmd)
-            if 'uso:' in str(out) or 'ERRO' in str(out):
+            out = str(execute(node, cmd))
+            # The success token, not the refusal. `execute` refuses in a dozen
+            # different sentences -- "caixa desligada - rode 'spk on' antes",
+            # "fecsend so em mfsk ou mary", "comando desconhecido" -- and a
+            # test that enumerates them is a test that will miss the next one.
+            # Every accepting branch answers with its own verb; that is the
+            # thing to look for. Same test `capture.py` makes of the far side.
+            if want not in out:
                 print(f"[a2b] o transmissor local recusou: {out!r}")
                 return False
             print(f"[a2b] local: {out}")
@@ -221,17 +260,36 @@ def main():
               f"rms={meta['rms']:.4f} pico={meta['peak']:.3f}")
         return True
 
+    done = 0
     try:
         for trial in range(1, args.trials + 1):
-            if not one_trial(trial):
-                break
+            # `continue`, not `break`: one refused trial is not a reason to
+            # abandon the other three, and a point recorded 3 times out of 4 is
+            # still a point.
+            if one_trial(trial):
+                done += 1
     finally:
         try:
             execute(node, "spk off")
         except Exception:
             pass
+        # The far side's speaker was switched off so nothing of its own landed
+        # in the recording. Leaving it off outlives this process and would meet
+        # the next B->A measurement as "caixa desligada".
+        try:
+            ask(ctl, "spk on")
+        except Exception:
+            pass
         ctl.close()
-    print(f"[a2b] pronto. Agora: ./venv/bin/python bench.py {args.out}")
+    print(f"[a2b] {done} de {args.trials} gravacoes. "
+          f"Agora: ./venv/bin/python bench.py {args.out}")
+    # A non-zero status is the only thing the shell driver can see, and without
+    # it a point that recorded nothing at all printed its heading and was
+    # walked past. Silent loss of a point is the failure that costs a campaign.
+    if done == 0:
+        sys.exit(1)
+    if done < args.trials:
+        sys.exit(2)
 
 
 if __name__ == '__main__':
