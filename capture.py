@@ -141,6 +141,10 @@ def main():
                     help="seconds to keep recording after the burst should have ended")
     ap.add_argument('--text', help="send this exact text instead of a random "
                                    "payload (for a readable demonstration)")
+    ap.add_argument('--band', type=float, default=None,
+                    help="mede uma faixa +-Hz ao redor de cada tom mary")
+    ap.add_argument('--chord', action='store_true',
+                    help="nibble como 3 tons em vez de 1; os dois lados")
     ap.add_argument('--gap', type=float, default=None,
                     help="silence at the end of each M-ary symbol, as a "
                          "fraction; both machines must agree")
@@ -174,6 +178,10 @@ def main():
         ask(ctl, f"fecrep {args.repeat}")
     if args.gap is not None:
         ask(ctl, f"marygap {args.gap}")
+    if args.band is not None:
+        ask(ctl, f"maryband {args.band}")
+    if args.chord:
+        ask(ctl, "marychord on")
     if args.gain is not None:
         ask(ctl, f"gain {args.gain}")
 
@@ -233,6 +241,8 @@ def main():
                               fec_repeat=args.repeat if args.fec else 0,
                               parallel=bool(args.fec and args.parallel),
                               gap=args.gap or 0.0,
+                              band=args.band or 0.0,
+                              chord=bool(args.chord),
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,
                               airtime_s=round(airtime, 2))

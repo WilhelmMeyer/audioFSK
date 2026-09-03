@@ -47,6 +47,8 @@ PREAMBLE = bytes([0x55] * 10 + [0xFF])
 MFSK_BAUD = 100       # multi-tone layer: slower, but amplitude-independent
 FEC_REPEAT = 2        # rate 1/3 x2: holds to 25% of bits wrong, measured
 MARY_GAP = 0.0        # silence at the end of each M-ary symbol, as a fraction
+MARY_BAND = 0.0       # Hz either side of each tone to include in its energy
+MARY_CHORD = False    # a nibble as three tones instead of one
                       # (a floor, not a law -- `fecrep` moves it per link)
 
 TONE_CHUNK = 32       # bytes of 0x55 per modulated chunk, ~0.27 s
@@ -92,8 +94,10 @@ class AudioNode:
             # chord layers divide their amplitude among five tones and lose
             # 14 dB each; this one spends it all on the tone that carries the
             # symbol.
-            'mary': (MaryModulator(fs=FS, baud=MFSK_BAUD, gap=MARY_GAP),
-                     MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=MARY_GAP)),
+            'mary': (MaryModulator(fs=FS, baud=MFSK_BAUD, gap=MARY_GAP,
+                                   chord=MARY_CHORD),
+                     MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=MARY_GAP,
+                                     band=MARY_BAND, chord=MARY_CHORD)),
         }
         self.mode = 'fsk'
         self.gain = gain
@@ -106,6 +110,8 @@ class AudioNode:
         self.fec_parallel = False
         self.fec_repeat = FEC_REPEAT
         self.mary_gap = MARY_GAP
+        self.mary_band = MARY_BAND
+        self.mary_chord = MARY_CHORD
         # Receiving an error-corrected block, the mirror of fecsend. Without
         # it only the console side could decode FEC, through capture.py and
         # recvfile.py -- separate programs that own their own audio -- so the
@@ -184,6 +190,24 @@ class AudioNode:
             setattr(self.demod, attr, value)
         return attr, getattr(self.demod, attr)
 
+    def rebuild_mary(self):
+        """Recreate the M-ary pair around the current knobs.
+
+        All three settings change what goes on the air or how it is read, so
+        both machines must agree on every one of them. None of the three can be
+        detected from the signal: a receiver reading the wrong half of a symbol,
+        the wrong band, or the wrong alphabet all report confident nonsense
+        rather than an error. Send them with the `b` prefix.
+        """
+        self.layers['mary'] = (
+            MaryModulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
+                          chord=self.mary_chord),
+            MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
+                            band=self.mary_band, chord=self.mary_chord))
+        if self.mode == 'mary':
+            self.mod, self.demod = self.layers['mary']
+            self.rx_buffer.clear()
+
     def set_mary_gap(self, frac):
         """Rebuild the M-ary pair around a new gap.
 
@@ -192,11 +216,7 @@ class AudioNode:
         symbol and reports confident nonsense. Send it with `b marygap`.
         """
         self.mary_gap = frac
-        self.layers['mary'] = (MaryModulator(fs=FS, baud=MFSK_BAUD, gap=frac),
-                               MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=frac))
-        if self.mode == 'mary':
-            self.mod, self.demod = self.layers['mary']
-            self.rx_buffer.clear()
+        self.rebuild_mary()
 
     def set_mode(self, mode):
         if mode not in self.layers:
@@ -705,6 +725,8 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   fecpar on|off       fec em paralelo: 5 bits por simbolo, ~4x mais rapido
   fecrep <n>          repeticoes de cada bit codificado (padrao 2)
   marygap <fracao>    silencio no fim de cada simbolo mary (ex 0.2); os DOIS lados
+  maryband <Hz>       mede uma faixa +-Hz ao redor de cada tom (ex 20)
+  marychord on|off    nibble como 3 tons em vez de 1; os DOIS lados
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
   sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
   fecpkt <arq> <n>    o mesmo, com correcao de erro (mfsk ou mary)
@@ -924,6 +946,17 @@ def execute(node, cmd):
             return "marygap fora de faixa (0 a 0.6)"
         node.set_mary_gap(frac)
         return f"mary gap = {frac} ({int(frac * 100)}% de silencio por simbolo)"
+    if verb == "maryband":
+        try:
+            node.mary_band = max(0.0, min(80.0, float(arg)))
+        except ValueError:
+            return f"maryband invalido: {arg!r}"
+        node.rebuild_mary()
+        return f"mary banda = +-{node.mary_band:.0f} Hz por tom"
+    if verb == "marychord":
+        node.mary_chord = flag()
+        node.rebuild_mary()
+        return (f"mary acorde {'ON (3 tons por nibble)' if node.mary_chord else 'off (1 tom por nibble)'}")
     if verb == "fecrep":
         # How many times each coded bit is sent. The right value is a property
         # of the link, not of the code: what the decoder needs is a number of

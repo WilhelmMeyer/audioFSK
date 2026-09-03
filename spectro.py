@@ -173,14 +173,14 @@ def decided_panel(samples, meta, want, start, f_lo, f_hi, cols, rows, win, nsamp
     d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'], gap=meta.get('gap', 0.0))
     sps = d.samples_per_symbol
 
-    gen = d._symbols(samples)
     marks = []                       # (sample position, tone index)
-    total = len(samples)
-    for idx, _c, _n in gen:
-        # The generator has already advanced its buffer, so what it consumed up
-        # to now places the window that produced this decision.
-        pos = total - len(d.buf) - sps
-        marks.append((pos, idx))
+    for idx, _c, _n in d._symbols(samples):
+        # Ask the demodulator where it measured, rather than inferring it from
+        # how much buffer is left. The gate measures at an offset inside the
+        # buffer and then consumes a different amount, so the inference is off
+        # by up to a quarter of a symbol -- enough to draw an aligned receiver
+        # as a misaligned one.
+        marks.append((d.last_window, idx))
 
     # Judge correctness by aligning the decision *sequence* to the transmitted
     # one, not by sample position. The receiver's clock steers, so its symbol k

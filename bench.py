@@ -75,7 +75,9 @@ def run_fec(meta, samples, nbytes, repeat):
     """
     if meta.get('mode') == 'mary':
         d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
-                            gap=meta.get('gap', 0.0))
+                            gap=meta.get('gap', 0.0),
+                            band=meta.get('band', 0.0),
+                            chord=bool(meta.get('chord')))
         llr = np.concatenate([d.demodulate_soft(samples[i:i + BLOCK])
                               for i in range(0, len(samples), BLOCK)])
         start = fec.find_sync(llr)

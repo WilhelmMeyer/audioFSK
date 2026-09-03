@@ -554,6 +554,30 @@ MARY_TONES = (888, 1050, 1212, 1375, 1538, 1700, 1862, 2025,
               2188, 2350, 2512, 2675, 2838, 3000, 3162, 3325)
 MARY_BITS = 4
 
+# One nibble as a *chord* of three tones instead of a single one. Sixteen
+# patterns, any two sharing at most one tone, so the distance between any two
+# nibbles is four tone positions: mistaking one tone cannot change the nibble.
+# Every tone is used in exactly three patterns, so no frequency carries more of
+# the alphabet than another.
+#
+# The trade is power against diversity. One tone at a time puts the whole
+# amplitude on the frequency that carries the symbol; three tones must be
+# divided by three to stay inside the same peak, costing 9.5 dB each. That is
+# a bad bargain on a channel that spreads energy in time and a good one on a
+# channel with deep, narrow nulls -- and this link measures as the second:
+# a comb with 13-18 dB troughs, and no reverberation tail above the noise
+# floor. Simulated on a comb plus tilt, chords scored 94.5% against 90.5% for
+# single tones; add reverberation and it reverses to 40.8% against 50.8%.
+#
+# Off by default. Which of those two channels this room really is, on the day,
+# is a measurement and not a preference.
+MARY_CODES = (
+    (0, 2, 12), (0, 4, 6), (0, 8, 9), (1, 3, 14),
+    (1, 6, 10), (1, 7, 15), (2, 6, 13), (2, 9, 14),
+    (3, 5, 15), (3, 10, 11), (4, 5, 9), (4, 8, 15),
+    (5, 12, 13), (7, 10, 13), (7, 11, 14), (8, 11, 12),
+)
+
 
 def _gray(i):
     return i ^ (i >> 1)
@@ -582,11 +606,13 @@ class MaryModulator:
     the same reverberation the pilot scored 43% against silence's 72%.
     """
 
-    def __init__(self, fs=48000, baud=100, tones=MARY_TONES, gap=0.0):
+    def __init__(self, fs=48000, baud=100, tones=MARY_TONES, gap=0.0,
+                 chord=False):
         self.fs = fs
         self.baud = baud
         self.tones = tuple(tones)
         self.gap = gap
+        self.chord = chord
         self.samples_per_symbol = int(fs / baud)
         # Samples the tone actually sounds for. The rest is the gap.
         self.samples_per_tone = self.samples_per_symbol - int(gap * self.samples_per_symbol)
@@ -604,11 +630,23 @@ class MaryModulator:
         self.phase = (self.phase + w * self.samples_per_symbol) % (2 * np.pi)
 
     def _symbol(self, value):
-        idx = _GRAY[value & ((1 << MARY_BITS) - 1)]
+        v = value & ((1 << MARY_BITS) - 1)
         nd = self.samples_per_tone
         n = np.arange(nd)
-        w = 2 * np.pi * self.tones[idx] / self.fs
-        out = np.sin(w * n + self.phase[idx])
+        if self.chord:
+            idxs = MARY_CODES[v]
+            out = np.zeros(nd)
+            for i in idxs:
+                w = 2 * np.pi * self.tones[i] / self.fs
+                out += np.sin(w * n + self.phase[i])
+            # Divided by the count, not its square root: the same peak budget
+            # as a single tone, so the two schemes can be compared without one
+            # of them quietly running hotter into the far side's limiter.
+            out /= len(idxs)
+        else:
+            idx = _GRAY[v]
+            w = 2 * np.pi * self.tones[idx] / self.fs
+            out = np.sin(w * n + self.phase[idx])
         self._advance()
         if nd < self.samples_per_symbol:
             out = np.concatenate([out, np.zeros(self.samples_per_symbol - nd)])
@@ -643,7 +681,8 @@ class MaryDemodulator:
     """Pick the loudest tone, after dividing each by its own noise floor."""
 
     def __init__(self, fs=48000, baud=100, tones=MARY_TONES, guard=0.15,
-                 contrast_min=0.15, floor_alpha=0.02, gap=0.0, band=0.0):
+                 contrast_min=0.15, floor_alpha=0.02, gap=0.0, band=0.0,
+                 chord=False):
         self.fs = fs
         self.baud = baud
         self.tones = np.array(tones, dtype=np.float64)
@@ -651,6 +690,7 @@ class MaryDemodulator:
         self.contrast_min = contrast_min
         self.floor_alpha = floor_alpha
         self.gap = gap
+        self.chord = chord
 
         # With a transmitted gap the tone occupies only the head of the symbol,
         # so measure there and leave the tail to the clock.
@@ -692,6 +732,15 @@ class MaryDemodulator:
         self.input_rms = 0.0
         self.input_peak = 0.0
         self.contrast = 0.0
+        # Absolute sample index of the head of the buffer, and of the window
+        # the last decision was measured on. Nothing in the decoding needs
+        # these. A diagnostic that reconstructs them from the buffer length
+        # gets them wrong by up to a quarter of a symbol, because the
+        # early/late gate measures at an offset inside the buffer and then
+        # consumes a different amount than it measured -- which drew the
+        # receiver as misaligned when the misalignment was in the bookkeeping.
+        self.consumed = 0
+        self.last_window = 0
 
     def _energies(self, start):
         seg = self.buf[start + self.guard:start + self.samples_per_tone]
@@ -711,6 +760,17 @@ class MaryDemodulator:
         seg = self.buf[start + self.samples_per_tone:start + self.samples_per_symbol]
         return float(np.mean(np.square(seg))) if len(seg) else 0.0
 
+    def _nibble_scores(self, norm):
+        """How well each of the sixteen patterns explains this symbol.
+
+        For single tones the pattern is the tone, so the score is the tone.
+        For chords it is the sum over the three tones -- which is why a tone
+        lost in a null costs a third of the evidence rather than all of it.
+        """
+        if not self.chord:
+            return norm
+        return np.array([norm[list(c)].sum() for c in MARY_CODES])
+
     def _score(self, start):
         e = self._energies(start)
         # Divide by the running floor before comparing. A tone in a null and a
@@ -718,8 +778,9 @@ class MaryDemodulator:
         # when nobody is transmitting on it, which is the only fair comparison
         # on a channel whose response swings 17 dB between neighbours.
         norm = e / np.maximum(self.floor, 1e-30)
-        order = np.argsort(norm)
-        top, second = norm[order[-1]], norm[order[-2]]
+        scores = self._nibble_scores(norm)
+        order = np.argsort(scores)
+        top, second = scores[order[-1]], scores[order[-2]]
         contrast = (top - second) / max(top + second, 1e-30)
         return int(order[-1]), contrast, norm
 
@@ -767,13 +828,19 @@ class MaryDemodulator:
                 self.contrast = self._score(at)[1]
 
             self._update_floor(self._energies(at))
-            self.buf = self.buf[self.samples_per_symbol + adjust:]
+            self.last_window = self.consumed + at
+            step = self.samples_per_symbol + adjust
+            self.consumed += step
+            self.buf = self.buf[step:]
             yield idx, self.contrast, norm
 
     def demodulate(self, samples):
         out = []
         for idx, contrast, _norm in self._symbols(samples):
-            v = _UNGRAY[idx]
+            # In chord mode the winning index *is* the nibble, since the
+            # patterns are indexed by value. With single tones it is a tone
+            # index and Gray coding has to be undone first.
+            v = idx if self.chord else _UNGRAY[idx]
             self.bits += [(v >> j) & 1 for j in range(MARY_BITS)]
         while len(self.bits) >= 8:
             chunk = self.bits[:8]
@@ -792,9 +859,14 @@ class MaryDemodulator:
         """
         out = []
         for _idx, _c, norm in self._symbols(samples):
-            log_e = np.log(np.maximum(norm, 1e-30))
+            # Score the sixteen *nibbles*, not the sixteen tones. They differ
+            # once a nibble is a chord: the evidence for a value is then the
+            # sum over its three tones, and a bit's likelihood has to be read
+            # off the values that carry it, whatever they are made of.
+            log_e = np.log(np.maximum(self._nibble_scores(norm), 1e-30))
+            place = (lambda v: v) if self.chord else (lambda v: _GRAY[v])
             for j in range(MARY_BITS):
-                ones = [log_e[_GRAY[v]] for v in range(1 << MARY_BITS) if (v >> j) & 1]
-                zeros = [log_e[_GRAY[v]] for v in range(1 << MARY_BITS) if not (v >> j) & 1]
+                ones = [log_e[place(v)] for v in range(1 << MARY_BITS) if (v >> j) & 1]
+                zeros = [log_e[place(v)] for v in range(1 << MARY_BITS) if not (v >> j) & 1]
                 out.append(max(ones) - max(zeros))
         return np.array(out)
