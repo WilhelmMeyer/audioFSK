@@ -24,6 +24,31 @@ import numpy as np
 import recording
 
 
+def find_onset(samples, fs, window=0.02):
+    """Where the sweep actually starts.
+
+    The recorder opens before it asks the far side to play, so the file
+    begins with silence -- serial round trip plus the far side's queue,
+    measured at 0.4 to 1.0 s. Everything below maps time onto frequency by
+    assuming the sweep begins at sample zero, so that silence shifts every
+    reading along the frequency axis: 1.02 s of it on a 400-4200 Hz sweep
+    moved every measurement by 388 Hz, enough to name the wrong peak.
+
+    Worse, it also shifts the *end*: the sweep then runs past where the
+    noise floor is measured, so the tail of the sweep is counted as room
+    noise. Measured, that alone turned a +47 dB band into +3 dB and made two
+    sweeps of the same room, a minute apart, disagree about its shape.
+    """
+    w = max(1, int(window * fs))
+    e = np.array([np.sqrt(np.mean(np.square(samples[i:i + w])))
+                  for i in range(0, len(samples) - w, w)])
+    if not len(e):
+        return 0
+    base = np.median(e[:10]) if len(e) >= 10 else e[0]
+    hits = np.where(e > max(base * 8.0, e.max() * 0.05))[0]
+    return int(hits[0] * w) if len(hits) else 0
+
+
 def response(samples, fs, f0, f1, secs, bins=64):
     """Received level per frequency band, and the noise floor beside it.
 
@@ -74,7 +99,17 @@ def main():
         sys.exit(f"[channel] {args.capture} nao e uma varredura (--chirp)")
     f0, f1, secs = meta['chirp']
 
-    rows = response(samples, meta['fs'], f0, f1, secs, args.bins)
+    fs = meta['fs']
+    start = find_onset(samples, fs)
+    tail = (len(samples) - start) / fs - secs
+    print(f"[channel] varredura comeca em {start / fs:.2f}s; "
+          f"{tail:.1f}s de silencio depois dela")
+    if tail < 0.5:
+        print("[channel] AVISO: cauda curta -- o piso de ruido inclui o fim da "
+              "varredura e todos os SNR sairao baixos. Grave com mais margem.")
+    samples = samples[start:]
+
+    rows = response(samples, fs, f0, f1, secs, args.bins)
     peak = max(r[1] for r in rows)
 
     print(f"varredura {f0:.0f}-{f1:.0f} Hz em {secs:.1f}s   "
