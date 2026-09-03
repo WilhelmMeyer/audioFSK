@@ -1519,7 +1519,12 @@ def fetch_recording(remote, stem, outdir, note=print, exact=False):
         os.remove(tmp)
     else:
         samples = recording.from_int16(audio)
-    name = os.path.basename(stem)
+    # The stem comes back as the *far* machine wrote it, and that machine may
+    # be Windows: `captures\20260903-...`. `os.path.basename` on this side
+    # only knows '/', so it returns the whole string, backslash included, and
+    # the capture lands in a file literally named `captures\2026...wav` in the
+    # current directory instead of under `outdir`. Split on both separators.
+    name = stem.replace('\\', '/').rsplit('/', 1)[-1]
     # Which side of the link this audio was recorded on, written into the
     # capture rather than left to the file name. The two chains are different
     # hardware, so a number that does not say which one it came from is not

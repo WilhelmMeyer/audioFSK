@@ -1,0 +1,23 @@
+{
+  "label": "mary-base-limpo-B2A",
+  "mode": "mary",
+  "kind": "fec",
+  "fec_repeat": 2,
+  "parallel": false,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 100,
+  "fs": 48000,
+  "seed": 12114689,
+  "gain": 1.0,
+  "device": "26",
+  "rms": 0.027544420212507248,
+  "peak": 0.14009197056293488,
+  "airtime_s": 7.19,
+  "payload_hex": "73737251547a5331567a5767726d4e35523071436251393568306c5371713458585a48503558377a55416b4175385557",
+  "payload_len": 48,
+  "samples": 495616,
+  "recorded": "20260903-162230"
+}

@@ -1,0 +1,23 @@
+{
+  "label": "mfsk-par-B2A",
+  "mode": "mfsk",
+  "kind": "fec",
+  "fec_repeat": 2,
+  "parallel": true,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 100,
+  "fs": 48000,
+  "seed": 11479926,
+  "gain": 0.8,
+  "device": "26",
+  "rms": 0.050800640136003494,
+  "peak": 0.29557445645332336,
+  "airtime_s": 5.79,
+  "payload_hex": "593435635131317273415a79595968614a523050784456724975446942494b6d6b5a6756736a44366b5537634a676364",
+  "payload_len": 48,
+  "samples": 434176,
+  "recorded": "20260903-161154"
+}

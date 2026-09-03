@@ -175,7 +175,7 @@ def main():
         elapsed = time.time() - started
         eta = (elapsed / done_packets * (npackets - done_packets)) if done_packets else 0
         return (f"[{bar:<30}] {pct:3d}%  {done_packets}/{npackets} pacotes  "
-                f"{len(chunks) * xfer.PAYLOAD_SIZE:4d}/{size} bytes  "
+                f"{min(len(chunks) * args.packet_size, size):4d}/{size} bytes  "
                 f"{elapsed:4.0f}s decorridos" + (f", ~{eta:.0f}s restantes" if eta else ""))
 
     try:

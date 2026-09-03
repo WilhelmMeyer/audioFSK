@@ -1,0 +1,23 @@
+{
+  "label": "mfsk-par-g10-B2A",
+  "mode": "mfsk",
+  "kind": "fec",
+  "fec_repeat": 2,
+  "parallel": true,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 100,
+  "fs": 48000,
+  "seed": 11618950,
+  "gain": 1.0,
+  "device": "26",
+  "rms": 0.0641300305724144,
+  "peak": 0.3756318688392639,
+  "airtime_s": 5.79,
+  "payload_hex": "6d4744704b6e616f6d6d78766349624b6a7a46586a6b5939724a72644c383553486530634a61466351706a39776b434c",
+  "payload_len": 48,
+  "samples": 430080,
+  "recorded": "20260903-161413"
+}

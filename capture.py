@@ -238,14 +238,16 @@ def main():
         # `fecrep` is -- a mismatch is undetectable at the decoder and reads as
         # a channel that got worse.
         ask(ctl, f"syncsweep {'on' if args.sync_chirp else 'off'}")
-    if args.gap is not None:
-        ask(ctl, f"marygap {args.gap}")
-    if args.band is not None:
-        ask(ctl, f"maryband {args.band}")
-    if args.chord:
-        ask(ctl, "marychord on")
-    if args.grouped:
-        ask(ctl, "mfskgroup on")
+    # Sent every run, including when they are off. These are settings both
+    # machines must agree on, and the agent keeps whatever the previous run
+    # left it at -- so a capture that only ever turns a knob *on* leaves it on
+    # for the next test, whose recordings then carry a setting its own JSON
+    # says is off. The mismatch is undetectable at the decoder: it comes back
+    # as garbage that fails the CRC and reads as a channel that got worse.
+    ask(ctl, f"marygap {args.gap if args.gap is not None else 0.0}")
+    ask(ctl, f"maryband {args.band if args.band is not None else 0.0}")
+    ask(ctl, f"marychord {'on' if args.chord else 'off'}")
+    ask(ctl, f"mfskgroup {'on' if args.grouped else 'off'}")
     if args.gain is not None:
         ask(ctl, f"gain {args.gain}")
 

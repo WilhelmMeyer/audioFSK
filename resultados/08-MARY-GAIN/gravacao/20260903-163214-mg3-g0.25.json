@@ -1,0 +1,23 @@
+{
+  "label": "mg3-g0.25",
+  "mode": "mary",
+  "kind": "fec",
+  "fec_repeat": 2,
+  "parallel": false,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 100,
+  "fs": 48000,
+  "seed": 12698564,
+  "gain": 0.25,
+  "device": "26",
+  "rms": 0.011591443791985512,
+  "peak": 0.06917600333690643,
+  "airtime_s": 7.19,
+  "payload_hex": "4a31506f32687266684f4444657072715463636e516d5a6f756c7776427767413576756463386f534f5442774577514a",
+  "payload_len": 48,
+  "samples": 493568,
+  "recorded": "20260903-163214"
+}

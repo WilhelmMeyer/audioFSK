@@ -1,0 +1,3 @@
+condicao,direcao,modo,fecrep,gain,packet_size,pacotes,bytes,segundos,B_s,retransmissoes,crc32_confere,arquivo_identico
+pkt64-rep1-B2A,B2A,mary,1,1.0,64,21,1334,197,6.8,0,sim,sim
+pkt128-rep1-B2A,B2A,mary,1,1.0,128,11,1334,186,7.2,3,sim,sim

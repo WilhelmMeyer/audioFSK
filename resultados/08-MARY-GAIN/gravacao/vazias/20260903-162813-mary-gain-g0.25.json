@@ -1,0 +1,23 @@
+{
+  "label": "mary-gain-g0.25",
+  "mode": "mary",
+  "kind": "fec",
+  "fec_repeat": 2,
+  "parallel": false,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 100,
+  "fs": 48000,
+  "seed": 12457025,
+  "gain": 0.25,
+  "device": "26",
+  "rms": 0.0,
+  "peak": 0.0,
+  "airtime_s": 7.19,
+  "payload_hex": "6d4a766e634e48526e3874736b506d58634b6d36446e3767785048466d7276654233325a533048583934707a6c536e48",
+  "payload_len": 48,
+  "samples": 65536,
+  "recorded": "20260903-162813"
+}

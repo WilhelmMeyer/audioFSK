@@ -1,0 +1,47 @@
+  -> remoto envia tx 1/21 (4%) 81 bytes codificados
+  [#                             ]   4%  1/21 pacotes    32/1334 bytes    10s decorridos, ~193s restantes   pkt 0 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 2/21 (9%) 81 bytes codificados
+  [##                            ]   9%  2/21 pacotes    64/1334 bytes    19s decorridos, ~180s restantes   pkt 1 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 3/21 (14%) 81 bytes codificados
+  [####                          ]  14%  3/21 pacotes    96/1334 bytes    28s decorridos, ~170s restantes   pkt 2 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 4/21 (19%) 81 bytes codificados
+  [#####                         ]  19%  4/21 pacotes   128/1334 bytes    38s decorridos, ~160s restantes   pkt 3 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 5/21 (23%) 81 bytes codificados
+  [######                        ]  23%  5/21 pacotes   160/1334 bytes    47s decorridos, ~151s restantes   pkt 4 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 6/21 (28%) 81 bytes codificados
+  [########                      ]  28%  6/21 pacotes   192/1334 bytes    56s decorridos, ~141s restantes   pkt 5 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 7/21 (33%) 81 bytes codificados
+  [#########                     ]  33%  7/21 pacotes   224/1334 bytes    66s decorridos, ~132s restantes   pkt 6 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 8/21 (38%) 81 bytes codificados
+  [###########                   ]  38%  8/21 pacotes   256/1334 bytes    75s decorridos, ~122s restantes   pkt 7 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 9/21 (42%) 81 bytes codificados
+  [############                  ]  42%  9/21 pacotes   288/1334 bytes    85s decorridos, ~113s restantes   pkt 8 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 10/21 (47%) 81 bytes codificados
+  [##############                ]  47%  10/21 pacotes   320/1334 bytes    94s decorridos, ~103s restantes   pkt 9 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 11/21 (52%) 81 bytes codificados
+  [###############               ]  52%  11/21 pacotes   352/1334 bytes   103s decorridos, ~94s restantes   pkt 10 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 12/21 (57%) 81 bytes codificados
+  [#################             ]  57%  12/21 pacotes   384/1334 bytes   113s decorridos, ~84s restantes   pkt 11 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 13/21 (61%) 81 bytes codificados
+  [##################            ]  61%  13/21 pacotes   416/1334 bytes   122s decorridos, ~75s restantes   pkt 12 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 14/21 (66%) 81 bytes codificados
+  [###################           ]  66%  14/21 pacotes   448/1334 bytes   131s decorridos, ~66s restantes   pkt 13 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 15/21 (71%) 81 bytes codificados
+  [#####################         ]  71%  15/21 pacotes   480/1334 bytes   141s decorridos, ~56s restantes   pkt 14 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 16/21 (76%) 81 bytes codificados
+  [######################        ]  76%  16/21 pacotes   512/1334 bytes   150s decorridos, ~47s restantes   pkt 15 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 17/21 (80%) 81 bytes codificados
+  [########################      ]  80%  17/21 pacotes   544/1334 bytes   159s decorridos, ~38s restantes   pkt 16 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 18/21 (85%) 81 bytes codificados
+  [#########################     ]  85%  18/21 pacotes   576/1334 bytes   169s decorridos, ~28s restantes   pkt 17 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 19/21 (90%) 81 bytes codificados
+  [###########################   ]  90%  19/21 pacotes   608/1334 bytes   178s decorridos, ~19s restantes   pkt 18 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 20/21 (95%) 81 bytes codificados
+  [############################  ]  95%  20/21 pacotes   640/1334 bytes   187s decorridos, ~9s restantes   pkt 19 OK (64 bytes, tentativa 1)
+  -> remoto envia tx 21/21 (100%) 71 bytes codificados
+  [##############################] 100%  21/21 pacotes   672/1334 bytes   197s decorridos   pkt 20 OK (54 bytes, tentativa 1)
+
+1334/1334 bytes em 197s (6.8 B/s efetivos, 0 retransmissoes)
+CRC32 24763389 confere. Arquivo gravado em got-B2A.bmp
+
+[exited with code 0]

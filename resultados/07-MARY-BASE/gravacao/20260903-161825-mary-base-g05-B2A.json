@@ -1,0 +1,23 @@
+{
+  "label": "mary-base-g05-B2A",
+  "mode": "mary",
+  "kind": "fec",
+  "fec_repeat": 2,
+  "parallel": false,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 100,
+  "fs": 48000,
+  "seed": 11869604,
+  "gain": 0.5,
+  "device": "26",
+  "rms": 0.40277987718582153,
+  "peak": 1.0,
+  "airtime_s": 7.19,
+  "payload_hex": "3373695379685a50764644665a38774350746571757031614b6b357146434f6742734c4247613742586b507661553946",
+  "payload_len": 48,
+  "samples": 499712,
+  "recorded": "20260903-161825"
+}

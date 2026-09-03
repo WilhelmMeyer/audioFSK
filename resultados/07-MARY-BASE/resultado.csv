@@ -1,0 +1,10 @@
+stem,camada,direcao,fecrep,gain,bytes,rms,pico,pct_acima_099,bloco_inteiro,valido,nota
+20260903-161643-mary-base-B2A,mary,B2A,2,1.0,48,0.48,1.000,9.65,sim,nao,cadeia saturada
+20260903-161653-mary-base-B2A,mary,B2A,2,1.0,48,0.48,1.000,9.65,nao,nao,cadeia saturada
+20260903-161704-mary-base-B2A,mary,B2A,2,1.0,48,0.48,1.000,9.65,nao,nao,cadeia saturada
+20260903-161804-mary-base-g05-B2A,mary,B2A,2,0.5,48,0.41,1.000,4.83,nao_pontuado,nao,cadeia ainda saturada; nao pontuada individualmente
+20260903-161815-mary-base-g05-B2A,mary,B2A,2,0.5,48,0.41,1.000,4.83,nao_pontuado,nao,cadeia ainda saturada; nao pontuada individualmente
+20260903-161825-mary-base-g05-B2A,mary,B2A,2,0.5,48,0.41,1.000,4.83,nao_pontuado,nao,cadeia ainda saturada; nao pontuada individualmente
+20260903-162209-mary-base-limpo-B2A,mary,B2A,2,1.0,48,0.0266,0.165,,sim,sim,cadeia linear apos correcao
+20260903-162220-mary-base-limpo-B2A,mary,B2A,2,1.0,48,0.0313,0.200,,sim,sim,cadeia linear apos correcao
+20260903-162230-mary-base-limpo-B2A,mary,B2A,2,1.0,48,0.0275,0.140,,sim,sim,cadeia linear apos correcao

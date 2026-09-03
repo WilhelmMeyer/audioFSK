@@ -1,0 +1,7 @@
+stem,camada,direcao,fecrep,gain,bytes,rms,pico,bytes_certos,bloco_inteiro,nota
+20260903-161136-mfsk-par-B2A,mfsk-paralelo,B2A,2,0.8,48,0.0531,0.288,0,nao,
+20260903-161145-mfsk-par-B2A,mfsk-paralelo,B2A,2,0.8,48,0.0544,0.299,46,nao,
+20260903-161154-mfsk-par-B2A,mfsk-paralelo,B2A,2,0.8,48,0.0508,0.296,21,nao,
+20260903-161413-mfsk-par-g10-B2A,mfsk-paralelo,B2A,2,1.0,48,0.0641,0.376,26,nao,
+20260903-161422-mfsk-par-g10-B2A,mfsk-paralelo,B2A,2,1.0,48,0.0638,0.353,29,nao,
+20260903-161432-mfsk-par-g10-B2A,mfsk-paralelo,B2A,2,1.0,48,0.0646,0.350,20,nao,

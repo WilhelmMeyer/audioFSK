@@ -1,0 +1,23 @@
+{
+  "label": "mfsk-vote-B2A",
+  "mode": "mfsk",
+  "kind": "fec",
+  "fec_repeat": 2,
+  "parallel": false,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 100,
+  "fs": 48000,
+  "seed": 10622207,
+  "gain": 0.8,
+  "device": "26",
+  "rms": 0.07521872967481613,
+  "peak": 0.34634771943092346,
+  "airtime_s": 24.51,
+  "payload_hex": "4443426b437366484b6d50396374316f4b4f695a6b3072324e42793134643231475457666d6658514a71697a4e6b3561",
+  "payload_len": 48,
+  "samples": 1327104,
+  "recorded": "20260903-155755"
+}

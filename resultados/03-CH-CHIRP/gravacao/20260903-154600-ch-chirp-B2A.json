@@ -1,0 +1,20 @@
+{
+  "kind": "chirp",
+  "label": "ch-chirp-B2A",
+  "mode": "mfsk",
+  "baud": 0,
+  "fs": 48000,
+  "chirp": [
+    300.0,
+    6000.0,
+    4.0
+  ],
+  "gain": null,
+  "device": "26",
+  "rms": 0.12334092706441879,
+  "peak": 0.6964036822319031,
+  "payload_hex": "",
+  "payload_len": 0,
+  "samples": 292864,
+  "recorded": "20260903-154600"
+}

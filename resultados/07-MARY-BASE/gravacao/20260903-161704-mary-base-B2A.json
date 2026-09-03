@@ -1,0 +1,23 @@
+{
+  "label": "mary-base-B2A",
+  "mode": "mary",
+  "kind": "fec",
+  "fec_repeat": 2,
+  "parallel": false,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 100,
+  "fs": 48000,
+  "seed": 11788270,
+  "gain": 1.0,
+  "device": "26",
+  "rms": 0.4747304618358612,
+  "peak": 1.0,
+  "airtime_s": 7.19,
+  "payload_hex": "6c305251316833424c45643279545765765368594a4573654f69725947665936323437686c454c53364b69326b6b3958",
+  "payload_len": 48,
+  "samples": 495616,
+  "recorded": "20260903-161704"
+}

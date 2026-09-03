@@ -1,0 +1,23 @@
+{
+  "label": "mg2-g0.5",
+  "mode": "mary",
+  "kind": "fec",
+  "fec_repeat": 2,
+  "parallel": false,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 100,
+  "fs": 48000,
+  "seed": 12594925,
+  "gain": 0.5,
+  "device": "26",
+  "rms": 0.02214464358985424,
+  "peak": 0.10123613476753235,
+  "airtime_s": 7.19,
+  "payload_hex": "43726c6a5564375269446561504a4e496e6249754d7453784c4c534c695879426e637a303379305037646452544d4550",
+  "payload_len": 48,
+  "samples": 503808,
+  "recorded": "20260903-163031"
+}
