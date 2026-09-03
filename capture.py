@@ -143,6 +143,8 @@ def main():
                                    "payload (for a readable demonstration)")
     ap.add_argument('--band', type=float, default=None,
                     help="mede uma faixa +-Hz ao redor de cada tom mary")
+    ap.add_argument('--grouped', action='store_true',
+                    help="mfsk: 5 tons graves = 0, 5 agudos = 1")
     ap.add_argument('--chord', action='store_true',
                     help="nibble como 3 tons em vez de 1; os dois lados")
     ap.add_argument('--gap', type=float, default=None,
@@ -182,6 +184,8 @@ def main():
         ask(ctl, f"maryband {args.band}")
     if args.chord:
         ask(ctl, "marychord on")
+    if args.grouped:
+        ask(ctl, "mfskgroup on")
     if args.gain is not None:
         ask(ctl, f"gain {args.gain}")
 
@@ -243,6 +247,7 @@ def main():
                               gap=args.gap or 0.0,
                               band=args.band or 0.0,
                               chord=bool(args.chord),
+                              grouped=bool(args.grouped),
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,
                               airtime_s=round(airtime, 2))

@@ -85,7 +85,8 @@ def run_fec(meta, samples, nbytes, repeat):
 
     par = bool(meta.get('parallel'))
     npairs = len(MFSK_PAIRS)
-    d = MFSKDemodulator(fs=meta['fs'], baud=meta['baud'], parallel=par)
+    d = MFSKDemodulator(fs=meta['fs'], baud=meta['baud'], parallel=par,
+                        grouped=bool(meta.get('grouped')))
     llr = np.concatenate([d.demodulate_soft(samples[i:i + BLOCK])
                           for i in range(0, len(samples), BLOCK)])
     if par:

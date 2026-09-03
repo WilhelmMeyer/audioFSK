@@ -49,6 +49,7 @@ FEC_REPEAT = 2        # rate 1/3 x2: holds to 25% of bits wrong, measured
 MARY_GAP = 0.0        # silence at the end of each M-ary symbol, as a fraction
 MARY_BAND = 0.0       # Hz either side of each tone to include in its energy
 MARY_CHORD = False    # a nibble as three tones instead of one
+MFSK_GROUPED = False  # low five tones mean 0, high five mean 1
                       # (a floor, not a law -- `fecrep` moves it per link)
 
 TONE_CHUNK = 32       # bytes of 0x55 per modulated chunk, ~0.27 s
@@ -83,8 +84,8 @@ class AudioNode:
         self.layers = {
             'fsk': (FSKModulator(fs=FS, baud=BAUD),
                     FSKDemodulator(fs=FS, baud=BAUD, squelch=squelch)),
-            'mfsk': (MFSKModulator(fs=FS, baud=MFSK_BAUD),
-                     MFSKDemodulator(fs=FS, baud=MFSK_BAUD)),
+            'mfsk': (MFSKModulator(fs=FS, baud=MFSK_BAUD, grouped=MFSK_GROUPED),
+                     MFSKDemodulator(fs=FS, baud=MFSK_BAUD, grouped=MFSK_GROUPED)),
             # Same tones, same timing recovery, but every pair carries its own
             # bit. Kept as a separate instance pair so no filter or phase state
             # crosses between the two readings of the same frequencies.
@@ -112,6 +113,7 @@ class AudioNode:
         self.mary_gap = MARY_GAP
         self.mary_band = MARY_BAND
         self.mary_chord = MARY_CHORD
+        self.mfsk_grouped = MFSK_GROUPED
         # Receiving an error-corrected block, the mirror of fecsend. Without
         # it only the console side could decode FEC, through capture.py and
         # recvfile.py -- separate programs that own their own audio -- so the
@@ -189,6 +191,15 @@ class AudioNode:
         if value is not None:
             setattr(self.demod, attr, value)
         return attr, getattr(self.demod, attr)
+
+    def rebuild_mfsk(self):
+        """Recreate the chord pair around the current tone layout."""
+        self.layers['mfsk'] = (
+            MFSKModulator(fs=FS, baud=MFSK_BAUD, grouped=self.mfsk_grouped),
+            MFSKDemodulator(fs=FS, baud=MFSK_BAUD, grouped=self.mfsk_grouped))
+        if self.mode == 'mfsk':
+            self.mod, self.demod = self.layers['mfsk']
+            self.rx_buffer.clear()
 
     def rebuild_mary(self):
         """Recreate the M-ary pair around the current knobs.
@@ -727,6 +738,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   marygap <fracao>    silencio no fim de cada simbolo mary (ex 0.2); os DOIS lados
   maryband <Hz>       mede uma faixa +-Hz ao redor de cada tom (ex 20)
   marychord on|off    nibble como 3 tons em vez de 1; os DOIS lados
+  mfskgroup on|off    mfsk: 5 graves = 0, 5 agudos = 1; os DOIS lados
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
   sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
   fecpkt <arq> <n>    o mesmo, com correcao de erro (mfsk ou mary)
@@ -946,6 +958,14 @@ def execute(node, cmd):
             return "marygap fora de faixa (0 a 0.6)"
         node.set_mary_gap(frac)
         return f"mary gap = {frac} ({int(frac * 100)}% de silencio por simbolo)"
+    if verb == "mfskgroup":
+        # Both machines, always: a receiver reading grouped tones from an
+        # interleaved transmitter compares two halves of a band that never
+        # carried halves, and reports confident nonsense rather than an error.
+        node.mfsk_grouped = flag()
+        node.rebuild_mfsk()
+        return ("mfsk agrupado ON (5 graves = 0, 5 agudos = 1)"
+                if node.mfsk_grouped else "mfsk agrupado off (pares intercalados)")
     if verb == "maryband":
         try:
             node.mary_band = max(0.0, min(80.0, float(arg)))

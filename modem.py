@@ -239,6 +239,25 @@ MFSK_PAIRS = (
 MFSK_TONES_0 = tuple(p[0] for p in MFSK_PAIRS)
 MFSK_TONES_1 = tuple(p[1] for p in MFSK_PAIRS)
 
+# The other way to spend the same ten frequencies: all five low ones mean 0 and
+# all five high ones mean 1, instead of interleaving pairs across the band.
+# Pairing exists so the two chords sit on the same mean frequency and a tilted
+# channel favours neither; grouping throws that away and buys about a kilohertz
+# of separation between the alternatives, where a pair has only 200 Hz -- under
+# two cells of the 118 Hz the measurement window resolves.
+#
+# It only works with a per-tone floor, and then it works well: simulated,
+# grouped scored 93.8% against 82.0% under 80 ms of reverberation and 87.0%
+# against 77.2% with noise on top. Without the floor the same scheme falls to
+# 76%, because a tilted channel then leans on the whole of one group at once --
+# which is the failure pairing was invented to prevent, arriving by the door
+# left open.
+#
+# It is not uniformly better: on a comb plus reverberation it loses, 81.5%
+# against 85.8%. Which channel this room is on the day decides it.
+MFSK_LOW = tuple(sorted(t for p in MFSK_PAIRS for t in p)[:len(MFSK_PAIRS)])
+MFSK_HIGH = tuple(sorted(t for p in MFSK_PAIRS for t in p)[len(MFSK_PAIRS):])
+
 # A vote is a ratio, so five tones of pure noise still elect a bit --
 # confidently, and forever. Observed: 485 bytes decoded out of an empty room.
 # So a vote is not enough on its own; the demodulator also has to know whether
@@ -255,7 +274,9 @@ class MFSKModulator:
     """Multi-tone FSK. One chord per bit, UART 8N1 framing as above."""
 
     def __init__(self, fs=48000, baud=100, tones_0=MFSK_TONES_0,
-                 tones_1=MFSK_TONES_1, parallel=False):
+                 tones_1=MFSK_TONES_1, parallel=False, grouped=False):
+        if grouped:
+            tones_0, tones_1 = MFSK_LOW, MFSK_HIGH
         # parallel=False: every pair sounds the same bit and the receiver
         # votes -- robust, one bit per symbol. parallel=True: each pair carries
         # its own bit, so a symbol carries as many bits as there are pairs.
@@ -334,7 +355,11 @@ class MFSKDemodulator:
 
     def __init__(self, fs=48000, baud=100, tones_0=MFSK_TONES_0,
                  tones_1=MFSK_TONES_1, guard=0.15, contrast_min=0.3,
-                 parallel=False):
+                 parallel=False, grouped=False, floor_alpha=0.02):
+        if grouped:
+            tones_0, tones_1 = MFSK_LOW, MFSK_HIGH
+        self.grouped = grouped
+        self.floor_alpha = floor_alpha
         self.fs = fs
         self.baud = baud
         self.tones_0 = tuple(tones_0)
@@ -380,6 +405,12 @@ class MFSKDemodulator:
         self.contrast = 0.0
         self.consumed = 0
         self.last_window = 0
+        # Only the grouped reading uses this. Comparing the sum of five low
+        # tones against five high ones is an amplitude comparison, so it needs
+        # each tone measured against what that frequency looks like when
+        # nothing is sent there; pairing never did, because its two members sit
+        # 200 Hz apart and the channel treats them alike.
+        self.tone_floor = np.zeros(len(self.tones_0) + len(self.tones_1))
 
     def _score(self, start):
         """Bit and vote margin for the symbol window beginning at `start`.
@@ -401,6 +432,9 @@ class MFSKDemodulator:
         e1 = np.abs(self.probe_1 @ seg) ** 2
         if not np.any(e0) and not np.any(e1):
             return 1, 0.0
+
+        if self.grouped:
+            return self._score_grouped(e0, e1)
 
         votes = e1 > e0
         ones = int(np.count_nonzero(votes))
@@ -438,6 +472,35 @@ class MFSKDemodulator:
         if presence < MFSK_PRESENCE_MIN:
             return bit, 0.0, llr
 
+        return bit, contrast, llr
+
+    def _score_grouped(self, e0, e1):
+        """Sum of the low group against the sum of the high group.
+
+        Each tone is divided by its own running floor first, and that is not
+        optional here. The two groups sit a kilohertz apart, so the channel
+        does not treat them alike -- a tilt leans on one whole group, and the
+        comparison being a sum means nothing outvotes it. Measured, the same
+        scheme scores 93.8% with the floor and 76% without.
+        """
+        e = np.concatenate([e0, e1])
+        if not self.tone_floor.any():
+            self.tone_floor[:] = e.mean()
+        v = e / np.maximum(self.tone_floor, 1e-30)
+        self.tone_floor += self.floor_alpha * (e - self.tone_floor)
+
+        lo = float(v[:len(e0)].sum())
+        hi = float(v[len(e0):].sum())
+        total = lo + hi
+        if total <= 0.0:
+            return 1, 0.0, 0.0
+        contrast = abs(hi - lo) / total
+        llr = (hi - lo) / total
+        bit = 1 if hi > lo else 0
+
+        win, lose = (hi, lo) if bit else (lo, hi)
+        if win / max(lose, 1e-30) < MFSK_PRESENCE_MIN:
+            return bit, 0.0, llr
         return bit, contrast, llr
 
     def _feed_bit(self, bit, output):
