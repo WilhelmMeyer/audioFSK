@@ -34,7 +34,7 @@ import sounddevice as sd
 import fec
 import updater
 import xfer
-from modem import (FSKModulator, FSKDemodulator,
+from modem import (ZeroWatch, FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
                    MaryModulator, MaryDemodulator, MARY_BITS,
                    chirp, find_chirp, find_chirp_pair, SYNC_CHIRP)
@@ -172,6 +172,13 @@ class AudioNode:
         # question is per frequency. Two seconds is plenty and costs 384 kB.
         self.tail = []
         self.tail_len = 0
+        # A source that goes away keeps the callback running and delivers
+        # blocks of exact zeros, so every reading below it stays plausible and
+        # becomes wrong: measured, 5.5 s of room and 4.5 s of nothing averaged
+        # to a room 10 dB too quiet. Here it reports rather than aborts -- on
+        # the agent this process *is* the way in, so killing it over a muted
+        # microphone would remove the channel that would carry the fix.
+        self.zero_watch = ZeroWatch(fs=FS)
 
         self.stats_lock = threading.Lock()
         self._reset_stats()
@@ -273,6 +280,7 @@ class AudioNode:
         self.rms_sum = 0.0
         self.level_sum = 0.0
         self.blocks = 0
+        self.dead_blocks = 0
         self.bytes_in = 0
         # Real elapsed time, so the byte rate is honest even when the meter
         # thread runs late and when `level` is called ad hoc.
@@ -671,6 +679,12 @@ class AudioNode:
     def _demodder(self):
         while True:
             samples = self.in_queue.get()
+            if self.zero_watch.feed(samples):
+                self.on_event(
+                    f"[audio] entrada entregando zeros exatos ha "
+                    f"{self.zero_watch.dead_secs:.1f}s -- fonte muda ou "
+                    f"sumida (`wpctl status`). Toda medida daqui para frente "
+                    f"e mentira ate voltar sinal.")
             self.tail.append(np.asarray(samples, dtype=np.float64))
             self.tail_len += len(samples)
             while self.tail_len > 2 * FS and len(self.tail) > 1:
@@ -703,6 +717,8 @@ class AudioNode:
                 else:
                     self.level_sum += d.contrast * d.input_rms
                 self.blocks += 1
+                if self.zero_watch.dead:
+                    self.dead_blocks += 1
                 self.bytes_in += len(out)
             if out:
                 self.rx_buffer += out
@@ -732,7 +748,7 @@ class AudioNode:
         it says the level is fine while you are chasing silence.
         """
         with self.stats_lock:
-            blocks, peak = self.blocks, self.peak
+            blocks, peak, dead = self.blocks, self.peak, self.dead_blocks
             elapsed = max(1e-3, time.time() - self.window_start)
             rms = self.rms_sum / blocks if blocks else 0.0
             inband = min(1.0, self.level_sum / self.rms_sum) if self.rms_sum > 1e-9 else 0.0
@@ -745,8 +761,16 @@ class AudioNode:
         # Name the quantity, because the two layers report different ones and
         # a reader comparing runs has to know which is on screen.
         label = "in-band" if self.mode == 'fsk' else "contrst"
-        return (f"[{meter_bar(db)}] {db:6.1f} dBFS  {label} {inband * 100:3.0f}%  "
+        line = (f"[{meter_bar(db)}] {db:6.1f} dBFS  {label} {inband * 100:3.0f}%  "
                 f"pico {peak:.2f}  {rate:5.1f} B/s")
+        # Named on the meter itself, not only in the one-shot warning above.
+        # The dB in this line is an average over the window, and zero blocks
+        # drag it down without leaving any other trace -- a reader comparing
+        # two runs has to be told that part of one of them was no microphone
+        # at all.
+        if dead:
+            line += f"  ZEROS {dead * 100 // max(1, blocks):3d}%"
+        return line
 
     def status(self):
         return "\n".join([

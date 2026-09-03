@@ -14,7 +14,7 @@ import fec
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator,
-                   MaryModulator, MaryDemodulator)
+                   MaryModulator, MaryDemodulator, ZeroWatch)
 
 FS = 48000
 
@@ -251,6 +251,128 @@ def test_mary():
         check(f"ganho x{gain}", msg in out)
 
 
+def test_mary_framing():
+    """8N1 on the M-ary byte path: the start bit is what fixes nibble phase.
+
+    Without framing a symbol carries four bits and nothing in the stream says
+    which nibble is the low one, so beginning one symbol early or late hands
+    over every byte with its nibbles swapped -- measured on a near-clean
+    synthetic channel, the payload came back 4 times in 16, and never once
+    when an odd number of symbols preceded it. That is the whole of the
+    "sometimes readable, sometimes not" behaviour that reads like an unstable
+    room.
+
+    So the test is an offset sweep, whole symbols included. The frame carries
+    the link-layer preamble `app.py` always sends, because that is what a
+    receiver actually hears and because the start bit alone is not enough
+    from a cold start: a receiver that opens on junk can lock one bit off a
+    false start bit and stay there, since ASCII leaves bit 7 clear and the
+    wrong stop bit then reads as a right one. The alternating preamble gives
+    the framing machine a run of unambiguous edges before any payload. Run
+    against the unframed modulator these same offsets scored 4 of 7.
+    """
+    print()
+    print("M-ary 8N1 (fase de nibble):")
+    msg = b"ola mary, como vai voce"
+    mod = MaryModulator(fs=FS, baud=100)
+    sps = mod.samples_per_symbol
+    preamble = bytes([0x55] * 10 + [0xFF])
+    audio = np.concatenate([mod.modulate(preamble + msg), mod.idle(6)])
+
+    for label, pad in (("0 simbolos", 0), ("1 simbolo", sps),
+                       ("2 simbolos", 2 * sps), ("3 simbolos", 3 * sps),
+                       ("meio simbolo", sps // 2), ("123 amostras", 123)):
+        demod = MaryDemodulator(fs=FS, baud=100)
+        out = run(demod, np.concatenate([np.zeros(pad), audio]), block=2048)
+        check(f"deslocado de {label}", msg in out, repr(out[-len(msg) - 3:]))
+
+    # The tail must not manufacture bytes. Under 8N1 a run of 1-bits is an
+    # idle line; the alternating tail this layer sent before it was framed
+    # offers a start bit every other bit, appending invented bytes to every
+    # send.
+    demod = MaryDemodulator(fs=FS, baud=100)
+    out = run(demod, audio, block=2048)
+    tail = out[out.index(msg) + len(msg):]
+    check("idle nao inventa bytes", len(tail) == 0, repr(tail))
+
+
+def test_zero_watch():
+    """Blocks of exact zeros are no microphone, not a quiet room.
+
+    A source that goes away raises nothing and stops nothing: the callback
+    keeps delivering zeros, which count as samples and average in as silence.
+    Measured here, 5.5 s of room and 4.5 s of nothing reported a room 10 dB
+    quieter than it is, with nothing erroring anywhere.
+    """
+    print()
+    print("Guarda de blocos-zero:")
+    w = ZeroWatch(fs=FS, secs=0.2)
+    rng = np.random.default_rng(5)
+    fired = [w.feed(rng.normal(0, 0.01, 2048)) for _ in range(5)]
+    check("sala real nao dispara", not any(fired))
+
+    # 0.2 s at 48 kHz is 9600 samples: five blocks of 2048 cross it.
+    fired = [w.feed(np.zeros(2048)) for _ in range(8)]
+    check("zeros disparam uma vez so", sum(fired) == 1 and fired[4],
+          f"{fired}")
+    check("estado morto se le", w.is_dead and w.dead_secs > 0.2,
+          f"{w.dead_secs:.2f}s")
+
+    # A source that comes back and goes again is reported again: one warning
+    # per outage, not one per process.
+    w.feed(rng.normal(0, 0.01, 2048))
+    check("volta limpa o estado", not w.is_dead)
+    check("segunda queda reporta de novo",
+          sum(w.feed(np.zeros(2048)) for _ in range(8)) == 1)
+
+
+def test_mfsk_frozen_clock():
+    """`steer=False` on MFSK: the clock is given, not tracked.
+
+    The early/late gate can only correct itself while the audio goes past, so
+    an offset found afterwards -- by a sync sweep, or by a brute-force search
+    offline -- cannot be applied to decisions already made. Freezing the clock
+    is what lets the same audio be read a second time at a known offset, and
+    it is the prerequisite for asking whether the sweeps buy anything on the
+    chord layers. The M-ary layer has had this; this checks the chord layer
+    now reads the same way.
+    """
+    print()
+    print("MFSK relogio congelado (steer=False):")
+    rng = np.random.default_rng(11)
+    bits = list(rng.integers(0, 2, 200))
+    mod = MFSKModulator(fs=FS, baud=100)
+    sps = mod.samples_per_symbol
+    pad = 700                              # not a whole number of symbols
+    audio = np.concatenate([np.zeros(pad), mod.modulate_bits(bits),
+                            mod.idle(4)])
+
+    demod = MFSKDemodulator(fs=FS, baud=100, steer=False, skip=pad)
+    llr = demod.demodulate_soft(audio)
+    got = (llr[:len(bits)] > 0).astype(int)
+    right = int(np.sum(got == np.array(bits)))
+    check("no deslocamento certo le os bits", right == len(bits),
+          f"{right}/{len(bits)}")
+
+    # Same audio, same frozen clock, deliberately wrong offset: it must get
+    # worse, or the parameter is not doing anything.
+    bad = MFSKDemodulator(fs=FS, baud=100, steer=False, skip=pad + sps // 2)
+    llr_bad = bad.demodulate_soft(audio)
+    n = min(len(bits), len(llr_bad))
+    wrong = int(np.sum((llr_bad[:n] > 0).astype(int) != np.array(bits[:n])))
+    check("no deslocamento errado piora", wrong > 0, f"{wrong} bits errados")
+
+    # A fractional period, the reason it is a float: two sync sweeps measure
+    # the interval the symbols actually occupied, and rounding it to a whole
+    # sample loses a quarter of a symbol over a 500-symbol block.
+    frac = MFSKDemodulator(fs=FS, baud=100, steer=False, skip=pad,
+                           period=float(sps))
+    right2 = int(np.sum((frac.demodulate_soft(audio)[:len(bits)] > 0).astype(int)
+                        == np.array(bits)))
+    check("periodo fracionario aceito", right2 == len(bits),
+          f"{right2}/{len(bits)}")
+
+
 def mary_fec_air(msg, repeat=2):
     """Exactly what console.py's fecsend puts on the air, in M-ary.
 
@@ -297,6 +419,9 @@ def main():
     test_bell202()
     test_mfsk()
     test_mary()
+    test_mary_framing()
+    test_mfsk_frozen_clock()
+    test_zero_watch()
     test_fec()
     test_xfer()
     print()

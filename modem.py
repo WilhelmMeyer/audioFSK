@@ -395,7 +395,26 @@ class MFSKDemodulator:
 
     def __init__(self, fs=48000, baud=100, tones_0=MFSK_TONES_0,
                  tones_1=MFSK_TONES_1, guard=0.15, contrast_min=0.3,
-                 parallel=False, grouped=False, floor_alpha=0.02):
+                 parallel=False, grouped=False, floor_alpha=0.02,
+                 steer=True, skip=0, period=None):
+        # `steer=False` freezes the symbol clock, exactly as the M-ary layer
+        # does: every window is taken one symbol after the last, and `skip`
+        # says where the first one starts. The early/late gate can only
+        # correct itself while the audio is going past, so an offset
+        # discovered afterwards -- by a sync sweep at the head of the frame,
+        # or by a brute-force search offline -- cannot be applied to decisions
+        # already made. Freezing the clock is what lets the same audio be read
+        # a second time at a known offset, which is the only way to separate
+        # timing error from channel error on this layer, and the prerequisite
+        # for asking whether the sweeps help the chord layers at all.
+        self.steer = steer
+        self.skip = int(skip)
+        # Samples per symbol as measured rather than nominal, and fractional
+        # on purpose: the interval between two sweeps divided by the symbols
+        # it spans. Rounding it to a whole sample throws away most of what
+        # measuring it bought -- half a sample per symbol is a quarter of a
+        # symbol over a 500-symbol block.
+        self.period = None if period is None else float(period)
         if grouped:
             tones_0, tones_1 = MFSK_LOW, MFSK_HIGH
         self.grouped = grouped
@@ -435,6 +454,7 @@ class MFSKDemodulator:
 
     def reset(self):
         self.buf = np.zeros(0, dtype=np.float64)
+        self.frozen_k = 0
         self.state = 'IDLE'
         self.bit_idx = 0
         self.current_byte = 0
@@ -471,7 +491,7 @@ class MFSKDemodulator:
         e0 = np.abs(self.probe_0 @ seg) ** 2
         e1 = np.abs(self.probe_1 @ seg) ** 2
         if not np.any(e0) and not np.any(e1):
-            return 1, 0.0
+            return 1, 0.0, 0.0
 
         if self.grouped:
             return self._score_grouped(e0, e1)
@@ -583,6 +603,29 @@ class MFSKDemodulator:
             self.input_peak = float(np.max(np.abs(samples)))
         self.buf = np.concatenate((self.buf, samples))
 
+        if not self.steer:
+            period = self.period or float(self.samples_per_symbol)
+            while True:
+                # Absolute sample where window k belongs, rounded once at the
+                # end. Accumulating a rounded step instead lets the error pile
+                # up symbol after symbol, which is the drift this exists to
+                # remove.
+                want = int(round(self.skip + self.frozen_k * period))
+                at = want - self.consumed
+                if at < 0:                      # already past it; give up on k
+                    self.frozen_k += 1
+                    continue
+                if len(self.buf) < at + self.samples_per_symbol:
+                    return
+                bit, self.contrast, llr = self._score(at)
+                self.last_bit = bit
+                self.last_window = want
+                self.frozen_k += 1
+                self.buf = self.buf[at:]
+                self.consumed += at
+                yield bit, self.contrast, llr
+            return
+
         need = self.samples_per_symbol + 2 * self.delta
         while len(self.buf) >= need:
             bit_e, c_e, l_e = self._score(0)
@@ -641,6 +684,75 @@ class MFSKDemodulator:
         if not vals:
             return np.zeros((0, len(self.tones_0))) if self.parallel else np.zeros(0)
         return np.array(vals).ravel() if self.parallel else np.array(vals)
+
+
+# --- Dead-source watch ------------------------------------------------------
+
+
+class ZeroWatch:
+    """Counts consecutive samples of exact zero, and says when there are too
+    many to still be a room.
+
+    An audio source that goes away does not raise and does not stop the
+    callback: it keeps delivering blocks of exact zeros, which count as
+    samples and average in as silence. Measured here -- 5.5 s of room followed
+    by 4.5 s of nothing reported a room 10 dB quieter than it is, with nothing
+    erroring anywhere. The Linux cause was a PipeWire source left MUTED while
+    `amixer` showed it open and with gain.
+
+    Exact zeros are not a quiet microphone, they are no microphone: a live
+    input has dither and a noise floor, so a whole block that is bit-for-bit
+    zero is a statement about the device and not about the room. The offline
+    tools (`ruido.py`, `tom.py`) abort on it. The live tools cannot -- killing
+    the process would take the serial channel down with it -- so they report
+    instead, which is why the decision of what to do lives with the caller and
+    only the counting lives here.
+
+    Pure counting, no device and no I/O, so it belongs on this side of the
+    layer line with the rest of `modem.py`.
+    """
+
+    def __init__(self, fs=48000, secs=0.2):
+        self.limit = max(1, int(secs * fs))
+        self.fs = fs
+        self.reset()
+
+    def reset(self):
+        self.dead = 0
+        self.total_dead = 0
+        self.blocks = 0
+        self.dead_blocks = 0
+        self.reported = False
+
+    @property
+    def is_dead(self):
+        return self.dead >= self.limit
+
+    @property
+    def dead_secs(self):
+        return self.dead / self.fs
+
+    def feed(self, samples):
+        """True exactly once per outage, on the block that crosses the limit.
+
+        Once, not on every block: a source that is gone stays gone, and a
+        warning per 2048 samples would bury the log it is meant to be read in.
+        The flag clears when real samples return, so a source that comes and
+        goes is reported each time it goes.
+        """
+        n = len(samples)
+        self.blocks += 1
+        if n and not np.any(samples):
+            self.dead += n
+            self.total_dead += n
+            self.dead_blocks += 1
+            if self.is_dead and not self.reported:
+                self.reported = True
+                return True
+            return False
+        self.dead = 0
+        self.reported = False
+        return False
 
 
 # --- M-ary FSK: one tone at a time, four bits per tone ----------------------
@@ -777,17 +889,47 @@ class MaryModulator:
             chunks.append(self._symbol(v))
         return np.concatenate(chunks) if chunks else np.array([])
 
+    def frame_byte(self, byte_val):
+        """One byte as UART 8N1 bits: start, eight data LSB first, stop.
+
+        Framing, and not a bare eight bits, for the reason the hard M-ary path
+        had no answer to before: a symbol carries four bits, so starting one
+        symbol early or late hands every byte over with its nibbles swapped,
+        and nothing in the stream says which phase is right. Measured on a
+        near-clean synthetic channel, the unframed path recovered the payload
+        4 times in 16 and never once when an odd number of symbols preceded
+        it. A start bit is an edge the receiver can resynchronise on; `0x55`
+        cannot serve as one, since shifted by a nibble it is still `0x55`.
+
+        This applies to the byte-stream path only. A coded block goes through
+        `modulate_bits` and keeps its own alignment -- `fec.find_sync`
+        correlates for the block start, and framing inside a block would put
+        back the shift-everything-after-it failure that a fixed-length block
+        exists to remove.
+        """
+        return [0] + [(byte_val >> i) & 1 for i in range(8)] + [1]
+
     def modulate(self, data: bytes):
+        # Framed as one bit stream, not one burst per byte: ten bits do not
+        # divide into four, so modulating byte by byte would pad each one out
+        # to twelve and put two invented bits between every pair of bytes.
         bits = []
         for byte in data:
-            bits += [(byte >> i) & 1 for i in range(8)]
+            bits += self.frame_byte(byte)
         return self.modulate_bits(bits)
 
     def idle(self, symbols):
         """A tail so the receiver's last symbols are not stranded in its
-        buffer. Alternating, not constant: timing recovery needs transitions
-        and a repeated symbol teaches it nothing."""
-        return self.modulate_bits([0, 1, 0, 1] * symbols)
+        buffer.
+
+        Constant mark, the same tail the MFSK layer sends, and it alternated
+        here until this layer was framed. Under 8N1 a run of 1-bits is an idle
+        line and emits no bytes, where an alternating tail offers the framing
+        machine a start bit every other bit and appends invented bytes to
+        every `send`. It costs nothing in timing: the tail is flushing symbols
+        that are already decided, and the preamble is where the gate acquires.
+        """
+        return self.modulate_bits([1] * MARY_BITS * symbols)
 
 
 class MaryDemodulator:
@@ -865,15 +1007,15 @@ class MaryDemodulator:
         self.frozen_k = 0
         self.floor = (np.zeros(len(self.tones)) if self.floor_fixed is None
                       else self.floor_fixed.copy())
-        # Bits left over when a block does not end on a byte boundary. A
-        # symbol carries four bits and a byte takes two symbols, but audio
-        # arrives in 2048-sample blocks holding 4.27 symbols -- so a block
-        # that yields an odd number of symbols ends mid-byte. Dropping that
-        # half byte shifts every byte after it by a nibble, which is why a
-        # perfect channel decoded a message readable at each end and destroyed
-        # in the middle, wherever a boundary happened to fall. The soft path
-        # never had this, since it emits one value per bit and never packs.
-        self.bits = []
+        # UART 8N1 state, carried across blocks. A symbol carries four bits
+        # and audio arrives in 2048-sample blocks holding 4.27 symbols, so a
+        # block routinely ends mid-byte; the state machine simply resumes.
+        # This replaces a plain bit accumulator, which packed every eight bits
+        # into a byte and so had no way to tell which nibble was the low one.
+        self.state = 'IDLE'
+        self.bit_idx = 0
+        self.current_byte = 0
+        self.framing_errors = 0
         self.input_rms = 0.0
         self.input_peak = 0.0
         self.contrast = 0.0
@@ -1011,18 +1153,49 @@ class MaryDemodulator:
             self.buf = self.buf[step:]
             yield idx, self.contrast, norm
 
+    def _feed_bit(self, bit, output):
+        """UART 8N1 on the recovered bit stream, the same machine the MFSK and
+        Bell 202 paths run, so every physical layer presents the same dumb
+        serial line."""
+        if self.state == 'IDLE':
+            if bit == 0:
+                self.state = 'DATA'
+                self.bit_idx = 0
+                self.current_byte = 0
+        elif self.state == 'DATA':
+            self.current_byte |= (bit << self.bit_idx)
+            self.bit_idx += 1
+            if self.bit_idx == 8:
+                self.state = 'STOP'
+        elif self.state == 'STOP':
+            # Emit even when the stop bit is wrong, for the reason the MFSK
+            # path does: dropping the byte turns one bad bit into a *deletion*,
+            # and a deletion shifts everything after it. A substitution stays
+            # local, and above this the CRC is what decides whether a packet is
+            # good. Keeping the byte keeps the alignment, which is worth more
+            # than the byte being right.
+            if bit != 1:
+                self.framing_errors += 1
+            output.append(self.current_byte)
+            self.state = 'IDLE'
+
     def demodulate(self, samples):
         out = []
         for idx, contrast, _norm in self._symbols(samples):
+            # An amplitude-independent squelch, like the MFSK layer's: contrast
+            # is a ratio between the best two nibbles, so a room deciding on
+            # its own noise scores low at any volume. Dropping the framing
+            # state on a squelched symbol is what makes a burst re-acquire on
+            # its next start bit instead of continuing an abandoned byte.
+            if contrast < self.contrast_min:
+                self.state = 'IDLE'
+                continue
             # In chord mode the winning index *is* the nibble, since the
             # patterns are indexed by value. With single tones it is a tone
             # index and Gray coding has to be undone first.
             v = idx if self.chord else _UNGRAY[idx]
-            self.bits += [(v >> j) & 1 for j in range(MARY_BITS)]
-        while len(self.bits) >= 8:
-            chunk = self.bits[:8]
-            del self.bits[:8]
-            out.append(sum(b << j for j, b in enumerate(chunk)))
+            for j in range(MARY_BITS):
+                self._feed_bit((v >> j) & 1, out)
         return bytes(out)
 
     def demodulate_soft(self, samples):

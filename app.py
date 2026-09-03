@@ -7,7 +7,7 @@ import time
 import traceback
 import numpy as np
 import sounddevice as sd
-from modem import FSKModulator, FSKDemodulator
+from modem import FSKModulator, FSKDemodulator, ZeroWatch
 
 FS = 48000
 BAUD = 1200
@@ -78,9 +78,18 @@ def audio_callback(indata, outdata, frames, time_info, status):
 rx_audio_queue = queue.Queue()
 
 def demodulator_thread_fn(demod):
+    # A capture source that goes away raises nothing and stops nothing: it
+    # delivers blocks of exact zeros forever, and a link that has simply lost
+    # its microphone then looks exactly like a link with no carrier. Say so
+    # once per outage, on stderr, so it does not land in the byte stream.
+    watch = ZeroWatch(fs=FS)
     while True:
         try:
             samples = rx_audio_queue.get()
+            if watch.feed(samples):
+                print(f"\n[audio] input delivering exact zeros for "
+                      f"{watch.dead_secs:.1f}s - source muted or gone; "
+                      f"nothing can decode until it returns", file=sys.stderr)
             rx_bytes = demod.demodulate(samples)
             if rx_bytes:
                 # Remove preamble bytes if they accidentally get decoded
@@ -164,9 +173,11 @@ def tune_rx_loop(demod):
     expected_rate = BAUD / 10.0  # 8N1 means 10 bits on the wire per byte
     total = good = 0
     window_start = time.time()
+    watch = ZeroWatch(fs=FS)
 
     while True:
         samples = rx_audio_queue.get()
+        watch.feed(samples)
         data = demod.demodulate(samples)
         total += len(data)
         good += sum(1 for b in data if b == TUNE_BYTE)
@@ -188,7 +199,14 @@ def tune_rx_loop(demod):
 
         # Order matters: each branch names the one thing to go fix, so the
         # cheapest and most likely cause has to be tested first.
-        if demod.input_peak >= 0.99:
+        # Before every acoustic diagnosis, because it is not one: exact zeros
+        # are no microphone, not a quiet room, and every reading below --
+        # dBFS, in-band, byte rate -- stays perfectly plausible while meaning
+        # nothing. 'no signal' would send the reader to the far side's volume
+        # for a fault on this machine.
+        if watch.is_dead:
+            status = 'NO INPUT - exact zeros (source muted?)'
+        elif demod.input_peak >= 0.99:
             status = 'CLIPPING - lower the volume'
         elif db < -50.0 and in_band < 0.5:
             status = 'no signal'
