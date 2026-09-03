@@ -158,7 +158,8 @@ def ideal_panel(want, start, fs, sps, tone_frac, f_lo, f_hi, cols, rows, win, ns
     return img
 
 
-def decided_panel(samples, meta, want, start, f_lo, f_hi, cols, rows, win, nsamp):
+def decided_panel(samples, meta, want, start, f_lo, f_hi, cols, rows, win, nsamp,
+                  want_mask=False):
     """What the demodulator concluded, symbol by symbol, and whether it was right.
 
     Drawn from the receiver's *own* timing rather than the rigid grid the ideal
@@ -204,6 +205,7 @@ def decided_panel(samples, meta, want, start, f_lo, f_hi, cols, rows, win, nsamp
 
     hop = max(1, (nsamp - win) // max(cols - 1, 1))
     img = np.zeros((rows, cols, 3))
+    mask = np.zeros((rows, cols))
     half = max(1, int(rows * 26.0 / (f_hi - f_lo)))
     for k, (pos, idx) in enumerate(marks):
         f = MARY_TONES[idx]
@@ -214,10 +216,34 @@ def decided_panel(samples, meta, want, start, f_lo, f_hi, cols, rows, win, nsamp
         c0 = int((pos - win // 2) / hop)
         c1 = int((pos + sps - win // 2) / hop)
         r = int((f - f_lo) / (f_hi - f_lo) * (rows - 1))
+        lo_r, hi_r = max(0, r - half), min(rows, r + half + 1)
         for c in range(max(0, c0), min(cols, max(c1, c0 + 1))):
-            img[max(0, r - half):min(rows, r + half + 1), c] = (
-                (0.15, 1.0, 0.35) if right else (1.0, 0.15, 0.15))
+            img[lo_r:hi_r, c] = (0.15, 1.0, 0.35) if right else (1.0, 0.15, 0.15)
+            mask[lo_r:hi_r, c] = 1.0
+    if want_mask:
+        return mask
     return (img * 255).astype(np.uint8)
+
+
+def blended(measured, ideal, decided):
+    """Everything on one picture, the overlays added rather than blended.
+
+    The two marks go in separate channels -- what should have been heard in
+    red, what the receiver concluded in green -- so where they coincide the
+    channels literally sum to yellow. Nothing is invented for the overlap: the
+    colour of agreement is the sum of the colours of its parts, which is the
+    only mapping that stays honest when one mark is present and the other is
+    not.
+
+    The spectrogram sits underneath in grey and deliberately dim. It is
+    context, not a third claim, and at full strength it drowns the marks it
+    exists to place.
+    """
+    bg = 0.42 * np.clip(measured, 0, 1)
+    img = np.stack([bg, bg, bg], axis=-1)
+    img[..., 0] += ideal
+    img[..., 1] += decided
+    return (np.clip(img, 0, 1) * 255).astype(np.uint8)
 
 
 def panel(db, mode, floor_db=45.0):
@@ -244,6 +270,9 @@ def main():
     ap.add_argument('--secs', type=float, default=None)
     ap.add_argument('--win', type=int, default=None,
                     help="janela de analise em amostras (408 = um simbolo mary)")
+    ap.add_argument('--fundido', action='store_true',
+                    help="uma imagem so: espectro ao fundo, ideal e interpretado "
+                         "somados por canal (implica --ideal)")
     ap.add_argument('--ideal', action='store_true',
                     help="acrescenta o que um canal perfeito teria entregue, "
                          "e os dois sobrepostos, no mesmo eixo de tempo")
@@ -265,6 +294,8 @@ def main():
     tiles = [(colourise(panel(db, 'cru')), 'cru'),
              (colourise(measured), 'contraste')]
 
+    if args.fundido:
+        args.ideal = True
     if args.ideal:
         if meta.get('mode') != 'mary' or meta.get('kind') != 'fec':
             sys.exit("[spectro] --ideal so vale para uma captura mary com --fec")
@@ -287,11 +318,20 @@ def main():
         over = np.zeros((args.rows, args.cols, 3))
         over[..., 1] = np.clip(measured, 0, 1)
         over[..., 0] = ideal
-        tiles.append(((over * 255).astype(np.uint8), 'sobreposto'))
-        tiles.append((decided_panel(samples, meta, want, start, args.lo, args.hi,
-                                    args.cols, args.rows, win, len(samples)),
-                      'decidido (verde=certo, vermelho=errado)'))
-        tiles.append((colourise(ideal), 'ideal'))
+        dec_mask = decided_panel(samples, meta, want, start, args.lo, args.hi,
+                                 args.cols, args.rows, win, len(samples),
+                                 want_mask=True)
+        if args.fundido:
+            tiles = [(blended(measured, ideal, dec_mask),
+                      'fundido: vermelho=ideal, verde=interpretado, '
+                      'amarelo=os dois, cinza=espectro real')]
+        else:
+            tiles.append(((over * 255).astype(np.uint8), 'sobreposto'))
+            tiles.append((decided_panel(samples, meta, want, start, args.lo,
+                                        args.hi, args.cols, args.rows, win,
+                                        len(samples)),
+                          'decidido (verde=certo, vermelho=errado)'))
+            tiles.append((colourise(ideal), 'ideal'))
 
     sep = 6
     h = args.rows * len(tiles) + sep * (len(tiles) - 1)
