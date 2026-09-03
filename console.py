@@ -531,10 +531,16 @@ class AudioNode:
             data = fec.decode_parallel(llr[start:], want, npairs,
                                        repeat=self.fec_repeat)
         else:
-            start = fec.find_sync(llr)
+            # Not the peak of the correlation but the candidate whose decode
+            # explains the stream: measured over 30 captures, the true start
+            # was inside the top sixteen peaks every time and was the top peak
+            # only 25 times, so peak-only threw away five blocks on recordings
+            # whose symbols were 95-99% right.
+            data, start, score, agree = fec.decode_block(
+                llr, want, repeat=self.fec_repeat)
             if start is None:
                 return f"sync nao encontrado ({len(llr)} valores){note}"
-            data = fec.decode(llr[start:], want, repeat=self.fec_repeat)
+            note += f" [sync {score:.2f}, coerencia {agree * 100:.0f}%]"
         return f"{len(data)} bytes ({len(llr)} valores){note}: {printable(data)}"
 
     def measure(self, freq, secs=0.3, bw=45.0):

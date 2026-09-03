@@ -146,8 +146,7 @@ def run_fec(meta, samples, nbytes, repeat):
                             chord=bool(meta.get('chord')))
         llr = np.concatenate([d.demodulate_soft(samples[i:i + BLOCK])
                               for i in range(0, len(samples), BLOCK)])
-        start = fec.find_sync(llr)
-        return b'' if start is None else fec.decode(llr[start:], nbytes, repeat=repeat)
+        return fec.decode_block(llr, nbytes, repeat=repeat)[0]
 
     par = bool(meta.get('parallel'))
     npairs = len(MFSK_PAIRS)
@@ -160,10 +159,7 @@ def run_fec(meta, samples, nbytes, repeat):
         if start is None:
             return b''
         return fec.decode_parallel(llr[start:], nbytes, npairs, repeat=repeat)
-    start = fec.find_sync(llr)
-    if start is None:
-        return b''
-    return fec.decode(llr[start:], nbytes, repeat=repeat)
+    return fec.decode_block(llr, nbytes, repeat=repeat)[0]
 
 
 def main():

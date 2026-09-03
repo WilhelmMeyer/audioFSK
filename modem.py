@@ -796,7 +796,8 @@ class MaryDemodulator:
     def __init__(self, fs=48000, baud=100, tones=MARY_TONES, guard=0.15,
                  contrast_min=0.15, floor_alpha=0.02, gap=0.0, band=0.0,
                  chord=False, steer=True, skip=0, floor_fixed=None,
-                 period=None):
+                 period=None, track=False, track_search=0.125,
+                 track_max=0.5):
         # `steer=False` freezes the symbol clock: every window is taken exactly
         # one symbol after the last, and `skip` says where the first one
         # starts. That is only correct when something else has already found
@@ -816,6 +817,25 @@ class MaryDemodulator:
         # sample throws away most of what measuring it bought, since half a
         # sample per symbol is a quarter of a symbol over a 500-symbol block.
         self.period = None if period is None else float(period)
+        # Tracking: the measured period as a *prediction*, corrected by a
+        # local search around each predicted position. The two mechanisms
+        # already here each hold one half of that and neither uses the other.
+        # The early/late gate searches locally but only ever nudges one step
+        # and knows nothing about where the clock is going; the frozen clock
+        # knows the period exactly -- two sweeps measure it to 0.07 samples
+        # across four recordings -- and cannot follow the fact that the drift
+        # on a Bluetooth link is not constant, since codec and buffers adjust
+        # over the seconds.
+        #
+        # `track_max` is what keeps the local search from wandering. Choosing
+        # the most confident position every symbol is greedy, and a distorted
+        # symbol can be confident in the wrong place; the physical drift is
+        # about 0.04% of a symbol, so a correction beyond a fraction of a
+        # sample per symbol is not drift, it is the search being fooled.
+        self.track = bool(track)
+        self.track_search = float(track_search)
+        self.track_max = float(track_max)
+        self.drift = 0.0
         # A per-tone divisor supplied from outside instead of estimated. The
         # blind estimate assumes a tone's long-run average energy is its noise
         # floor, which holds only because each tone is silent fifteen symbols
@@ -863,6 +883,7 @@ class MaryDemodulator:
         self.buf = np.zeros(0, dtype=np.float64)
         self.pending_skip = 0
         self.frozen_k = 0
+        self.drift = 0.0
         self.floor = (np.zeros(len(self.tones)) if self.floor_fixed is None
                       else self.floor_fixed.copy())
         # Bits left over when a block does not end on a byte boundary. A
@@ -955,6 +976,52 @@ class MaryDemodulator:
             self.buf = self.buf[drop:]
             self.consumed += drop
             self.pending_skip -= drop
+
+        if self.track:
+            period = self.period or float(self.samples_per_symbol)
+            search = max(1, int(self.track_search * self.samples_per_symbol))
+            step = max(1, self.samples_per_symbol // 32)
+            offsets = list(range(-search, search + 1, step))
+            while True:
+                want = self.skip + self.frozen_k * period + self.drift
+                base = int(round(want)) - self.consumed
+                if base + offsets[0] < 0:
+                    self.frozen_k += 1
+                    continue
+                if len(self.buf) < base + offsets[-1] + self.samples_per_symbol:
+                    return
+                best = None
+                for o in offsets:
+                    at = base + o
+                    if at < 0:
+                        continue
+                    if self.gap:
+                        # With a transmitted gap the quiet stretch is the
+                        # timing reference, and its virtue is that it says
+                        # nothing about the data: a window that has slid onto
+                        # the neighbouring symbol fills its own gap.
+                        q = -self._gap_energy(at)
+                    else:
+                        q = self._score(at)[1]
+                    if best is None or q > best[0]:
+                        best = (q, o, at)
+                _q, offset, at = best
+                # Move the clock by at most `track_max`, but decide at the
+                # position actually accepted, so the decision and the clock
+                # never disagree about where this symbol was.
+                move = float(np.clip(offset, -self.track_max, self.track_max))
+                self.drift += move
+                at = int(round(self.skip + self.frozen_k * period + self.drift)) - self.consumed
+                at = max(0, min(at, len(self.buf) - self.samples_per_symbol))
+                idx, contrast, norm = self._score(at)
+                self.contrast = contrast
+                self._update_floor(self._energies(at))
+                self.last_window = self.consumed + at
+                self.frozen_k += 1
+                self.buf = self.buf[at:]
+                self.consumed += at
+                yield idx, contrast, norm
+            return
 
         if not self.steer:
             period = self.period or float(self.samples_per_symbol)

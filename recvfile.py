@@ -235,10 +235,9 @@ def main():
                 if args.fec:
                     audio = np.concatenate(soft) if soft else np.zeros(0)
                     llr = demod.demodulate_soft(audio)
-                    start = fec.find_sync(llr)
+                    block, start, _s, _a = fec.decode_block(
+                        llr, packet_len(seq), repeat=args.repeat)
                     if start is not None:
-                        block = fec.decode(llr[start:], packet_len(seq),
-                                           repeat=args.repeat)
                         got = xfer.parse(block, want_seq=seq)
                     buf = llr
 

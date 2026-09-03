@@ -390,6 +390,115 @@ def test_distortion():
           buried['harm_clean'] is None and not distortion.saturated(buried, base))
 
 
+def test_sync_choice():
+    """Finding the block start, which is where five recoverable blocks were
+    being lost.
+
+    The correlation used to hard-limit the soft values and take the single
+    highest peak. Both halves of that are tested here: the hard limiter throws
+    away the confidence that separates a real sync word from a lucky run, and
+    the single peak throws away the block whenever a coincidence outscores the
+    truth -- measured over 30 captures, the true start was inside the top
+    sixteen peaks every time and was the top peak only 25 times.
+    """
+    print()
+    print("Escolha do inicio do bloco:")
+    rng = np.random.default_rng(4)
+    sync = 2.0 * fec.SYNC - 1.0
+
+    # Two windows that a sign-only correlation cannot tell apart: both get 26
+    # of 31 signs right. In one the five wrong bits are confident, in the
+    # other they are the demodulator saying it barely knows.
+    def window(strong_errors):
+        v = sync * rng.uniform(0.8, 1.0, len(sync))
+        wrong = rng.choice(len(sync), 5, replace=False)
+        v[wrong] *= -1.0
+        if not strong_errors:
+            v[wrong] *= 0.05
+        return v
+
+    decoy, real = window(True), window(False)
+    hard = [float(np.mean(np.sign(w) * sync)) for w in (decoy, real)]
+    soft = [float(np.correlate(w, sync, 'valid')[0] / np.abs(w).sum())
+            for w in (decoy, real)]
+    check("sinal so nao separa os dois", abs(hard[0] - hard[1]) < 1e-9,
+          f"{hard[0]:.3f} contra {hard[1]:.3f}")
+    check("com confianca, o verdadeiro ganha", soft[1] > soft[0] + 0.2,
+          f"{soft[1]:.3f} contra {soft[0]:.3f}")
+
+    # And the whole path: a frame with a decoy in front of it that scores
+    # higher than the real sync word. The peak-only rule takes the decoy.
+    msg = b"onde comeca o bloco"
+    coded = np.array(fec.frame(msg, repeat=2), dtype=float)
+    body = 2.0 * coded - 1.0
+    # The real sync word as a channel actually delivers it: five of its bits
+    # arrive on the wrong side, and the demodulator says so by reporting them
+    # weakly. Under a sign correlation those five cost exactly as much as five
+    # confident errors, which is what lets the decoy tie and win on position.
+    wrong = rng.choice(len(sync), 5, replace=False)
+    body[wrong] *= -0.05
+    llr = np.concatenate([rng.normal(0, 0.4, 40), decoy * 1.4,
+                          rng.normal(0, 0.4, 37), body])
+    # The rule this replaced, kept here as the thing to beat: correlate the
+    # signs and take the peak.
+    hard = np.correlate(np.sign(llr), sync, 'valid') / len(sync)
+    hard_at = int(np.argmax(hard)) + len(sync)
+    got_hard = fec.decode(llr[hard_at:], len(msg), repeat=2)
+    soft_at = fec.find_sync(llr)
+    got_block, start, _score, agree = fec.decode_block(llr, len(msg), repeat=2)
+    check("a regra antiga cai no chamariz", got_hard != msg,
+          f"pico duro em {hard_at}, decodificou {got_hard[:12]!r}")
+    check("a correlacao mole acha o bloco", soft_at != hard_at,
+          f"mole em {soft_at}, dura em {hard_at}")
+    check("e o bloco decodifica", got_block == msg,
+          f"inicio {start}, coerencia {agree * 100:.0f}%")
+
+
+def test_mary_tracking():
+    """The tracked clock: measured period as prediction, local search as the
+    correction, and a cap on how far it may move per symbol.
+
+    The cap is the whole safety. Choosing the most confident position every
+    symbol is greedy and a distorted symbol can be confident in the wrong
+    place; physical drift on this link is about 0.04% of a symbol, so a
+    correction of more than a fraction of a sample per symbol is the search
+    being fooled rather than the clock moving.
+    """
+    print()
+    print("Relogio rastreado (M-ario):")
+    msg = b"relogio que segue a deriva"
+    mod = MaryModulator(fs=FS, baud=100)
+    pre = fec.preamble_bits('mary', symbol_bits=4)
+    audio = np.concatenate([np.zeros(1200),
+                            mod.modulate_bits(pre),
+                            mod.modulate_bits(list(fec.frame(msg, repeat=2))),
+                            mod.idle(6)])
+    sps = mod.samples_per_symbol
+    start = 1200
+
+    # A clock that wanders: the case the frozen clock cannot follow, since the
+    # period it was given is the average of the whole recording.
+    t = np.arange(len(audio)) / FS
+    warp = t + 0.0008 * 2.0 / (2 * np.pi) * np.sin(2 * np.pi * t / 2.0)
+    drifting = np.interp(t, warp, audio)
+
+    def read(**kw):
+        d = MaryDemodulator(fs=FS, baud=100, **kw)
+        llr = np.concatenate([d.demodulate_soft(drifting[i:i + 2048])
+                              for i in range(0, len(drifting), 2048)])
+        return fec.decode_block(llr, len(msg), repeat=2)[0]
+
+    check("rastreando recupera o bloco", read(track=True, skip=start) == msg)
+    check("o gate tambem recupera", read() == msg)
+    # The cap has to bind: with the search free to jump a whole symbol the
+    # clock walks off, which is the failure mode the cap exists for and the
+    # reason it is not simply set wide.
+    loose = read(track=True, skip=start, track_max=float(sps),
+                 track_search=0.45)
+    check("sem limite por simbolo o relogio passeia", loose != msg,
+          f"decodificou {loose[:16]!r}")
+
+
 def main():
     test_bell202()
     test_mfsk()
@@ -398,6 +507,8 @@ def main():
     test_xfer()
     test_int16_transfer()
     test_distortion()
+    test_sync_choice()
+    test_mary_tracking()
     print()
     if failures:
         print(f"FAILED: {len(failures)} check(s): {', '.join(failures)}")
