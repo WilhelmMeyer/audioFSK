@@ -1,0 +1,13 @@
+stem,maquina,link,valido,secs,rms,dbfs,pico,pico_dbfs,rms_550_3600,dbfs_550_3600,nota
+20260903-154912-lvl-base-A-r2,A,interno,sim,10.0,0.002363,-52.5,0.020057,-34.0,0.000743,-62.6,sala em silencio
+20260903-151642-lvl-base-A,A,interno,nao,10.0,0.009570,-40.4,0.121587,-18.3,0.001745,-55.2,descartado: conversa na sala
+20260903-1552-level-B-1,B,interno,sim,,,-49.7,0.01,-40.0,,,primeira leitura inclui aquecimento
+20260903-1552-level-B-2,B,interno,sim,,,-53.4,0.01,-40.0,,,
+20260903-1552-level-B-3,B,interno,sim,,,-54.0,0.01,-40.0,,,
+20260903-1552-level-B-4,B,interno,sim,,,-53.9,0.01,-40.0,,,
+20260903-1552-level-B-5,B,interno,sim,,,-54.0,0.01,-40.0,,,
+20260903-1519-level-B-1,B,interno,nao,,,-60.6,0.06,-24.4,,,descartado: conversa na sala
+20260903-1519-level-B-2,B,interno,nao,,,-70.5,0.02,-34.0,,,descartado: conversa na sala
+20260903-1520-level-B-3,B,interno,nao,,,-65.0,0.15,-16.5,,,descartado: conversa na sala
+20260903-1520-level-B-4,B,interno,nao,,,-67.8,0.02,-34.0,,,descartado: conversa na sala
+20260903-1521-level-B-5,B,interno,nao,,,-52.5,0.11,-19.2,,,descartado: conversa na sala

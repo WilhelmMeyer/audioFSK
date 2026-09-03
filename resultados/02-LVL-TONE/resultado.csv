@@ -1,0 +1,9 @@
+direcao,trial,freq,banda_dbfs,larga_dbfs,pico,margem_db,razao_db,regua
+B2A,piso,1700,-79.1,-51.9,,,,dBFS local
+B2A,1,1700,-26.5,-27.2,0.117,52.6,,dBFS local
+B2A,2,1700,-19.4,-19.7,0.219,59.7,,dBFS local
+B2A,3,1700,-21.8,-21.9,0.144,57.3,,dBFS local
+A2B,piso,1700,-7.4,-4.0,,,-3.4,meas remoto (FFT sem normalizacao)
+A2B,1,1700,44.3,20.1,,,24.2,meas remoto (FFT sem normalizacao)
+A2B,2,1700,36.6,12.5,,,24.1,meas remoto (FFT sem normalizacao)
+A2B,3,1700,45.0,20.8,,,24.2,meas remoto (FFT sem normalizacao)

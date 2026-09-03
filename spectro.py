@@ -342,14 +342,21 @@ def draw_grid(img, start, sps, tone_frac, hop, win, cols, rows,
     the reference and not the finding. A solid line across a heat map competes
     with the data for attention and wins.
     """
+    # One line per symbol only while the symbols are far enough apart to read
+    # as lines. Below about twelve pixels the dashes merge into a wall that
+    # hides the data they exist to place, so thin them out and say by how much
+    # in the caption. Observed at 7.5 px per symbol: the grid was the picture.
+    px = sps / hop
+    every = max(1, int(np.ceil(16.0 / max(px, 1e-9))))
     k = 0
     while True:
         p = start + k * sps
         c = int((p - win // 2) / hop)
         if c >= cols:
             break
+        draw = (k % every == 0)
         k += 1
-        if c < 0:
+        if c < 0 or not draw:
             continue
         for y in range(0, rows, 6):          # o tracejado
             img[y:y + 3, c] = np.maximum(img[y:y + 3, c], (78, 78, 96))
@@ -378,7 +385,7 @@ def draw_grid(img, start, sps, tone_frac, hop, win, cols, rows,
     return img
 
 
-def blended(measured, ideal, decided):
+def blended(background, ideal, decided):
     """Everything on one picture, the overlays added rather than blended.
 
     The two marks go in separate channels -- what should have been heard in
@@ -391,8 +398,15 @@ def blended(measured, ideal, decided):
     The spectrogram sits underneath in grey and deliberately dim. It is
     context, not a third claim, and at full strength it drowns the marks it
     exists to place.
+
+    `background` must be the *absolute* panel, never the contrast one. Contrast
+    divides each frequency row by its own median over the recording, so a tone
+    that is on for a long stretch -- the preamble is 120 symbols of two tones
+    alternating -- raises its own median and disappears. Observed: the whole
+    preamble drew as empty black while the data half drew normally, which reads
+    as a dead channel and is an artefact of the normalisation.
     """
-    bg = 0.42 * np.clip(measured, 0, 1)
+    bg = 0.42 * np.clip(background, 0, 1)
     img = np.stack([bg, bg, bg], axis=-1)
     img[..., 0] += ideal
     img[..., 1] += decided
@@ -491,7 +505,8 @@ def main():
     win = int(args.win) if args.win else max(256, int(len(samples) / args.cols))
 
     measured = panel(db, 'contraste')
-    tiles = [(colourise(panel(db, 'cru')), 'cru'),
+    absolute = panel(db, 'cru')
+    tiles = [(colourise(absolute), 'cru'),
              (colourise(measured), 'contraste')]
 
     legend_strip = None
@@ -550,12 +565,23 @@ def main():
                                    args.rows, win, len(samples), 0)
         if args.fundido:
             hop = max(1, (len(samples) - win) // max(args.cols - 1, 1))
-            fused = blended(measured, ideal, dec_mask)
+            # A tighter dynamic range under the marks than in the panel
+            # above it: the top panel is there to show the noise floor, the
+            # bottom one to show whether a mark sits on a tone, and 45 dB of
+            # floor renders as grey fog that the marks have to fight.
+            fused = blended(panel(db, 'cru', floor_db=28.0), ideal, dec_mask)
             fused = draw_grid(fused[::-1], start, sps, tone_frac, hop, win,
                               args.cols, args.rows, args.lo, args.hi,
                               tone_list)[::-1]
-            tiles = [(fused,
-                      'fundido: vermelho=ideal, verde=interpretado, '
+            # Two panels, and the top one carries no annotation on purpose.
+            # Every mark on the lower panel is an assertion this code is
+            # making about the recording; the upper one is the recording. Kept
+            # side by side, a mark that does not sit on any energy is visibly
+            # a claim about nothing, which is exactly the failure a single
+            # annotated picture hides.
+            tiles = [(colourise(absolute), 'espectro'),
+                     (fused,
+                      'leitura: vermelho=ideal, verde=interpretado, '
                       'amarelo=os dois, cinza=espectro real, '
                       'tracejado=grade de simbolo esperada')]
             legend_strip = legend(args.cols, [

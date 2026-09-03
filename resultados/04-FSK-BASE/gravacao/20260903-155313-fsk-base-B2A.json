@@ -1,0 +1,23 @@
+{
+  "label": "fsk-base-B2A",
+  "mode": "fsk",
+  "kind": "stream",
+  "fec_repeat": 0,
+  "parallel": false,
+  "gap": 0.0,
+  "band": 0.0,
+  "chord": false,
+  "grouped": false,
+  "baud": 1200,
+  "fs": 48000,
+  "seed": 10364450,
+  "gain": 0.8,
+  "device": "26",
+  "rms": 0.08003351837396622,
+  "peak": 0.6855114698410034,
+  "airtime_s": 0.53,
+  "payload_hex": "413147786c6c346b557262307641766e7a464e594b6d42716b3655346565756e385a524a3335797a70694f765552536c",
+  "payload_len": 48,
+  "samples": 178176,
+  "recorded": "20260903-155313"
+}

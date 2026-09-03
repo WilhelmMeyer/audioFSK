@@ -1,0 +1,15 @@
+{
+  "kind": "ruido",
+  "mode": "nenhum",
+  "fs": 48000,
+  "label": "lvl-base-A-r2",
+  "link": "interno",
+  "device": "26",
+  "secs": 10.0,
+  "rms": 0.0023633793462067842,
+  "peak": 0.020056605339050293,
+  "payload_hex": "",
+  "payload_len": 0,
+  "samples": 480000,
+  "recorded": "20260903-154912"
+}

@@ -1,0 +1,4 @@
+stem,camada,direcao,gain,bytes,rms,pico,acerto_atual,acerto_squelch0005,bytes_brutos_atual,bytes_brutos_squelch,sync,f1200_dbfs,f2200_dbfs
+20260903-155313-fsk-base-B2A,fsk,B2A,0.8,48,0.0800,0.686,2.1,4.2,50,56,nao,-43.5,-45.1
+20260903-155318-fsk-base-B2A,fsk,B2A,0.8,48,0.0700,0.658,2.1,4.2,45,49,nao,-41.0,-44.0
+20260903-155321-fsk-base-B2A,fsk,B2A,0.8,48,0.0733,0.642,4.2,6.2,47,51,nao,-44.7,-44.9
