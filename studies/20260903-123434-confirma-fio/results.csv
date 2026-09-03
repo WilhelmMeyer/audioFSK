@@ -1,0 +1,13 @@
+recording,mode,gain,repeat,bytes,gap,band,link,label,rms,peak,airtime_s,gate_bits,gate_block,sweep_bits,sweep_block,period,block,bits,group
+20260903-123443-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0782,0.3351,4.49,94.42,1,95.84,1,479.82,1,95.84,unico
+20260903-123451-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0781,0.3438,4.49,95.92,1,91.84,1,479.82,1,91.84,unico
+20260903-123459-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0807,0.3532,4.49,96.0,0,94.67,1,479.82,1,94.67,unico
+20260903-123507-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0777,0.3424,4.49,95.75,0,93.92,1,479.82,1,93.92,unico
+20260903-123515-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0798,0.36,4.49,94.92,0,93.42,1,479.82,1,93.42,unico
+20260903-123523-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0808,0.419,4.49,95.0,0,93.92,1,479.82,1,93.92,unico
+20260903-123531-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0811,0.3474,4.49,94.0,0,93.34,1,479.82,1,93.34,unico
+20260903-123539-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0804,0.3483,4.49,94.09,0,95.67,1,479.82,1,95.67,unico
+20260903-123547-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0807,0.3726,4.49,93.84,0,94.17,1,479.82,1,94.17,unico
+20260903-123555-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0796,0.3473,4.49,93.59,0,93.76,1,479.82,1,93.76,unico
+20260903-123602-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0794,0.3766,4.49,96.25,0,94.92,1,479.82,1,94.92,unico
+20260903-123610-confirma-fio,mary,0.2,1,48,0.0,0.0,wired,confirma-fio,0.0792,0.4191,4.49,96.5,1,93.01,0,479.82,0,93.01,unico

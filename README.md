@@ -15,6 +15,8 @@ Medido no ar, entre duas máquinas na mesma sala, com blocos protegidos por corr
 | MFSK paralelo + FEC | ~5,9 B/s | 5 de 9 |
 | **M-ária 16 tons + FEC, ganho 0,5** | **~9,4 B/s** | **9 de 11** |
 
+Esses números são do enlace de duas máquinas, e é o único acervo que entra nesta tabela. Há também um acervo de **auto-captura** — uma máquina só, alto-falante e microfone no mesmo computador — com números melhores, 10,7 B/s a 12 blocos de 12. Ele é outro canal e mais fácil; veja *Sincronismo* abaixo e leia a ressalva ali antes de citá-lo.
+
 Uma saudação de 58 caracteres atravessou íntegra pela M-ária. **A transferência de arquivo inteiro ainda não funciona**: 1 pacote de 21 com pacotes de 81 bytes, enquanto blocos isolados de 24 a 58 bytes decodificaram 9 de 11 no mesmo link. O suspeito é o comprimento do bloco — mais símbolos entre re-sincronizações, e a M-ária é implacável com escorregão de relógio.
 
 ## Requisitos
@@ -98,6 +100,43 @@ A decisão suave não custa nada além de guardar um número que o demodulador j
 
 Uma armadilha da API: `frame`, `encode` e `decode` usam taxa 1/3 por padrão, mas as funções de baixo nível `encode_bits` e `decode_soft` usam 1/2. Se você chamar as de baixo nível direto, passe `POLYS_R13` explicitamente.
 
+## Sincronismo: varredura nas duas pontas do quadro
+
+O receptor precisa saber onde cada símbolo começa. O que o código sempre fez foi um ajuste early/late guiado pelo contraste da própria decisão — ele corrige aos poucos enquanto ouve, e isso é circular: para saber onde está a fronteira já é preciso estar decidindo bem.
+
+A alternativa é dar a ele algo para **adquirir** em vez de algo para convergir. `syncsweep on` põe um tom varrido de 80 ms em cada ponta do quadro M-ário codificado, e o receptor acha os dois por filtro casado. O primeiro pico dá o início do quadro como índice absoluto de amostra; o intervalo entre os dois, dividido pelos símbolos que ele abrange, dá o período **medido** em vez de rastreado. O relógio deixa de ser estimado e passa a ser lido.
+
+**Os picos são ordenados por posição, nunca por altura.** As duas varreduras são idênticas e é o canal que decide qual chega mais forte: medido, a do fim ganhou quatro vezes em oito, por margens abaixo de 2%. Tomar a mais alta como sendo a primeira invertia o par metade das vezes — e um par invertido não é detecção fraca, é resposta errada com confiança.
+
+**O receptor relê o áudio guardado, e não tem escolha.** O caminho streaming demodula cada bloco conforme ele chega, corrigindo enquanto anda, então um deslocamento descoberto depois não se aplica a decisões já tomadas. `AudioNode._sweep_llr` redemodula o áudio que ficou guardado, com o relógio travado no que as varreduras mediram.
+
+**O padrão é desligado, e o padrão é a proteção.** As varreduras mudam o formato do quadro, então as duas máquinas têm de concordar. Um receptor que espera varredura e não acha cai de volta no gate e só perde a melhoria; mas um transmissor que manda varredura para um receptor que não procura põe 80 ms de tom varrido onde deviam estar os primeiros símbolos do preâmbulo. O perigo não é a divergência em si, é como ela chega — `pull` alcança uma máquina de cada vez, e na seguidora o canal serial é feito dos arquivos que estão sendo substituídos. Desligado por padrão, um `pull` que chega só numa ponta não muda nada; `b syncsweep on` liga as duas de uma vez.
+
+### O que elas compram, medido nos dois extremos do canal
+
+Um canal limpo não deixa margem para uma melhoria de sincronismo aparecer — tudo decodifica de qualquer jeito e a comparação não mede nada. Por isso o mecanismo foi desenvolvido contra um canal **degradado de propósito**: caixa Bluetooth com o ganho acima do teto do limitador, onde parte das gravações chega saturada. Isso é estressor deliberado, não erro de calibração, e precisa ser dito ao lado do número — distorção não é ruído, e um resultado lido ali não transfere sozinho para um enlace limpo. Depois o mesmo mecanismo foi validado no outro extremo: alto-falante interno com fio, ganho calibrado, **limpo de propósito**.
+
+**Ressalva, e ela vem antes dos números: isto é auto-captura, uma máquina só.** O mesmo computador toca pelo alto-falante e grava pelo microfone. O ar, o pente da sala, o limitador e o microfone são reais; o que falta é específico. Com alto-falante **com fio** as duas pontas dividem o clock da placa, então a deriva de taxa de amostragem — parte do que o gate existe para corrigir — desaparece, e os números de sincronismo saem otimistas. Com **Bluetooth** a deriva volta, porque a caixa tem cristal próprio, ao custo de um codec com perda que o enlace real não tem. **Não misture os dois acervos na mesma média**, e nada disso entra na tabela principal deste README antes de ser revalidado nas duas máquinas.
+
+Dois acervos de 60 gravações cada. As colunas gate e varredura saem do **mesmo** áudio, então a comparação não tem sala nem momento diferente dentro dela:
+
+| Acervo | Bits (gate) | Bits (varredura) | Blocos (gate) | Blocos (varredura) |
+|---|---|---|---|---|
+| Bluetooth, degradado de propósito | 88,8% | **90,8%** | 43/60 | **59/60** |
+| Com fio, limpo de propósito | **96,3%** | 93,8% | 26/60 | **57/60** |
+
+**O canal com fio lê 7,5 pontos a mais de bits e o gate recupera menos blocos nele** — 26 de 60 contra 43 de 60. A taxa 1/3 é íntegra até cerca de 13% de bits errados, então 4% de erro deveria decodificar com folga, e não decodifica. O que o gate perde não é bit, é o próprio alinhamento; e a coluna de bits não mostra isso porque acerto de bit é medido no melhor deslizamento por força bruta, enquanto bloco recuperado é medido onde o gate de fato caiu. A varredura fica em 59/60 e 57/60 — praticamente a mesma coisa nos dois canais, e é essa indiferença ao canal que se está comprando.
+
+**Num canal limpo a varredura lê *menos* bits que o gate, e ainda assim é a escolha certa.** Ela ganha a comparação de bits em 59 de 60 gravações no Bluetooth e em apenas 8 de 60 nas com fio: um relógio travado não acompanha o que um gate corrigível acompanha, e num canal com folga não há o que resgatar. Os blocos dizem o contrário, e bloco é o que o enlace entrega. Meio ponto de acerto de bit vale zero colapsos, porque taxa de código nenhuma conserta um bloco cujos símbolos nunca foram amostrados onde os símbolos estavam.
+
+**Uma anomalia que fica registrada sem explicação.** O caminho com fio foi medido três vezes na mesma configuração: seis gravações deram 6/6 blocos ao gate, depois doze deram 1/12, depois mais doze deram 3/12 — com `rms` recebido entre 0,079 e 0,084 nas três, e a varredura em 6/6, 11/12 e 11/12 sobre o mesmo áudio. **A causa não é conhecida.** Não é nível, não é saturação, e não é deriva de taxa de amostragem: esse caminho divide o clock da placa e o período medido é 480,00. Não tire média de uma janela dessas, e não leia seis gravações como resultado — a primeira leitura aqui teria sido publicada como `6/6` e foi contradita duas vezes.
+
+### Redundância: com as varreduras, `fecrep 1` basta
+
+Com o ponto de operação calibrado e as varreduras ligadas, no acervo Bluetooth a repetição 1 recupera os mesmos **12 blocos de 12** que a repetição 2, em 4,49 s contra 7,41 s por bloco de 48 bytes — 10,7 B/s contra 6,5. A redundância extra não compra nada ali e custa 40% do tempo no ar.
+
+Isso **não aposenta a tabela de `fecrep`** do enlace de duas máquinas, que é outro canal e mais difícil. O que fica aposentado é a suposição de que taxa 1/3 sozinha é inviável *em geral*: essa leitura veio do acervo degradado de propósito e descreve aquele estressor, não a camada.
+
 ## Fluxo de medição
 
 **Esta é a parte mais fácil de perder e a que mais rendeu.** Julgar uma ideia transmitindo-a mede a ideia e a sala ao mesmo tempo, e a sala não fica parada: uma cadeira se move, o volume oscila, e duas execuções do mesmo código discordam. Pior, testar uma mudança de uma linha custa uma ida e volta com a segunda máquina.
@@ -122,6 +161,45 @@ Então **grave uma vez e guarde**. Uma gravação é um canal fixo: dez ideias p
 
 Uma ideia nova é **uma entrada na lista `VARIANTS` do `bench.py`** e custa segundos, sem envolver a outra máquina.
 
+### Uma máquina só, quando a segunda não está na mesa
+
+`selfcapture.py` grava esta máquina transmitindo para ela mesma pelo ar: alto-falante, sala, microfone, sem cabo serial e sem lado remoto. Escreve o mesmo par WAV+JSON que o `capture.py`, com as mesmas chaves de metadado, então `bench.py` e `align.py` pontuam sem distinguir de onde veio.
+
+```bash
+./venv/bin/python selfcapture.py --mode mary --fec --sync-chirp --trials 8 \
+    --gain 0.30 --in-device Mic1 --out-device <sink> --link bluetooth
+
+./venv/bin/python align.py captures-self   # quanto do erro é sincronismo, quanto é canal
+```
+
+`align.py` é a sonda que separa essas duas coisas: força o deslocamento de símbolo por força bruta e entrega ao detector divisores que ele não teria como calcular sozinho. Serve para responder "vale a pena construir isto" **antes** de construir. Foi ele que matou metade de um esquema proposto — um piloto por tom pontuou 80,9% dos bits contra 88,3% da estimativa cega que já estava no código, porque dividir pelo *ganho* do canal é a operação errada: a decisão "este tom está presente" quer energia sobre o **ruído** daquela frequência, não sobre o sinal.
+
+Leia o `--link` antes de comparar duas gravações de auto-captura: com fio e Bluetooth são canais diferentes, e a ressalva está na seção *Sincronismo*.
+
+### Uma campanha, uma pasta
+
+Uma porcentagem num caderno não é medição. O áudio de onde ela veio, os ajustes que a produziram e o commit do código que a leu têm de sobreviver juntos, ou reproduzir a figura significa rodar a sala de novo — e a sala não fica parada. `study.py` roda uma campanha e deixa tudo numa pasta datada:
+
+```
+studies/<quando>-<nome>/
+    HEADER.md      o que foi medido, em que hardware, com quais ajustes fixos, e as ressalvas
+    results.csv    uma linha por gravação
+    results.json   o mesmo, com os metadados completos
+    recordings/    os pares WAV+JSON
+    figures/       espectrogramas e o gráfico de resumo
+```
+
+```bash
+./venv/bin/python -u study.py --name melhor-caso --trials 12 --sync-chirp \
+    --gain 0.30 --repeat 1 --link bluetooth --in-device Mic1 --out-device <sink>
+
+./venv/bin/python -u study.py --name ganho --sweep gain=0.20,0.25,0.30,0.38
+
+./venv/bin/python study.py --rescore studies/<pasta>   # repontua sem tocar na sala
+```
+
+O `HEADER.md` abre com o commit em que o código estava, e isso não é burocracia: acerto de bit é afirmação sobre o decodificador tanto quanto sobre o canal, e este decodificador muda toda semana. **Um eixo varrido por vez** — dois eixos multiplicam as gravações, e este enlace precisa mais de repetições do que de largura.
+
 ### Medir o canal, em vez de supor
 
 ```bash
@@ -136,6 +214,8 @@ Toda escolha de tom neste projeto tinha vindo de uma banda tomada por fé — 70
 
 - **O `loopback_test.py` não vê falha de sincronismo.** O quadro sintético dele abre com preâmbulo alternado em nível de bit, que entrega o travamento pronto antes da carga começar. Uma regressão que zerou o link real passou nele sem reclamar. Toda mudança que toque em temporização precisa passar pelo acervo, não só pelo loopback.
 - **Recuperação de bytes é métrica abrupta.** Com poucas gravações, variações de 8% a 22% entre parâmetros vizinhos aparecem sem tendência nenhuma — é ruído. Para decidir ajuste fino, meça acerto de *bits* com alinhamento por força bruta, que é estável, ou grave muito mais.
+- **Acerto de bit e bloco recuperado não medem a mesma coisa, e não podem ser lidos na mesma régua.** Acerto de bit é medido no melhor deslizamento por força bruta, que é escolhido para favorecer; bloco recuperado é medido onde o receptor de fato caiu. Um gate pode ler 95% dos bits e perder o bloco, e a coluna de bits não mostra por quê. Meça as duas, sempre no mesmo critério em todas as linhas.
+- **Seis gravações não são um resultado.** A mesma configuração com fio deu 6/6 blocos ao gate numa leitura e 1/12 na seguinte, quatro minutos depois e com o mesmo nível recebido. Veja a anomalia em *Sincronismo*.
 
 ## O canal, medido
 
@@ -232,6 +312,8 @@ Lado com o teclado (REPL):
 
 Prefixe `r ` para agir na outra máquina, `b ` para as duas. Um `AudioNode` e um `execute()` rodam nos **dois** papéis, então adicionar um comando num lugar dá o comando aos dois lados.
 
+Três desses ajustes precisam bater nas **duas** pontas, e nenhum deles avisa quando não bate — o decodificador só produz lixo, que se lê como canal ruim: `fecrep`, `marygap` e `syncsweep`. Ligue-os com `b `, nunca com `r `.
+
 Comandos que importam:
 
 ```
@@ -240,6 +322,7 @@ gain <0..1>          amplitude de saida (0.5 para mary)
 fecsend <texto>      transmite com correcao de erro
 fecrep <n>           repeticoes de cada bit codificado
 fecpar on|off        mfsk paralelo: 5 bits por simbolo
+syncsweep on|off     varredura de sincronismo nas duas pontas do quadro mary
 fecpkt <arq> <n>     pacote n de um arquivo, com correcao de erro
 chirp [f0 f1 seg]    varredura, para medir a resposta do canal
 dev out auto         volta ao dispositivo padrao do sistema
@@ -279,6 +362,8 @@ ARQ pare-e-espere dirigido inteiramente pela ponta receptora. A outra máquina f
 
 **`--repeat` tem de bater com o que a outra máquina usa.** O `recvfile.py` manda `fecrep` no setup justamente por isso — um decodificador não tem como detectar essa incompatibilidade, ele só produz lixo que falha no CRC, indistinguível de canal ruim.
 
+Pelo mesmo motivo ele manda **`syncsweep off`**: o `fecpkt` passa pelo mesmo `_fec_frame` do `fecsend`, então uma máquina deixada com a varredura ligada poria 80 ms de tom varrido em cada ponta de todo pacote — e este receptor não procura por eles. Uma ida e volta na serial no setup compra essa falha de saída. Ensinar o `recvfile.py` a *usar* as varreduras vale a pena e ainda não foi medido.
+
 **`--packet-size` importa mais do que parece.** Cada pacote paga o próprio preâmbulo para o receptor travar o relógio de símbolo, e esse preâmbulo dura 1,2 s: 28% do tempo no ar com pacotes de 32 bytes, 19% com 64, 12% com 128. Para a mesma imagem de 1334 bytes isso é 3,0 minutos contra 1,8.
 
 O `--gain` padrão é 0,5, que é o que a M-ária mede melhor — veja a seção sobre
@@ -305,7 +390,10 @@ mostrou que aquele valor não serve para um tom sozinho em amplitude cheia.
 | `linktest.py` | Teste pontuado entre as duas máquinas. | — |
 | `capture.py` | Grava a outra máquina transmitindo carga conhecida. | — |
 | `recvfile.py` | Puxa um arquivo com ARQ pare-e-espere. | — |
+| `selfcapture.py` | Runtime, uma máquina só. Grava esta máquina transmitindo para si mesma pelo ar. | serial |
 | `bench.py` | Offline. Pontua variações de demodulação contra o acervo. | áudio, serial |
+| `align.py` | Offline. Separa o erro que sincronismo conserta do que é canal. | áudio, serial |
+| `study.py` | Campanha: grava, pontua e arquiva numa pasta com cabeçalho. | — |
 | `channel.py` | Offline. Transforma uma varredura em mapa de frequências úteis. | áudio, serial |
 | `loopback_test.py` | A suíte de testes inteira. | hardware |
 | `agent.sh` | Supervisor da máquina seguidora. | — |
@@ -368,6 +456,8 @@ Avalie um link com `linktest.py` e sua carga aleatória. Trate throughput de tom
 - Uma mensagem legível de 58 caracteres atravessou íntegra.
 - Ruído puro decodifica 2 bytes de lixo, contra 485 antes do gate de presença.
 - O fluxo de gravação-e-pontuação: uma ideia nova custa segundos, não uma ida e volta com a segunda máquina.
+- **Sincronismo por varredura** (`syncsweep on`), que recupera 59 e 57 blocos de 60 nos dois acervos de auto-captura, contra 43 e 26 do gate early/late sobre o mesmo áudio.
+- **Campanha arquivada** (`study.py`): dados, gravações, figuras e cabeçalho numa pasta, com o commit que produziu os números.
 - Atualização e reinício remotos pela serial, incluindo no Windows.
 
 **Não funciona:**
@@ -380,6 +470,9 @@ Avalie um link com `linktest.py` e sua carga aleatória. Trate throughput de tom
 1. **Comprimento do bloco na M-ária.** Blocos de 24 a 58 bytes decodificaram 9 de 11; pacotes de 81 bytes decodificaram 1 de 21. Mais símbolos entre re-sincronizações, e um escorregão de relógio desloca quatro bits e desalinha todo o resto. Medir a taxa de sucesso contra o tamanho do bloco é barato e decide o desenho da transferência.
 2. **Ajuste fino do ganho** entre 0,4 e 0,6, contra o acervo.
 3. **Fechar a lacuna da camada paralela.** A falha não é do decodificador — foi o sincronismo, e a correção que o levou de 1/9 para 5/9 saiu de reprocessar gravações, sem transmitir nada.
+4. **Revalidar a varredura nas duas máquinas.** Todo número dela vem de auto-captura. `b syncsweep on` nos dois lados antes de medir; nada disso entra na tabela principal antes disso.
+5. **Ensinar o `recvfile.py` a usar as varreduras.** Hoje ele as desliga no setup, por segurança. É o caminho que mais precisa delas, e é a transferência de arquivo que ainda não funciona.
+6. **Por que o gate colapsa no canal limpo.** Ele recupera 26 blocos de 60 com fio contra 43 de 60 no Bluetooth, lendo 7,5 pontos a mais de bits — e três leituras da mesma configuração deram 6/6, 1/12 e 3/12. A causa não é nível, saturação nem deriva de clock. É a pista mais estranha aberta aqui.
 
 **Coisas já tentadas e rejeitadas pela medição** (não repita sem um motivo novo):
 
@@ -388,6 +481,8 @@ Avalie um link com `linktest.py` e sua carga aleatória. Trate throughput de tom
 - Janelamento Hann/Tukey das sondas: melhora o contraste em dB e não melhora a recuperação de bytes.
 - Escolher os tons pelos picos medidos: o pente desliza quando algo se move na sala.
 - Alargar os pares de 200 para 250 Hz: recuperação de pacotes caiu de 7/8 para 3/8. A janela após o guarda é de 8,5 ms, cerca de 118 Hz de resolução, e afastar os membros de um par aproxima os pares entre si.
+- **Piloto por tom na M-ária**, para aprender o ganho do canal em cada frequência e dividir por ele: 80,9% dos bits contra 88,3% da estimativa cega que já está no código. Dividir pelo ganho é a operação errada — a decisão quer energia sobre o *ruído* daquela frequência. E um piso de ruído perfeito rende 88,4% contra os 88,3% da estimativa cega, ou seja, a estimativa cega já está no teto e não há o que ensinar a ela.
+- **Silêncio entre símbolos** (`marygap`): ajuda os bits de forma monotônica — 86,7% em 0, 88,0% em 0,15, 88,9% em 0,30 — e mesmo assim não paga. São 30% do tempo no ar por dois pontos, onde os mesmos 30% em redundância rendem mais.
 
 **Limitações que permanecem:**
 
