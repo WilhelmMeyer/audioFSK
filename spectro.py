@@ -281,7 +281,8 @@ def legend(width, entries, scale=2, pad=8):
     return strip
 
 
-def draw_grid(img, start, sps, tone_frac, hop, win, cols, rows):
+def draw_grid(img, start, sps, tone_frac, hop, win, cols, rows,
+              f_lo=None, f_hi=None):
     """Faint dashed verticals where each symbol is expected to begin and end.
 
     Without them the eye has no ruler: a mark drawn slightly left of where it
@@ -311,6 +312,21 @@ def draw_grid(img, start, sps, tone_frac, hop, win, cols, rows):
         if 0 <= ce < cols:
             for y in range(3, rows, 6):
                 img[y:y + 2, ce] = np.maximum(img[y:y + 2, ce], (58, 58, 72))
+
+    # Horizontal dashes halfway between neighbouring tones: the frequency
+    # boundary the detector is implicitly drawing when it takes an argmax.
+    # Energy that crosses one of these lines is energy being counted for the
+    # wrong tone, which is the failure the error histogram measures and this
+    # makes visible.
+    if f_lo is not None and f_hi is not None:
+        tones = sorted(MARY_TONES)
+        for a, b in zip(tones[:-1], tones[1:]):
+            fm = 0.5 * (a + b)
+            if not f_lo <= fm <= f_hi:
+                continue
+            y = int((fm - f_lo) / (f_hi - f_lo) * (rows - 1))
+            for x in range(0, cols, 7):
+                img[y, x:x + 3] = np.maximum(img[y, x:x + 3], (72, 72, 88))
     return img
 
 
@@ -415,7 +431,7 @@ def main():
             hop = max(1, (len(samples) - win) // max(args.cols - 1, 1))
             fused = blended(measured, ideal, dec_mask)
             fused = draw_grid(fused[::-1], start, sps, tone_frac, hop, win,
-                              args.cols, args.rows)[::-1]
+                              args.cols, args.rows, args.lo, args.hi)[::-1]
             tiles = [(fused,
                       'fundido: vermelho=ideal, verde=interpretado, '
                       'amarelo=os dois, cinza=espectro real, '
@@ -425,7 +441,7 @@ def main():
                 ((40, 235, 40), "LIDO"),
                 ((235, 235, 40), "AMBOS"),
                 ((120, 120, 120), "ESPECTRO"),
-                ((110, 110, 135), "PASSO"),
+                ((110, 110, 135), "LIMITES"),
             ])
         else:
             tiles.append(((over * 255).astype(np.uint8), 'sobreposto'))
