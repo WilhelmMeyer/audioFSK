@@ -132,7 +132,43 @@ def distortion_line(meta, samples):
             f"acima da banda {harm}{flag}{imd_note}")
 
 
-def run_fec(meta, samples, nbytes, repeat):
+# Variants for the *coded* M-ary path, which the list above cannot reach:
+# `VARIANTS` is scored through the hard byte-stream demodulator, and on this
+# layer that path has no framing to resynchronise on -- CLAUDE.md calls it a
+# lottery, and it is. A coded capture goes through `run_fec` instead, so an
+# idea about M-ary has to be an entry here.
+#
+# Each is (name, kwargs handed to MaryDemodulator). The kwargs default to
+# today's behaviour, so the first row is the code as it stands.
+#
+# What they are: the blind per-tone floor is not equally good in both
+# directions of the two-machine link. Measured over twelve recordings each
+# way, a perfect noise-floor divisor beat the blind estimate by 5.0 points of
+# bits A->B and by 0.0 points B->A -- so B->A is at its ceiling and A->B is
+# not. See `resultados/INVESTIGACAO-A2B.md`.
+FEC_VARIANTS = [
+    ("mary atual", {}),
+    # The one that wins in both directions, and by a lot in the bad one:
+    # A->B 79.1 -> 90.2% of bits and 0 -> 9 blocks of 12, B->A 89.6 -> 91.1%
+    # with 12 of 12 held. Paired over the same recordings it reads more bits
+    # on 27 of 27. Both halves are needed and neither works alone -- see the
+    # table in the investigation.
+    ("mary piso sem excl clip8 a.05",
+     dict(floor_top=0, floor_clip=8.0, floor_alpha=0.05)),
+    # The two halves on their own, kept so the next person can see that the
+    # clip without the faster average is worth about half of it, and that the
+    # exclusion has to go with it: `clip 3x` with the winner still excluded
+    # scores 57.9% A->B, twenty points *below* doing nothing.
+    ("mary piso alpha 0.05", dict(floor_alpha=0.05)),
+    ("mary piso sem excl clip 5x", dict(floor_top=0, floor_clip=5.0)),
+    # Measured and dead: normalising each symbol by its own energy is the
+    # obvious answer to a receive gain that moves during the burst, and it
+    # loses 3.8 points A->B. A global gain cancels inside a symbol anyway.
+    ("mary piso norm/simbolo", dict(floor_norm=True)),
+]
+
+
+def run_fec(meta, samples, nbytes, repeat, extra=None):
     """Soft-decode an error-corrected capture: sync, then Viterbi.
 
     Returns the payload or b'' -- a FEC block either decodes or it does not,
@@ -143,7 +179,8 @@ def run_fec(meta, samples, nbytes, repeat):
         d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
                             gap=meta.get('gap', 0.0),
                             band=meta.get('band', 0.0),
-                            chord=bool(meta.get('chord')))
+                            chord=bool(meta.get('chord')),
+                            **(extra or {}))
         llr = np.concatenate([d.demodulate_soft(samples[i:i + BLOCK])
                               for i in range(0, len(samples), BLOCK)])
         start = fec.find_sync(llr)
@@ -180,25 +217,33 @@ def main():
         sys.exit(f"[bench] nenhuma gravacao em {args.directory}/ -- rode capture.py primeiro")
 
     variants = [v for v in VARIANTS if not args.only or args.only in v[0]]
-    width = max(len(v[0]) for v in variants)
+    width = max([len(v[0]) for v in variants] + [len(v[0]) for v in FEC_VARIANTS])
     totals = {v[0]: [] for v in variants}
 
     for samples, payload, meta in captures:
         if meta.get('kind') == 'chirp':
             continue
         if meta.get('kind') == 'fec':
-            got = run_fec(meta, samples, len(payload), meta.get('fec_repeat', 2))
-            ok = got == payload
-            hits = sum(a == b for a, b in zip(got, payload))
             print(f"\n{meta['recorded']}  {meta.get('label','')}  FEC"
                   f"{' MARY' if meta.get('mode') == 'mary' else (' PARALELO' if meta.get('parallel') else ' voto')}"
                   f"  {len(payload)}B  "
                   f"rms={meta.get('rms',0):.4f}")
-            print(f"  {'viterbi soft':<20}  {'OK, bloco inteiro' if ok else f'falhou ({hits}/{len(payload)} bytes)'}")
+            # On M-ary every FEC_VARIANTS row is scored; on the other layers
+            # there is only the one demodulator, so only the first row runs
+            # and it is the code as it stands.
+            rows = (FEC_VARIANTS if meta.get('mode') == 'mary'
+                    else [("viterbi soft", {})])
+            rows = [r for r in rows if not args.only or args.only in r[0]]
+            for name, extra in rows:
+                got = run_fec(meta, samples, len(payload),
+                              meta.get('fec_repeat', 2), extra)
+                ok = got == payload
+                hits = sum(a == b for a, b in zip(got, payload))
+                print(f"  {name:<28}  {'OK, bloco inteiro' if ok else f'falhou ({hits}/{len(payload)} bytes)'}")
+                totals.setdefault(name, []).append(100.0 if ok else 0.0)
             line = distortion_line(meta, samples)
             if line:
                 print(line)
-            totals.setdefault('viterbi soft', []).append(100.0 if ok else 0.0)
             continue
         print(f"\n{meta['recorded']}  {meta.get('label','')}  modo={meta['mode']} "
               f"{len(payload)}B  rms={meta.get('rms',0):.4f} pico={meta.get('peak',0):.3f}")

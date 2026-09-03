@@ -1,26 +1,33 @@
 # Handoff -- campanha de medidas do link acustico
 
-Estado em 2026-09-03 19:10. O plano dos testes esta em `TESTES.md`. Leia ele e
-o `CLAUDE.md` antes de comecar. Este arquivo substitui a versao das 17:07.
+Estado em 2026-09-03 20:15. O plano dos testes esta em `TESTES.md`. Leia ele e
+o `CLAUDE.md` antes de comecar. Este arquivo substitui a versao das 19:10.
 
 ## Por que esta sessao parou
 
-O modo automatico do Claude Code passou a bloquear a execucao de comandos, e o
-bloqueio vale para o resto daquela sessao -- ate `git commit`. Nada quebrou na
-bancada. Para retomar: sessao nova, ou o modo de permissao padrao.
+**A maquina B esta offline.** Nao ha nada a medir ate ela voltar. Tudo que foi
+gravado esta em disco e pontuado; o que falta e trabalho de sala, nao de
+teclado.
 
-**Primeiro comando da sessao nova, antes de qualquer medida:** commitar o que
-ficou solto na arvore, que e trabalho pronto e nao commitado --
+Um aviso sobre esta sessao em particular: **duas sessoes do Claude Code
+estiveram abertas sobre este repositorio ao mesmo tempo**, entre 19:24 e 19:31.
+Uma media na bancada, a outra terminava a investigacao do piso e reescrevia
+`CLAUDE.md`, `HANDOFF.md`, `modem.py` e `bench.py` debaixo dela. Nada se
+perdeu, porque as duas mexeram em arquivos diferentes e a que media so leu, mas
+foi sorte. **Uma sessao por vez neste repositorio** -- a bancada tem um cabo
+serial e um par de arquivos de estado, e nenhum dos dois tem tranca.
+
+**Primeiro comando da sessao nova:** commitar o que ficou solto --
 
 ```bash
-git add netlink.py serial_link.py HANDOFF.md run_a2b_rest.sh run_a2b_rep.sh
-git commit
+./venv/bin/python loopback_test.py     # tem que imprimir SUCCESS!
+git add -A && git commit
 ```
 
-**Nao commite `modem.py` nem `bench.py` junto.** Os dois estao modificados por
-uma investigacao que ficou pela metade e nunca reportou (ver "O achado que ainda
-esta aberto"). Rode `loopback_test.py` primeiro: se nao imprimir `SUCCESS!`,
-`git checkout modem.py bench.py`.
+`modem.py` e `bench.py` estao modificados pela investigacao do piso, que
+**terminou** e vale a pena (ver "A causa achada"). O padrao deles continua
+sendo o comportamento de hoje, entao commitar nao muda numero nenhum ja
+medido.
 
 ## A bancada
 
@@ -31,10 +38,13 @@ esta aberto"). Rode `loopback_test.py` primeiro: se nao imprimir `SUCCESS!`,
 
 - Cabo serial em `/dev/ttyUSB0`, 115200. So controle, nunca dado.
 - Ganho de captura em A: `Dmic0 45` (-5 dB), `Capture 39` (+12 dB).
-- **A caixa de A estava no volume 1.00 do PipeWire e comprimindo.** Baixada
-  para **0.45** durante o teste 16 (`wpctl set-volume 92 0.45`). Confira com
-  `wpctl status` antes de medir qualquer coisa neste sentido -- o numero volta
-  ao maximo se o dispositivo reconectar.
+- **A caixa de A comprime, e o ponto de operacao dela e 0.20 no PipeWire.**
+  Estava em 1.00; foi para 0.45 no teste 16 e para **0.20** no teste 17, que e
+  onde ela para de comprimir sem ficar sem sinal (a curva esta abaixo).
+  `wpctl set-volume <id> 0.20`. **O id muda quando a caixa reconecta** -- era
+  92, agora e 104 -- entao leia `wpctl status` em vez de decorar o numero, e
+  confira com `wpctl get-volume <id>` antes de medir, porque o volume volta ao
+  maximo na reconexao.
 - As duas maquinas rodam `9acc715` ou mais novo. B foi atualizada por `pull` e
   `restart` e responde.
 
@@ -71,7 +81,10 @@ nivel analogico. **Linearidade valeu mais que qualquer mudanca de codigo.**
 | 01 `LVL-BASE-A2B` | piso de B: -52,3 dBFS (banda util -55,0) |
 | 02 `LVL-TONE-A2B` | +51,6 dB de margem |
 | 03 `CH-CHIRP-A2B` | 76 de 76 bins positivos -- o oposto do outro sentido |
-| 08 `MARY-GAIN-A2B` | 80-84% dos bits nos quatro ganhos, **0 de 12 blocos** |
+| 08 `MARY-GAIN-A2B` | caixa em 1.00: 80-84% dos bits nos quatro ganhos, **0 de 12 blocos** |
+| 16 `SPK-A2B` | caixa em 0.45: 82,6%, **2 de 6** -- os primeiros blocos deste sentido |
+| 08B `MARY-GAIN-A2B` | caixa em 0.45, seis ganhos: 84,7% no gate, 87,0% travado, 4 de 12 |
+| 17 `SPK-LEVEL-A2B` | caixa como eixo: **0.20 e o joelho**, 88,2% travado, 8 de 9 |
 
 ## Os problemas encontrados e o que foi feito
 
@@ -108,17 +121,150 @@ e nenhum ganho entrega bloco. Duas pistas, e elas nao se excluem:
   0,117-0,172, que e proporcional. As gravacoes do teste 16 estao em
   `captures-a2b/16-spk/` e **ainda nao foram pontuadas** -- e o primeiro
   comando a rodar na proxima sessao.
-- **O estimador cego de piso trabalha mal neste sentido.** No `align.py`, em
-  B -> A o estimador cego empata com o oraculo de ruido (90,7% contra 90,7%);
-  em A -> B ha 5 pontos de diferenca (82,6% contra 87,6%) e eles valem 4 blocos.
-  Uma investigacao ficou no meio e deixou `modem.py` e `bench.py` modificados na
-  arvore, **nao commitados e nao verificados**. Rode `loopback_test.py` antes de
-  confiar neles; se nao imprimir `SUCCESS!`, `git checkout modem.py bench.py`.
+- **O estimador cego de piso trabalha mal neste sentido, e agora se sabe por
+  que.** Investigado ate o fim; o relatorio esta em
+  `resultados/INVESTIGACAO-A2B.md`. Resumo na secao seguinte.
 
 Note que a distorcao **nao** acompanha o ganho: em A -> B o excesso entre tons
 foi de +0,4 a +6,8 dB e o ganho 1.0 deu os *menores* excessos. Se a caixa
 estivesse ceifando em 1.0, seria o contrario. Entao "esta alto" e verdade e
 pode nao ser a causa inteira.
+
+## A causa achada, e o conserto que ainda nao foi ao ar
+
+`resultados/INVESTIGACAO-A2B.md` tem tudo. O essencial:
+
+**O AGC existe e nao e a causa.** A deriva esta la -- cerca de 3,5 dB ao longo
+do burst, inclinacao de -0,99 dB/s em A -> B contra +0,21 em B -> A, e o meio
+segundo inicial 1,6 dB acima do resto. Mas um ganho global multiplica os 16
+tons igualmente, e constante dentro do simbolo e some do `argmax` e da margem.
+O conserto que essa hipotese pedia -- normalizar cada simbolo pela propria
+energia -- foi medido e **piora**: 82,6% para 78,8%. Fica registrado como morto
+para ninguem tentar de novo.
+
+**A causa e realimentacao positiva na exclusao do vencedor.** `_update_floor`
+deixa o `argmax` de fora de cada atualizacao, o que e correto enquanto quase
+todo simbolo acerta -- e o `CLAUDE.md` explica por que. Com 38% de simbolos
+errados vira um laco: o tom transmitido que perde entra no proprio piso e o
+levanta; o tom que vence sem ter sido transmitido tem seu pico de ruido
+removido do proprio piso e o abaixa. O tom 0 (888 Hz) perde so 2,1% das vezes e
+acumula vies de **-6,01 dB** -- piso 6 dB baixo, escore 6 dB inflado. O vies
+varre de -6,01 a +3,92 dB entre o tom 0 e o 15, e nao acompanha nem a SNR nem a
+taxa de perda, que e como se sabe que e o laco e nao o canal.
+
+E por isso que `fecrep 2` nao resgatava nada neste sentido: os valores soft nao
+estavam incertos, estavam **confiantemente errados**, que e o pior caso para um
+Viterbi soft. O vies *medio* e parecido nos dois sentidos; o que nao cancela e
+o espalhamento por tom, quase 3x maior em A -> B.
+
+**O conserto: nao excluir ninguem, e limitar o quanto cada simbolo contribui**,
+com media mais curta. Tres parametros novos em `MaryDemodulator`, com o padrao
+igual ao comportamento de hoje:
+
+    floor_alpha 0.02 -> 0.05     floor_clip None -> 8.0     floor_top 1 -> 0
+
+| corpus | bits hoje | bits novo | blocos hoje | blocos novo |
+|---|---|---|---|---|
+| A -> B (12) | 79,1% | **90,2%** | 0 de 12 | **9 de 12** |
+| B -> A rep (12) | 89,6% | 91,1% | 12 de 12 | 12 de 12 |
+| B -> A acorde-off (3) | 96,0% | 96,7% | 3 de 3 | 3 de 3 |
+
+Pareado sobre a mesma gravacao, le mais bits em **27 de 27**, sem uma perda. E
+passa do teto do oraculo de ruido (87,6%, 4/12), porque o oraculo e um divisor
+estatico e este acompanha a deriva tambem.
+
+**As duas metades sao necessarias, e a ordem importa:** so `alpha 0.05` da +1,8
+ponto e zero bloco; so o teto *mantendo* a exclusao (`clip 3x`) da 57,9%, vinte
+pontos **abaixo** de nao fazer nada. Adotar meio conserto e pior que nenhum.
+
+**Estado:** `modem.py` e `bench.py` estao modificados na arvore com os
+parametros e com um memo em `_energies` (valores identicos, demodulador 8x mais
+rapido -- sem ele a varredura de 21 variantes nao caberia). O padrao continua
+sendo o de hoje, entao nada muda sob os testes ja feitos.
+`./venv/bin/python loopback_test.py` imprime `SUCCESS!` com os padroes atuais
+**e** com os do vencedor. Confira voce mesmo antes de commitar.
+
+**O que falta e o que decide:** 27 gravacoes nao sao o link no ar. Re-medir
+A -> B com o parametro novo antes de adotar. Se confirmar, isso muda a contagem
+de blocos de todos os testes M-arios ja feitos -- o que e barato, porque a
+pontuacao e offline e o audio esta guardado, e e a mesma repontuacao que a
+branch `feat/clock-tracking` ja exigia.
+
+## A outra causa, medida ate o fim: a caixa de A comprimia
+
+Esta e a primeira das duas pistas da secao anterior, e agora esta fechada. O
+metodo importa porque "esta alto" nao e uma medida: **o volume do PipeWire e o
+ganho digital chegam ao mesmo lugar por caminhos diferentes**, entao variar um
+com o outro fixo separa a compressao do nivel.
+
+Com o ganho digital fixo em 0.5, 3 trials por ponto, bits no relogio travado
+(a regua estavel; blocos ao lado como numero honesto):
+
+| caixa de A | bits (travado) | blocos, `mary atual` |
+|---|---|---|
+| 1.00 | 82,3% | 0 de 3 |
+| 0.45 | 85,1% | 0 de 3 |
+| **0.20** | **88,0%** | 3 de 3 travado, 2 de 3 no gate |
+| 0.10 | 82,2% | 1 de 3 |
+
+Um U invertido com o joelho em **0.20**. Acima disso a caixa comprime; abaixo
+acaba o sinal -- em 0.10 o rms recebido caiu para 0,0055-0,0066 e uma das tres
+gravacoes saiu contaminada por um evento da sala.
+
+**A prova de que era compressao, e nao nivel, esta na inversao.** Com a caixa
+em 0.45 o ganho digital andava ao contrario do que deveria: *quanto menor,
+melhor*, 81,4% em 1.0 contra 89,1% em 0.25, com o pico recebido em apenas
+0,10-0,19 -- longe de qualquer coisa que o *receptor* pudesse ceifar. Com a
+caixa em 0.20 essa inversao some:
+
+| ganho digital @ caixa 0.20 | bits (travado) |
+|---|---|
+| 1.0 | 88,2% |
+| 0.5 | 88,2% |
+| 0.25 | 85,2% |
+
+Chapado de 1.0 a 0.5 e caindo em 0.25, que e o que uma cadeia linear faz. **O
+sinal de que ainda ha compressao no caminho e o ganho digital menor vencer**;
+quando ele parar de vencer, a cadeia esta linear. Isso vale como teste de
+bancada e custa 6 trials.
+
+E o mesmo achado do sentido B -> A, na outra ponta: **linearidade valeu mais
+que qualquer mudanca de codigo**, e neste sentido ela sozinha levou de 0 de 12
+blocos a 8 de 9.
+
+`resultados/16-SPK-A2B/`, `resultados/08B-MARY-GAIN-A2B/`,
+`resultados/17-SPK-LEVEL-A2B/`.
+
+## O conserto do piso, replicado -- e o limite dele
+
+O conserto da secao anterior (`floor_top=0, floor_clip=8.0, floor_alpha=0.05`)
+foi re-medido em um corpus **novo**, gravado depois de baixar a caixa, que a
+investigacao original nao viu. Nas 12 gravacoes de `08b-mary-gain` (caixa em
+0.45): **9 de 12 blocos contra 4 de 12** do padrao de hoje. Replica limpa, em
+audio independente.
+
+**Mas ele nao e uma melhora geral, e o corpus mais linear mostra isso.** Nas 3
+gravacoes com a caixa em 0.20 e ganho 0.5 -- a cadeia menos distorcida ja
+medida neste sentido -- o conserto deu **0 de 3** e o padrao de hoje deu 2 de
+3. E as falhas tem carater diferente: o padrao erra por pouco (41-47 dos 48
+bytes) e o conserto erra **0 de 48**, que e assinatura de sync perdido, nao de
+bits ruins. O mesmo aconteceu em 3 das 12 gravacoes de 0.45, todas entre as de
+menor nivel recebido.
+
+Leitura: o conserto e um reparo para cadeia distorcida, medido contra corpora
+distorcidos, e **degrada quando o nivel recebido cai**. A explicacao que se
+encaixa e que sem a exclusao do vencedor, e com media mais curta, o piso comeca
+a seguir o sinal em SNR baixa, o contraste desaba e o gate perde a trava -- por
+isso 0 bytes em vez de poucos bytes. **Nao adotar como padrao antes de medir
+nos dois regimes.** Um `floor_clip` mais generoso ou um piso que so muda de
+regime abaixo de um contraste minimo sao as duas coisas a tentar, e nenhuma foi
+medida.
+
+Note tambem que, no corpus de 0.45, o oraculo de ruido **deixou de ganhar** do
+estimador cego: 85,9% contra 87,0% travado, quando na caixa em 1.00 era 87,6%
+contra 82,6%. Ou seja: **parte do que parecia defeito do estimador de piso era
+a compressao da caixa**, e some junto com ela. As duas pistas da secao anterior
+nao eram independentes.
 
 ## Transferencia da gravacao: pelo cabo ou pela rede
 
@@ -168,23 +314,35 @@ reversao automatica (o agent volta a 115200 se ninguem falar na taxa nova em
 
 ## O que falta medir
 
-Sentido A -> B, com a caixa de A em 0.45 e depois de pontuar o teste 16:
+**Tudo daqui para baixo espera a maquina B voltar.** E tudo neste sentido roda
+com a caixa de A em **0.20**, que e o joelho medido -- confira o volume antes
+de cada campanha, porque ele volta ao maximo quando a caixa reconecta.
 
-1. **Pontuar `captures-a2b/16-spk/`** e decidir o ganho. Se a caixa era o
-   problema, refazer o 08 inteiro no volume novo.
-2. **14 `FEC-REP`** -- ha 7 gravacoes em `captures-a2b/14-fec-rep/` (3 em rep 1,
-   3 em rep 2, 1 em rep 4), todas no volume ANTIGO da caixa. `fecrep 1` e
-   `fecrep 2` deram **0 blocos**. Ou refazer no volume novo, ou manter como o
-   corpus da cadeia comprimida e dizer isso.
-3. Depois: **04, 05, 06, 07, 09, 10, 11 e 12-13** neste sentido. O
-   `run_a2b_rest.sh <ganho>` roda todos em sequencia.
+1. **Refazer 08 `MARY-GAIN-A2B` no volume novo, com mais trials.** Ha 3 trials
+   por ponto em 1.0, 0.5 e 0.25 na caixa em 0.20; 1.0 e 0.5 empatam em 88,2% e
+   3 trials nao separam um empate. Seis por ponto decide, e decide o ganho que
+   todos os testes seguintes vao usar. Enquanto nao decidir, use **0.5**: e o
+   melhor dos dois no par com mais blocos e deixa margem para a caixa.
+2. **14 `FEC-REP`** -- as 7 gravacoes em `captures-a2b/14-fec-rep/` sao do
+   volume 1.00, a cadeia comprimida, e deram 0 blocos. **Refazer.** Elas nao
+   medem o link, medem a compressao, e agora existe corpus melhor.
+3. Depois: **04, 05, 06, 07, 09, 10, 11 e 12-13** neste sentido, por
+   `run_a2b_rest.sh <ganho>`.
 
-**Uma decisao que ficou para o usuario.** Se nem `fecrep 4` entregar bloco, a
-metrica principal da tabela (blocos inteiros) e zero em todo ponto e nao
-discrimina nada. A campanha continua legitima em *bits* -- o `TESTES.md` manda
-usar bits para ajuste fino, com blocos como numero honesto separado -- mas
-seria uma tabela de zeros ao lado de percentuais. Vale escolher entre medir
-assim ou atacar a causa antes de medir.
+**A decisao que estava aberta caducou.** Era "se nem `fecrep 4` entregar bloco,
+a tabela e uma coluna de zeros -- vale medir assim ou atacar a causa antes?" A
+causa foi atacada e cedeu: com a caixa em 0.20 sao 8 blocos de 9 em `fecrep 1`.
+Blocos inteiros voltaram a discriminar e a campanha pode seguir a regua normal.
+
+**Duas coisas de codigo, nenhuma no caminho critico:**
+
+- Re-medir o conserto do piso nos dois regimes de nivel antes de mudar o
+  padrao (ver a secao acima). Se for adotado, repontuar tudo -- barato, o audio
+  esta guardado.
+- O `--serial-only` custa 85 s por trial movendo 700 kB pelo cabo, contra ~7 s
+  de audio. **A campanha inteira e transferencia de arquivo, nao medida.** O
+  teste de `rede <url>` de uma linha continua sem nunca ter rodado; e o maior
+  ganho de tempo disponivel e leva um comando.
 
 **O 15 `PKT-ARQ` nao existe no sentido A -> B.** O `recvfile.py` puxa com o
 receptor dirigindo, e o receptor precisa de audio e serial ao mesmo tempo, que
@@ -192,6 +350,11 @@ e o lado do console. Faria falta um `sendfile.py`, ou ensinar o agent a
 receber. E trabalho de codigo, nao de medida, e nunca esteve no plano.
 
 ## Coisas que quebram se voce nao souber
+
+**Uma sessao do Claude Code por vez neste repositorio.** Duas rodaram juntas
+nesta bancada e reescreveram `CLAUDE.md`, `HANDOFF.md`, `modem.py` e `bench.py`
+debaixo da que estava medindo. Nada se perdeu por sorte, nao por desenho: o
+cabo serial tem um dono so, e os arquivos de estado nao tem tranca.
 
 **O microfone de A as vezes nao acorda.** Logo depois de outro processo soltar o
 dispositivo ele entrega zeros. O `capture.py` aborta alto; espere 4 s e repita

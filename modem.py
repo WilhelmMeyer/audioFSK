@@ -796,7 +796,7 @@ class MaryDemodulator:
     def __init__(self, fs=48000, baud=100, tones=MARY_TONES, guard=0.15,
                  contrast_min=0.15, floor_alpha=0.02, gap=0.0, band=0.0,
                  chord=False, steer=True, skip=0, floor_fixed=None,
-                 period=None):
+                 period=None, floor_norm=False, floor_clip=None, floor_top=1):
         # `steer=False` freezes the symbol clock: every window is taken exactly
         # one symbol after the last, and `skip` says where the first one
         # starts. That is only correct when something else has already found
@@ -831,6 +831,36 @@ class MaryDemodulator:
         self.samples_per_symbol = int(fs / baud)
         self.contrast_min = contrast_min
         self.floor_alpha = floor_alpha
+        # Three knobs on the running floor, all defaulting to what the code
+        # did before they existed. They are here because the estimate is not
+        # equally good in both directions of the link: measured over twelve
+        # recordings each way, a perfect noise-floor divisor beat the blind
+        # one by 5 points of bits A->B and by 0.0 points B->A. See
+        # `resultados/INVESTIGACAO-A2B.md`.
+        #
+        #   floor_norm   divide each symbol's energies by their own mean
+        #                before both the comparison and the floor update. A
+        #                receive gain that moves during the burst then leaves
+        #                the floor alone -- within a symbol the scale is a
+        #                constant and cancels, so this changes nothing except
+        #                what the floor accumulates, which is the point.
+        #   floor_clip   ceiling, in multiples of the current floor, on what
+        #                a single symbol may contribute to the update. The
+        #                update leaves out the *winner*, not the transmitted
+        #                tone, and when most symbols are decided wrongly the
+        #                real tone's full energy goes into its own floor --
+        #                which raises it, which makes it lose again.
+        #   floor_top    how many of the loudest tones to leave out of each
+        #                update. 1 is the winner alone, as before.
+        self.floor_norm = bool(floor_norm)
+        self.floor_clip = None if floor_clip is None else float(floor_clip)
+        # 0 means exclude nobody -- only sensible together with `floor_clip`,
+        # since the point of the exclusion is to keep the winner's energy out
+        # of its own floor, and a ceiling does that without the selection bias
+        # the exclusion introduces (a tone that wins spuriously has its own
+        # noise peaks removed from its own floor, which lowers it, which makes
+        # it win again).
+        self.floor_top = max(0, int(floor_top))
         self.gap = gap
         self.chord = chord
 
@@ -861,6 +891,8 @@ class MaryDemodulator:
 
     def reset(self):
         self.buf = np.zeros(0, dtype=np.float64)
+        self._e_key = None
+        self._e_val = None
         self.pending_skip = 0
         self.frozen_k = 0
         self.floor = (np.zeros(len(self.tones)) if self.floor_fixed is None
@@ -888,10 +920,24 @@ class MaryDemodulator:
         self.last_window = 0
 
     def _energies(self, start):
+        # One-entry memo. This is 90% of the demodulator's cost and the same
+        # window is asked for twice per symbol on the frozen clock and five
+        # times on the steered one -- once to decide, once more to read the
+        # contrast back, and once to update the floor. The key is the pair
+        # (samples consumed so far, samples buffered), which together name the
+        # buffer's contents uniquely: `consumed` only ever grows, and nothing
+        # changes `buf` without changing one of the two. Values are identical
+        # to recomputing; only the clock differs.
+        key = (self.consumed, len(self.buf), start)
+        if self._e_key == key:
+            return self._e_val
         seg = self.buf[start + self.guard:start + self.samples_per_tone]
         if len(self.probes) == 1:
-            return np.abs(self.probe @ seg) ** 2
-        return sum(np.abs(p @ seg) ** 2 for p in self.probes)
+            e = np.abs(self.probe @ seg) ** 2
+        else:
+            e = sum(np.abs(p @ seg) ** 2 for p in self.probes)
+        self._e_key, self._e_val = key, e
+        return e
 
     def _gap_energy(self, start):
         """Power in the stretch the transmitter left silent.
@@ -916,8 +962,21 @@ class MaryDemodulator:
             return norm
         return np.array([norm[list(c)].sum() for c in MARY_CODES])
 
+    def _scale(self, e):
+        """Per-symbol divisor: 1.0 unless `floor_norm`, then the mean energy.
+
+        Constant across the sixteen tones of one symbol, so it cancels out of
+        every decision taken inside that symbol. What it does not cancel out
+        of is the running floor, which is an average over many symbols at
+        many receive gains.
+        """
+        if not self.floor_norm:
+            return 1.0
+        return max(float(np.mean(e)), 1e-30)
+
     def _score(self, start):
         e = self._energies(start)
+        e = e / self._scale(e)
         # Divide by the running floor before comparing. A tone in a null and a
         # tone on a peak are then judged against what each of them looks like
         # when nobody is transmitting on it, which is the only fair comparison
@@ -935,13 +994,19 @@ class MaryDemodulator:
         # Each tone is silent 15 symbols out of 16, so its average energy is
         # its noise floor. The winner is left out of the update so the floor
         # never chases the signal it exists to measure.
+        e = e / self._scale(e)
         mask = np.ones(len(self.tones), dtype=bool)
-        mask[int(np.argmax(e))] = False
+        if self.floor_top == 1:
+            mask[int(np.argmax(e))] = False
+        elif self.floor_top:
+            mask[np.argsort(e)[-self.floor_top:]] = False
         if not self.floor.any():
             self.floor[:] = e.mean()
             return
         a = self.floor_alpha
-        self.floor[mask] += a * (e[mask] - self.floor[mask])
+        upd = e if self.floor_clip is None else np.minimum(
+            e, self.floor_clip * self.floor)
+        self.floor[mask] += a * (upd[mask] - self.floor[mask])
 
     def _symbols(self, samples):
         samples = np.asarray(samples, dtype=np.float64)
