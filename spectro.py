@@ -18,10 +18,25 @@ Two panels, and the second is the point:
 That difference is the hypothesis this tool exists to check: energy and
 usefulness are not the same ranking, and the detector only sees the first.
 
+Two windows, not the whole recording: at 100 baud a ten-second capture is a
+thousand symbols, and a thousand symbols in nine hundred pixels is a texture,
+not a reading. `--auto` writes one figure at the head of the burst, where
+acquisition happens, and one in the middle of the coded body, where the link
+is carrying something. Both are `--simbolos` wide, because what has to be
+countable is symbols, not seconds.
+
+Two clocks, and the choice is stated on the figure. `--relogio grade` freezes
+the receiver's symbol clock on the transmitted grid, so the picture answers
+"what did the air deliver". `--relogio livre` lets the early/late gate steer
+as it does live, and answers "what did the receiver do". Drawing the ideal on
+one and the decisions on the other -- which is what this did -- is two
+references and disagrees even where the receiver is right.
+
 No matplotlib here, for the same reason recording.py writes its own WAV: this
 project has no plotting dependency and does not need one for a heat map.
 
-    ./venv/bin/python spectro.py captures/<stem>.json -o /tmp/vista.png
+    ./venv/bin/python spectro.py captures/<stem>.json --fundido --auto \
+        --win 480 -o /tmp/vista.png
 """
 
 import argparse
@@ -33,7 +48,7 @@ import numpy as np
 
 import fec
 import recording
-from modem import (MARY_TONES, MARY_BITS, MFSK_PAIRS, _GRAY,
+from modem import (MARY_TONES, MARY_BITS, MFSK_PAIRS, _GRAY, _UNGRAY,
                    MFSKDemodulator, MaryDemodulator)
 
 
@@ -181,6 +196,70 @@ def find_start(samples, fs, sps, tones, want, guard=0.15, search=2.5):
     return best[1], best[0]
 
 
+def align_mary(samples, meta, want, coarse, sps):
+    """Start of symbol 0 of `want`, in samples, plus how well it then agrees.
+
+    `find_start` alone is not enough and the reason is specific: the frame
+    opens with 120 symbols of two tones alternating, so its score saturates.
+    A candidate offset 44 symbols late matches the preamble exactly as well as
+    the true one -- measured on a capture that decodes every byte, the brute
+    force landed 44 symbols late, and the ideal panel was then drawn against
+    the wrong part of the payload. Symbols 0-60 agreed 100%, 120 onward agreed
+    6%, which is chance for sixteen tones, and the picture showed red and
+    green scattered independently on a recording where the receiver was right.
+
+    So take the phase from the brute force and the *index* from the body,
+    which is the half of the frame that is not periodic: demodulate on a
+    frozen clock, slide the decision sequence against `want`, and keep the
+    shift that agrees most. Then refine the phase once more at that index.
+    """
+    def score(start, period=None):
+        d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
+                            gap=meta.get('gap', 0.0), steer=False,
+                            skip=max(0, int(start)), period=period)
+        dec = np.array([i for i, _c, _n in d._symbols(samples)], dtype=int)
+        return dec
+
+    w = np.asarray(want, dtype=int)
+    dec = score(coarse)
+    best = (-1, 0)
+    # The decision stream may begin before or after symbol 0 of the frame,
+    # so both directions of slide have to be tried.
+    for shift in range(-len(w) + 8, len(dec) - 8):
+        if shift >= 0:
+            n = min(len(dec) - shift, len(w))
+            hits = int(np.sum(dec[shift:shift + n] == w[:n]))
+        else:
+            n = min(len(dec), len(w) + shift)
+            hits = int(np.sum(dec[:n] == w[-shift:-shift + n]))
+        if n >= 40 and hits > best[0]:
+            best = (hits, shift)
+    # In both branches above the decision at index i sits at
+    # `coarse + i*sps` and carries `want[i - shift]`, so symbol 0 of the frame
+    # is `shift` symbols away from where the brute force stopped. Getting this
+    # sign backwards moves the ideal panel twice as far wrong as leaving it
+    # alone, and it still looks like a plausible picture.
+    start = coarse + best[1] * sps
+
+    # One more pass on the phase, now that the index is right. A quarter of a
+    # symbol either way is enough: the coarse search already found the phase
+    # to within its own 24-sample step, and anything larger would be a
+    # different symbol.
+    fine = (-1, start)
+    for off in range(int(start - sps // 4), int(start + sps // 4) + 1, 24):
+        if off < 0:
+            continue
+        dec = score(off)
+        n = min(len(dec), len(w))
+        hits = int(np.sum(dec[:n] == w[:n]))
+        if hits > fine[0]:
+            fine = (hits, off)
+    hits, start = fine
+    dec = score(start)
+    n = min(len(dec), len(w))
+    return int(start), hits, n
+
+
 def ideal_panel(want, start, fs, sps, tone_frac, f_lo, f_hi, cols, rows, win, nsamp):
     """Where a perfect channel would put energy, on the same time axis.
 
@@ -206,101 +285,241 @@ def ideal_panel(want, start, fs, sps, tone_frac, f_lo, f_hi, cols, rows, win, ns
     return img
 
 
-def decided_panel(samples, meta, want, start, f_lo, f_hi, cols, rows, win, nsamp,
-                  want_mask=False):
-    """What the demodulator concluded, symbol by symbol, and whether it was right.
+def mary_decisions(samples, meta, start, sps, clock='grade'):
+    """Every decision as (sample position, tone index, symbol index).
 
-    Drawn from the receiver's *own* timing rather than the rigid grid the ideal
-    panel uses, because that timing is part of what is being shown: if the
-    decisions drift away from the ideal marks along the picture, the drift is
-    the finding.
+    `clock='grade'` freezes the receiver's symbol clock on the transmitted
+    grid found by `align_mary`, so decision k *is* symbol k and the picture
+    answers "what did the air deliver". `clock='livre'` lets the early/late
+    gate steer as it does live, and the symbol index is then read off where
+    the window actually landed -- which answers the different question "what
+    did the receiver do", and is where a timing collapse becomes visible.
 
-    Green where the decision matches what was sent, red where it does not.
+    Two clocks because two questions, and conflating them is what the drawing
+    did before: the ideal marks came from the rigid grid and the decisions
+    from the free-running gate, so the two panels were two references and
+    disagreed even where the receiver was right.
     """
-    from modem import MaryDemodulator
-    d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'], gap=meta.get('gap', 0.0))
-    sps = d.samples_per_symbol
+    if clock == 'livre':
+        d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
+                            gap=meta.get('gap', 0.0))
+        out = []
+        for idx, _c, _n in d._symbols(samples):
+            k = int(round((d.last_window - start) / sps))
+            out.append((d.last_window, idx, k))
+        return out
 
-    marks = []                       # (sample position, tone index)
-    for idx, _c, _n in d._symbols(samples):
-        # Ask the demodulator where it measured, rather than inferring it from
-        # how much buffer is left. The gate measures at an offset inside the
-        # buffer and then consumes a different amount, so the inference is off
-        # by up to a quarter of a symbol -- enough to draw an aligned receiver
-        # as a misaligned one.
-        marks.append((d.last_window, idx))
+    k0 = max(0, int(np.ceil(-start / sps)))
+    skip = int(start + k0 * sps)
+    d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
+                        gap=meta.get('gap', 0.0), steer=False, skip=skip)
+    return [(skip + j * sps, idx, k0 + j)
+            for j, (idx, _c, _n) in enumerate(d._symbols(samples))]
 
-    # Judge correctness by aligning the decision *sequence* to the transmitted
-    # one, not by sample position. The receiver's clock steers, so its symbol k
-    # drifts away from the rigid grid; scoring by position marks correct
-    # decisions wrong as soon as that drift exceeds half a symbol, which paints
-    # a working stretch red.
-    decided = [idx for _p, idx in marks]
-    # The slice being drawn is usually a zoom into the middle of the burst, so
-    # there are fewer decisions than transmitted symbols and the offset runs
-    # the other way. Getting this backwards compares a mid-burst stretch
-    # against the preamble and paints a 67%-correct passage almost entirely
-    # red -- which is how this was found.
-    if len(decided) <= len(want):
-        off = max(range(0, len(want) - len(decided) + 1),
-                  key=lambda o: sum(decided[k] == want[o + k]
-                                    for k in range(len(decided))))
-        shift = -off
-    else:
-        shift = max(range(0, len(decided) - len(want) + 1),
-                    key=lambda sh: sum(decided[sh + k] == want[k]
-                                       for k in range(len(want))))
 
+def agreement(decisions, want):
+    """(matching, comparable) over the decisions that fall inside the frame."""
+    ok = n = 0
+    for _pos, idx, k in decisions:
+        if 0 <= k < len(want):
+            n += 1
+            ok += int(want[k] == idx)
+    return ok, n
+
+
+def decided_panel(decisions, want, f_lo, f_hi, cols, rows, win, nsamp, sps,
+                  want_mask=False):
+    """What the demodulator concluded, marked at the position it concluded it.
+
+    Correctness is judged by symbol *index*, which `mary_decisions` supplies,
+    not by re-aligning the decision sequence here. The sequence alignment this
+    used to do could only paper over a disagreement it had no way to explain:
+    with the ideal panel on one clock and the decisions on another, a receiver
+    that was right drew as a receiver that was wrong.
+
+    Green where the decision matches what was sent, red where it does not,
+    grey where the symbol falls outside the transmitted frame and there is
+    nothing to compare it with -- said rather than guessed.
+    """
     hop = max(1, (nsamp - win) // max(cols - 1, 1))
     img = np.zeros((rows, cols, 3))
     mask = np.zeros((rows, cols))
     half = max(1, int(rows * 26.0 / (f_hi - f_lo)))
-    for k, (pos, idx) in enumerate(marks):
+    for pos, idx, k in decisions:
         f = MARY_TONES[idx]
         if not f_lo <= f <= f_hi:
             continue
-        slot = k - shift
-        right = 0 <= slot < len(want) and want[slot] == idx
+        inside = 0 <= k < len(want)
+        right = inside and want[k] == idx
         c0 = int((pos - win // 2) / hop)
         c1 = int((pos + sps - win // 2) / hop)
         r = int((f - f_lo) / (f_hi - f_lo) * (rows - 1))
         lo_r, hi_r = max(0, r - half), min(rows, r + half + 1)
+        colour = ((0.15, 1.0, 0.35) if right
+                  else (1.0, 0.15, 0.15) if inside else (0.5, 0.5, 0.5))
         for c in range(max(0, c0), min(cols, max(c1, c0 + 1))):
-            img[lo_r:hi_r, c] = (0.15, 1.0, 0.35) if right else (1.0, 0.15, 0.15)
+            img[lo_r:hi_r, c] = colour
             mask[lo_r:hi_r, c] = 1.0
     if want_mask:
         return mask
     return (img * 255).astype(np.uint8)
 
 
-# A five-by-seven bitmap font, only the letters the legends need. A picture
-# whose colours have to be explained in prose elsewhere stops being a picture,
-# and pulling in a font library to write eight words would cost more than
-# drawing them.
+def nibble_label(v):
+    """A symbol's four bits as one character: 0-9 then A-F."""
+    return "0123456789ABCDEF"[v & 0xF]
+
+
+def label_strip(width, decisions, want, sps, hop, win, scale=2):
+    """Two rows of characters under the picture: what was sent, what was read.
+
+    One glyph per symbol, because a symbol is four bits and four bits is what
+    a symbol decides -- the same quantity `resultado.py` writes into
+    `bits/<stem>.txt`, put under the drawing instead of beside it. On a coded
+    capture that is a hex nibble and not a letter, and it has to be: the
+    payload is convolutionally coded, interleaved and repeated, so no symbol
+    corresponds to any character of the text. Labelling the text over the
+    coded stream would be a picture asserting something that is not there.
+
+    Characters would be the nicer label and are not available here: a coded
+    capture is the only kind this drawing can compare against an ideal, and in
+    one there is no byte to name under a symbol. What the text was, and what
+    came out of the decoder, go in the caption strip instead, where they are
+    statements about the whole block -- which is the level at which they are
+    true.
+    """
+    rowh = 7 * scale + 4
+    strip = np.zeros((2 * rowh + 10, width, 3), dtype=np.uint8)
+    strip[:] = (14, 14, 18)
+    draw_text(strip, 2, 3, "tx", (150, 150, 160), 1)
+    draw_text(strip, 2, 3 + rowh, "rx", (150, 150, 160), 1)
+    step = 6 * scale
+    for pos, idx, k in decisions:
+        c = int((pos + sps / 2 - win // 2) / hop) - 2 * scale
+        if not 0 <= c < width - step:
+            continue
+        inside = 0 <= k < len(want)
+        if inside:
+            draw_text(strip, c, 3, nibble_label(_UNGRAY[want[k]]),
+                      (230, 120, 120), scale)
+        right = inside and want[k] == idx
+        draw_text(strip, c, 3 + rowh, nibble_label(_UNGRAY[idx]),
+                  (120, 230, 140) if right else (245, 120, 120), scale)
+    return strip
+
+
+# A five-by-seven bitmap font, drawn here rather than loaded, for the same
+# reason recording.py writes its own WAV: this project has no font
+# dependency and a heat map does not justify acquiring one. It covers the
+# printable ASCII the labels need, upper and lower case *distinctly* --
+# the payload alphabet is A-Za-z0-9, so folding case would make a wrong
+# byte and a right one draw the same glyph, which is the one thing a
+# label under a symbol must never do.
 _FONT = {
+    ' ': ("00000", "00000", "00000", "00000", "00000", "00000", "00000"),
+    '!': ("00100", "00100", "00100", "00100", "00100", "00000", "00100"),
+    '"': ("01010", "01010", "01010", "00000", "00000", "00000", "00000"),
+    '#': ("01010", "01010", "11111", "01010", "11111", "01010", "01010"),
+    '$': ("00100", "01111", "10100", "01110", "00101", "11110", "00100"),
+    '%': ("11001", "11010", "00010", "00100", "01000", "01011", "10011"),
+    '&': ("01100", "10010", "10100", "01000", "10101", "10010", "01101"),
+    '\'': ("01000", "01000", "01000", "00000", "00000", "00000", "00000"),
+    '(': ("00010", "00100", "01000", "01000", "01000", "00100", "00010"),
+    ')': ("01000", "00100", "00010", "00010", "00010", "00100", "01000"),
+    '*': ("00000", "10101", "01110", "11111", "01110", "10101", "00000"),
+    '+': ("00000", "00100", "00100", "11111", "00100", "00100", "00000"),
+    ',': ("00000", "00000", "00000", "00000", "01100", "01100", "01000"),
+    '-': ("00000", "00000", "00000", "11111", "00000", "00000", "00000"),
+    '.': ("00000", "00000", "00000", "00000", "00000", "01100", "01100"),
+    '/': ("00001", "00010", "00010", "00100", "01000", "01000", "10000"),
+    ':': ("00000", "01100", "01100", "00000", "01100", "01100", "00000"),
+    ';': ("00000", "01100", "01100", "00000", "01100", "01100", "01000"),
+    '<': ("00010", "00100", "01000", "10000", "01000", "00100", "00010"),
+    '=': ("00000", "00000", "11111", "00000", "11111", "00000", "00000"),
+    '>': ("01000", "00100", "00010", "00001", "00010", "00100", "01000"),
+    '?': ("01110", "10001", "00001", "00010", "00100", "00000", "00100"),
+    '@': ("01110", "10001", "10111", "10101", "10111", "10000", "01111"),
+    '[': ("01110", "01000", "01000", "01000", "01000", "01000", "01110"),
+    '\\': ("10000", "01000", "01000", "00100", "00010", "00010", "00001"),
+    ']': ("01110", "00010", "00010", "00010", "00010", "00010", "01110"),
+    '^': ("00100", "01010", "10001", "00000", "00000", "00000", "00000"),
+    '_': ("00000", "00000", "00000", "00000", "00000", "00000", "11111"),
+    '|': ("00100", "00100", "00100", "00100", "00100", "00100", "00100"),
+    '~': ("00000", "00000", "01001", "10101", "10010", "00000", "00000"),
+    '0': ("01110", "10011", "10101", "10101", "11001", "10001", "01110"),
+    '1': ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
+    '2': ("01110", "10001", "00001", "00010", "00100", "01000", "11111"),
+    '3': ("11111", "00010", "00100", "00010", "00001", "10001", "01110"),
+    '4': ("00010", "00110", "01010", "10010", "11111", "00010", "00010"),
+    '5': ("11111", "10000", "11110", "00001", "00001", "10001", "01110"),
+    '6': ("00110", "01000", "10000", "11110", "10001", "10001", "01110"),
+    '7': ("11111", "00001", "00010", "00100", "01000", "01000", "01000"),
+    '8': ("01110", "10001", "10001", "01110", "10001", "10001", "01110"),
+    '9': ("01110", "10001", "10001", "01111", "00001", "00010", "01100"),
     'A': ("01110", "10001", "10001", "11111", "10001", "10001", "10001"),
     'B': ("11110", "10001", "10001", "11110", "10001", "10001", "11110"),
-    'C': ("01110", "10001", "10000", "10000", "10000", "10001", "01110"),
-    'D': ("11110", "10001", "10001", "10001", "10001", "10001", "11110"),
+    'C': ("01111", "10000", "10000", "10000", "10000", "10000", "01111"),
+    'D': ("11100", "10010", "10001", "10001", "10001", "10010", "11100"),
     'E': ("11111", "10000", "10000", "11110", "10000", "10000", "11111"),
+    'F': ("11111", "10000", "10000", "11110", "10000", "10000", "10000"),
+    'G': ("01111", "10000", "10000", "10011", "10001", "10001", "01111"),
+    'H': ("10001", "10001", "10001", "11111", "10001", "10001", "10001"),
     'I': ("11111", "00100", "00100", "00100", "00100", "00100", "11111"),
+    'J': ("00111", "00010", "00010", "00010", "00010", "10010", "01100"),
+    'K': ("10001", "10010", "10100", "11000", "10100", "10010", "10001"),
     'L': ("10000", "10000", "10000", "10000", "10000", "10000", "11111"),
     'M': ("10001", "11011", "10101", "10101", "10001", "10001", "10001"),
+    'N': ("10001", "11001", "10101", "10101", "10011", "10001", "10001"),
     'O': ("01110", "10001", "10001", "10001", "10001", "10001", "01110"),
     'P': ("11110", "10001", "10001", "11110", "10000", "10000", "10000"),
+    'Q': ("01110", "10001", "10001", "10001", "10101", "10010", "01101"),
     'R': ("11110", "10001", "10001", "11110", "10100", "10010", "10001"),
     'S': ("01111", "10000", "10000", "01110", "00001", "00001", "11110"),
     'T': ("11111", "00100", "00100", "00100", "00100", "00100", "00100"),
     'U': ("10001", "10001", "10001", "10001", "10001", "10001", "01110"),
-    '+': ("00000", "00100", "00100", "11111", "00100", "00100", "00000"),
-    ' ': ("00000", "00000", "00000", "00000", "00000", "00000", "00000"),
+    'V': ("10001", "10001", "10001", "10001", "10001", "01010", "00100"),
+    'W': ("10001", "10001", "10001", "10101", "10101", "10101", "01010"),
+    'X': ("10001", "10001", "01010", "00100", "01010", "10001", "10001"),
+    'Y': ("10001", "10001", "01010", "00100", "00100", "00100", "00100"),
+    'Z': ("11111", "00001", "00010", "00100", "01000", "10000", "11111"),
+    'a': ("00000", "00000", "01110", "00001", "01111", "10001", "01111"),
+    'b': ("10000", "10000", "10110", "11001", "10001", "10001", "11110"),
+    'c': ("00000", "00000", "01111", "10000", "10000", "10000", "01111"),
+    'd': ("00001", "00001", "01101", "10011", "10001", "10001", "01111"),
+    'e': ("00000", "00000", "01110", "10001", "11111", "10000", "01111"),
+    'f': ("00110", "01001", "01000", "11110", "01000", "01000", "01000"),
+    'g': ("00000", "00000", "01111", "10001", "01111", "00001", "01110"),
+    'h': ("10000", "10000", "10110", "11001", "10001", "10001", "10001"),
+    'i': ("00100", "00000", "01100", "00100", "00100", "00100", "01110"),
+    'j': ("00010", "00000", "00110", "00010", "00010", "10010", "01100"),
+    'k': ("10000", "10000", "10010", "10100", "11000", "10100", "10010"),
+    'l': ("01100", "00100", "00100", "00100", "00100", "00100", "01110"),
+    'm': ("00000", "00000", "11010", "10101", "10101", "10101", "10101"),
+    'n': ("00000", "00000", "10110", "11001", "10001", "10001", "10001"),
+    'o': ("00000", "00000", "01110", "10001", "10001", "10001", "01110"),
+    'p': ("00000", "00000", "11110", "10001", "11110", "10000", "10000"),
+    'q': ("00000", "00000", "01101", "10011", "01111", "00001", "00001"),
+    'r': ("00000", "00000", "10110", "11001", "10000", "10000", "10000"),
+    's': ("00000", "00000", "01111", "10000", "01110", "00001", "11110"),
+    't': ("01000", "01000", "11110", "01000", "01000", "01001", "00110"),
+    'u': ("00000", "00000", "10001", "10001", "10001", "10011", "01101"),
+    'v': ("00000", "00000", "10001", "10001", "10001", "01010", "00100"),
+    'w': ("00000", "00000", "10001", "10101", "10101", "10101", "01010"),
+    'x': ("00000", "00000", "10001", "01010", "00100", "01010", "10001"),
+    'y': ("00000", "00000", "10001", "10001", "01111", "00001", "01110"),
+    'z': ("00000", "00000", "11111", "00010", "00100", "01000", "11111"),
 }
 
 
 def draw_text(img, x, y, text, colour, scale=2):
-    """Stamp uppercase text into an RGB array. Unknown characters are skipped."""
-    for ch in text.upper():
-        glyph = _FONT.get(ch)
+    """Stamp text into an RGB array. Unknown characters are skipped.
+
+    Case is preserved. It used to be folded to upper, which was harmless while
+    the only text was legends and fatal once bytes are labelled: `a` and `A`
+    are different bytes and would have drawn identically.
+    """
+    for ch in text:
+        glyph = _FONT.get(ch) or _FONT.get(ch.upper())
         if glyph is None:
             x += 6 * scale
             continue
@@ -312,6 +531,17 @@ def draw_text(img, x, y, text, colour, scale=2):
                 img[y0:y0 + scale, x0:x0 + scale] = colour
         x += 6 * scale
     return x
+
+
+def caption_strip(width, lines, scale=1, pad=4):
+    """A few lines of small text under the picture."""
+    rowh = 7 * scale + 3
+    strip = np.zeros((rowh * len(lines) + 2 * pad, width, 3), dtype=np.uint8)
+    strip[:] = (14, 14, 18)
+    for i, (text, colour) in enumerate(lines):
+        draw_text(strip, pad, pad + i * rowh, text[:width // (6 * scale)],
+                  colour, scale)
+    return strip
 
 
 def legend(width, entries, scale=2, pad=8):
@@ -460,18 +690,184 @@ def find_start_mfsk(samples, meta, plan, sps, search=2.5):
     return best[1], best[0]
 
 
-def panel(db, mode, floor_db=45.0):
-    """Map dB to 0..1, either absolutely or against each row's own median."""
+def panel(db, mode, floor_db=None):
+    """Map dB to 0..1, either absolutely or against each row's own median.
+
+    The absolute panel takes its floor from the data, not from a fixed number
+    of decibels below the peak, and that is a fix rather than a preference. A
+    one-symbol window on this link spans about 36 dB from the 5th percentile
+    to the 99.5th and only 19 dB from the median up; a 45 dB floor therefore
+    sat *below* everything, mapped 64% of the cells above mid-scale, and drew
+    a recording whose tone line is 15 dB clear of its own background as an
+    even wash of noise. Measured on the capture that decodes every byte:
+    64% of cells above mid-scale with the fixed floor, 3% with the floor at
+    the 70th percentile -- and at 3% the line is visible.
+
+    `floor_db`, when given, restores the old fixed-range behaviour, which the
+    fused panel wants: there the background exists only to say whether a mark
+    sits on a tone.
+    """
     if mode == 'contraste':
         db = db - np.median(db, axis=1, keepdims=True)
         lo, hi = 0.0, max(np.percentile(db, 99.5), 6.0)
-    else:
+    elif floor_db is not None:
         hi = np.percentile(db, 99.5)
         lo = hi - floor_db
+    else:
+        hi = np.percentile(db, 99.9)
+        lo = np.percentile(db, 70.0)
     return (db - lo) / max(hi - lo, 1e-9)
 
 
+def render(args, samples_all, payload, meta, t0, secs, out_path, tag):
+    """One figure over one window of the recording. Returns a report line."""
+    fs = meta['fs']
+    a = int(t0 * fs)
+    b = int((t0 + secs) * fs) if secs else len(samples_all)
+    a = max(0, min(a, max(0, len(samples_all) - 4096)))
+    b = min(len(samples_all), max(b, a + 4096))
+    samples = samples_all[a:b]
+
+    db = spectrogram(samples, fs, args.lo, args.hi, args.cols, args.rows, args.win)
+    win = int(args.win) if args.win else max(256, int(len(samples) / args.cols))
+    hop = max(1, (len(samples) - win) // max(args.cols - 1, 1))
+
+    measured = panel(db, 'contraste')
+    absolute = panel(db, 'cru')
+    tiles = [(colourise(absolute), 'cru'), (colourise(measured), 'contraste')]
+    strips_top, strips_bottom = [], []
+    report = ''
+
+    if args.fundido:
+        args.ideal = True
+    is_mary = meta.get('mode') == 'mary'
+    if args.ideal:
+        if meta.get('kind') != 'fec':
+            sys.exit("[spectro] --ideal precisa de uma captura com --fec")
+        sps = int(fs / meta['baud'])
+        tone_frac = 1.0 - meta.get('gap', 0.0)
+        if is_mary:
+            want = tx_tone_indices(payload, meta.get('fec_repeat', 1))
+            tone_list = list(MARY_TONES)
+            start = args.start - a
+        else:
+            plan, tone_list = mfsk_plan(payload, meta)
+            want = [tone_list.index(p[0]) for p in plan]
+            start = args.start - a
+
+        if is_mary:
+            ideal = ideal_panel(want, start, fs, sps, tone_frac, args.lo,
+                                args.hi, args.cols, args.rows, win, len(samples))
+            decisions = mary_decisions(samples, meta, start, sps, args.relogio)
+            ok, n = agreement(decisions, want)
+            report = (f"{tag}: {ok}/{n} simbolos coincidem "
+                      f"({100 * ok / max(n, 1):.1f}%) no relogio '{args.relogio}'")
+        else:
+            ideal = chord_panel([(start + k * sps, t) for k, t in enumerate(plan)],
+                                fs, sps, tone_frac, args.lo, args.hi, args.cols,
+                                args.rows, win, len(samples), 0)
+            decisions = None
+            report = f"{tag}: camada de acorde, sem contagem por simbolo"
+
+        over = np.zeros((args.rows, args.cols, 3))
+        over[..., 1] = np.clip(measured, 0, 1)
+        over[..., 0] = ideal
+        if is_mary:
+            dec_mask = decided_panel(decisions, want, args.lo, args.hi, args.cols,
+                                     args.rows, win, len(samples), sps,
+                                     want_mask=True)
+        else:
+            dec_mask = chord_panel(mfsk_decided(samples, meta), fs, sps,
+                                   tone_frac, args.lo, args.hi, args.cols,
+                                   args.rows, win, len(samples), 0)
+        if args.fundido:
+            fused = blended(panel(db, 'cru', floor_db=28.0), ideal, dec_mask)
+            fused = draw_grid(fused[::-1], start, sps, tone_frac, hop, win,
+                              args.cols, args.rows, args.lo, args.hi,
+                              tone_list)[::-1]
+            tiles = [(colourise(absolute), 'espectro'), (fused, 'leitura')]
+            strips_top = [legend(args.cols, [
+                ((235, 40, 40), "IDEAL"),
+                ((40, 235, 40), "LIDO"),
+                ((235, 235, 40), "AMBOS"),
+                ((120, 120, 120), "ESPECTRO"),
+                ((110, 110, 135), "LIMITES"),
+            ])]
+            if is_mary:
+                strips_bottom.append(
+                    label_strip(args.cols, decisions, want, sps, hop, win))
+            strips_bottom.append(caption_strip(args.cols, args.caption + [
+                (report, (200, 200, 210))]))
+        else:
+            tiles.append(((over * 255).astype(np.uint8), 'sobreposto'))
+            if is_mary:
+                tiles.append((decided_panel(decisions, want, args.lo, args.hi,
+                                            args.cols, args.rows, win,
+                                            len(samples), sps),
+                              'decidido (verde=certo, vermelho=errado)'))
+            tiles.append((colourise(ideal), 'ideal'))
+
+    sep = 6
+    top = sum(len(x) for x in strips_top)
+    bottom = sum(len(x) for x in strips_bottom)
+    h = top + args.rows * len(tiles) + sep * (len(tiles) - 1) + bottom
+    img = np.zeros((h, args.cols, 3), dtype=np.uint8)
+    y = 0
+    for strip in strips_top:
+        img[y:y + len(strip)] = strip
+        y += len(strip)
+    for i, (tile, _name) in enumerate(tiles):
+        t = top + i * (args.rows + sep)
+        # Row 0 of the array is the lowest frequency, row 0 of a PNG is the top
+        # of the picture: flip, so frequency rises upward.
+        img[t:t + args.rows] = tile[::-1]
+    y = top + args.rows * len(tiles) + sep * (len(tiles) - 1)
+    for strip in strips_bottom:
+        img[y:y + len(strip)] = strip
+        y += len(strip)
+
+    marks = (MARY_TONES if meta.get('mode') == 'mary'
+             else sorted(t for pair in MFSK_PAIRS for t in pair))
+    for f in marks:
+        if not args.lo <= f <= args.hi:
+            continue
+        r = int((f - args.lo) / (args.hi - args.lo) * (args.rows - 1))
+        for i in range(len(tiles)):
+            yy = top + i * (args.rows + sep) + (args.rows - 1 - r)
+            img[yy, :10] = (255, 255, 255)
+
+    write_png(out_path, img)
+    print(f"[spectro] {out_path}  {args.cols}x{h}  "
+          f"{t0:.2f}-{t0 + len(samples) / fs:.2f}s  {report}")
+    return report
+
+
+def windows(meta, start, nsamp, symbols):
+    """The two windows to draw, chosen from the frame rather than the clock.
+
+    One at the head of the burst, opening a few symbols before the first
+    symbol, because that is where acquisition happens and where a receiver
+    that never locks shows it. One in the middle of the *coded body*, past the
+    preamble, because that is where the link is carrying something. Both are
+    `symbols` wide, so the width is a number of symbols the eye can count
+    rather than a number of seconds that means something different at every
+    baud rate.
+    """
+    fs = meta['fs']
+    sps = int(fs / meta['baud'])
+    pre = len(fec.preamble_bits('mary', symbol_bits=MARY_BITS)) // MARY_BITS
+    secs = symbols * sps / fs
+    total = nsamp / fs
+    head = max(0.0, (start - 3 * sps) / fs)
+    body_syms = max(0, int((nsamp - start) / sps) - pre)
+    mid_sym = pre + max(0, body_syms // 2 - symbols // 2)
+    mid = max(0.0, (start + mid_sym * sps) / fs)
+    return [('inicio', min(head, max(0.0, total - secs)), secs),
+            ('meio', min(mid, max(0.0, total - secs)), secs)]
+
+
 def main():
+
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('capture', help="the .json of a capture")
@@ -490,153 +886,64 @@ def main():
     ap.add_argument('--ideal', action='store_true',
                     help="acrescenta o que um canal perfeito teria entregue, "
                          "e os dois sobrepostos, no mesmo eixo de tempo")
+    ap.add_argument('--auto', action='store_true',
+                    help="duas janelas escolhidas pelo conteudo: o inicio da "
+                         "rajada e o meio dos dados (escreve dois arquivos)")
+    ap.add_argument('--simbolos', type=int, default=80,
+                    help="largura de cada janela de --auto, em simbolos")
+    ap.add_argument('--relogio', choices=['grade', 'livre'], default='grade',
+                    help="'grade': decisoes no relogio transmitido, diz o que o "
+                         "ar entregou. 'livre': o gate do receptor como ele roda "
+                         "ao vivo, diz o que o receptor fez")
     args = ap.parse_args()
 
     samples, payload, meta = recording.load(args.capture)
     fs = meta['fs']
-    full = samples
-    a = int(args.t0 * fs)
-    b = int((args.t0 + args.secs) * fs) if args.secs else len(samples)
-    samples = samples[a:b]
-    if len(samples) < 4096:
-        sys.exit("[spectro] trecho curto demais")
+    args.caption = []
+    args.start = 0
 
-    db = spectrogram(samples, fs, args.lo, args.hi, args.cols, args.rows, args.win)
-    win = int(args.win) if args.win else max(256, int(len(samples) / args.cols))
-
-    measured = panel(db, 'contraste')
-    absolute = panel(db, 'cru')
-    tiles = [(colourise(absolute), 'cru'),
-             (colourise(measured), 'contraste')]
-
-    legend_strip = None
-    if args.fundido:
-        args.ideal = True
-    is_mary = meta.get('mode') == 'mary'
-    if args.ideal:
+    if args.fundido or args.ideal:
         if meta.get('kind') != 'fec':
             sys.exit("[spectro] --ideal precisa de uma captura com --fec")
         sps = int(fs / meta['baud'])
-        tone_frac = 1.0 - meta.get('gap', 0.0)
-        if is_mary:
+        if meta.get('mode') == 'mary':
             want = tx_tone_indices(payload, meta.get('fec_repeat', 1))
-            tone_list = list(MARY_TONES)
+            coarse, hits = find_start(samples, fs, sps,
+                                      np.array(MARY_TONES, float), want)
+            start, agree, ncomp = align_mary(samples, meta, want, coarse, sps)
+            moved = (start - coarse) // sps
+            print(f"[spectro] rajada em {start / fs:.3f}s "
+                  f"(bruta {coarse / fs:.3f}s, corrigida em {moved:+d} simbolos); "
+                  f"{agree}/{ncomp} simbolos batem = {100 * agree / max(ncomp, 1):.1f}%")
+            args.start = start
+            # An alignment this weak is not a picture, it is a guess. Say so on
+            # the figure rather than drawing marks that look authoritative: a
+            # figure is an assertion about a recording, and the one thing it
+            # must not do is assert confidently what it could not establish.
+            frac = agree / max(ncomp, 1)
+            args.caption = [
+                (f"tx: {payload[:40].decode('ascii', 'replace')}",
+                 (230, 160, 160)),
+                (f"alinhamento: {agree}/{ncomp} simbolos = {frac * 100:.1f}%"
+                 + ("" if frac >= 0.35 else "  ALINHAMENTO DUVIDOSO"),
+                 (220, 220, 120) if frac >= 0.35 else (255, 120, 120)),
+            ]
         else:
-            plan, tone_list = mfsk_plan(payload, meta)
-            # The chord layers decide a bit, not a tone, so alignment is
-            # scored on bits: which pair sounded is a consequence, not the
-            # thing being recovered.
-            want = [tone_list.index(p[0]) for p in plan]
-        # Search the whole recording, not the slice being drawn: the burst
-        # begins wherever it begins, and a zoom into the middle of it contains
-        # no start to find.
-        if is_mary:
-            start, hits = find_start(full, fs, sps, np.array(MARY_TONES, float),
-                                     want)
-        else:
-            start, hits = find_start_mfsk(full, meta, plan, sps)
-        print(f"[spectro] inicio da rajada em {start / fs:.3f}s "
-              f"({hits} acertos de tom no alinhamento)")
-        start -= a
-        if is_mary:
-            ideal = ideal_panel(want, start, fs, sps, tone_frac, args.lo,
-                                args.hi, args.cols, args.rows, win, len(samples))
-        else:
-            # Positions are absolute in the whole recording; the drawing is of
-            # a slice starting at sample `a`, so that is the only shift.
-            ideal = chord_panel([(start + k * sps, t)
-                                 for k, t in enumerate(plan)],
-                                fs, sps, tone_frac, args.lo, args.hi, args.cols,
-                                args.rows, win, len(samples), a)
+            plan, _tones = mfsk_plan(payload, meta)
+            start, hits = find_start_mfsk(samples, meta, plan, sps)
+            args.start = start
+            print(f"[spectro] rajada em {start / fs:.3f}s ({hits} acertos)")
 
-        # Overlay: what arrived in green, what should have arrived in red.
-        # Agreement turns yellow, so the eye reads the mismatch rather than
-        # having to compare two pictures held apart.
-        over = np.zeros((args.rows, args.cols, 3))
-        over[..., 1] = np.clip(measured, 0, 1)
-        over[..., 0] = ideal
-        if is_mary:
-            dec_mask = decided_panel(samples, meta, want, start, args.lo,
-                                     args.hi, args.cols, args.rows, win,
-                                     len(samples), want_mask=True)
-        else:
-            dec_mask = chord_panel(mfsk_decided(samples, meta), fs, sps,
-                                   tone_frac, args.lo, args.hi, args.cols,
-                                   args.rows, win, len(samples), 0)
-        if args.fundido:
-            hop = max(1, (len(samples) - win) // max(args.cols - 1, 1))
-            # A tighter dynamic range under the marks than in the panel
-            # above it: the top panel is there to show the noise floor, the
-            # bottom one to show whether a mark sits on a tone, and 45 dB of
-            # floor renders as grey fog that the marks have to fight.
-            fused = blended(panel(db, 'cru', floor_db=28.0), ideal, dec_mask)
-            fused = draw_grid(fused[::-1], start, sps, tone_frac, hop, win,
-                              args.cols, args.rows, args.lo, args.hi,
-                              tone_list)[::-1]
-            # Two panels, and the top one carries no annotation on purpose.
-            # Every mark on the lower panel is an assertion this code is
-            # making about the recording; the upper one is the recording. Kept
-            # side by side, a mark that does not sit on any energy is visibly
-            # a claim about nothing, which is exactly the failure a single
-            # annotated picture hides.
-            tiles = [(colourise(absolute), 'espectro'),
-                     (fused,
-                      'leitura: vermelho=ideal, verde=interpretado, '
-                      'amarelo=os dois, cinza=espectro real, '
-                      'tracejado=grade de simbolo esperada')]
-            legend_strip = legend(args.cols, [
-                ((235, 40, 40), "IDEAL"),
-                ((40, 235, 40), "LIDO"),
-                ((235, 235, 40), "AMBOS"),
-                ((120, 120, 120), "ESPECTRO"),
-                ((110, 110, 135), "LIMITES"),
-            ])
-        else:
-            tiles.append(((over * 255).astype(np.uint8), 'sobreposto'))
-            tiles.append((decided_panel(samples, meta, want, start, args.lo,
-                                        args.hi, args.cols, args.rows, win,
-                                        len(samples)),
-                          'decidido (verde=certo, vermelho=errado)'))
-            tiles.append((colourise(ideal), 'ideal'))
+    if args.auto:
+        base = args.out[:-4] if args.out.endswith('.png') else args.out
+        for tag, t0, secs in windows(meta, args.start, len(samples),
+                                     args.simbolos):
+            render(args, samples, payload, meta, t0, secs,
+                   f"{base}-{tag}.png", tag)
+        return
 
-    strip = legend_strip if args.ideal and args.fundido else None
-    sep = 6
-    top0 = len(strip) if strip is not None else 0
-    h = top0 + args.rows * len(tiles) + sep * (len(tiles) - 1)
-    img = np.zeros((h, args.cols, 3), dtype=np.uint8)
-    if strip is not None:
-        img[:top0] = strip
-    for i, (tile, _name) in enumerate(tiles):
-        top = top0 + i * (args.rows + sep)
-        # Row 0 of the array is the lowest frequency, but row 0 of a PNG is the
-        # top of the picture, so flip: frequency should rise upward.
-        img[top:top + args.rows] = tile[::-1]
-    panels = tiles
-
-    # Mark the layer's own tones down the left edge, so a null is readable as
-    # "that tone" rather than "somewhere around there". Which tones those are
-    # depends on the capture: the chord layers and the M-ary one do not share a
-    # single frequency, and marking the wrong set would put the ticks where
-    # nothing was ever transmitted.
-    marks = (MARY_TONES if meta.get('mode') == 'mary'
-             else sorted(t for pair in MFSK_PAIRS for t in pair))
-    for f in marks:
-        if not args.lo <= f <= args.hi:
-            continue
-        r = int((f - args.lo) / (args.hi - args.lo) * (args.rows - 1))
-        for i in range(len(panels)):
-            y = top0 + i * (args.rows + sep) + (args.rows - 1 - r)
-            img[y, :10] = (255, 255, 255)
-
-    write_png(args.out, img)
-    dur = len(samples) / fs
-    print(f"[spectro] {args.out}  {args.cols}x{h}  "
-          f"{dur:.1f}s, {args.lo:.0f}-{args.hi:.0f} Hz")
-    print("[spectro] paineis, de cima para baixo: " +
-          ", ".join(name for _t, name in panels))
-    if args.ideal:
-        print("[spectro] no sobreposto: verde = o que chegou, vermelho = o que "
-              "deveria ter chegado, amarelo = os dois")
+    render(args, samples, payload, meta, args.t0,
+           args.secs, args.out, 'janela')
 
 
 if __name__ == '__main__':
