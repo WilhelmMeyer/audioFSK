@@ -127,6 +127,12 @@ class AudioNode:
         # state and the UART state machine are carried across blocks.
         self.in_queue = queue.Queue()
         self.rx_buffer = bytearray()
+        # A short tail of raw input, kept so a frequency can be measured on
+        # demand. `level` answers in wide band, which cannot tell a tone that
+        # arrived from a room that is merely loud -- and the whole M-ary
+        # question is per frequency. Two seconds is plenty and costs 384 kB.
+        self.tail = []
+        self.tail_len = 0
 
         self.stats_lock = threading.Lock()
         self._reset_stats()
@@ -312,6 +318,31 @@ class AudioNode:
             data = fec.decode(llr[start:], want, repeat=self.fec_repeat)
         return f"{len(data)} bytes ({len(llr)} valores): {printable(data)}"
 
+    def measure(self, freq, secs=0.3, bw=45.0):
+        """How much of the recent input sits within bw Hz of freq.
+
+        Reported beside the wide-band level of the same window, because the
+        number that matters is the difference: a tone that arrived, against
+        the room at that same frequency. Both are computed over one window so
+        the FFT normalisation is identical -- measuring signal and noise over
+        windows of different lengths is exactly what made two sweeps of the
+        same room disagree about its shape.
+        """
+        if not self.tail:
+            return "sem audio de entrada (mic desligado?)"
+        x = np.concatenate(self.tail)[-int(secs * FS):]
+        if len(x) < 256:
+            return "audio insuficiente"
+        w = np.hanning(len(x))
+        power = np.abs(np.fft.rfft(x * w)) ** 2
+        freqs = np.fft.rfftfreq(len(x), 1 / FS)
+        m = (freqs >= freq - bw) & (freqs <= freq + bw)
+        band = float(np.sqrt(power[m].mean())) if m.any() else 0.0
+        wide = float(np.sqrt(power.mean()))
+        db = lambda v: 20 * np.log10(max(v, 1e-30))
+        return (f"meas {freq:.0f} Hz  banda {db(band):7.1f}  "
+                f"larga {db(wide):7.1f}  razao {db(band) - db(wide):+6.1f} dB")
+
     def _chirp(self, f0, f1, secs):
         """Linear sweep, amplitude-flat, with short fades at each end.
 
@@ -398,6 +429,10 @@ class AudioNode:
     def _demodder(self):
         while True:
             samples = self.in_queue.get()
+            self.tail.append(np.asarray(samples, dtype=np.float64))
+            self.tail_len += len(samples)
+            while self.tail_len > 2 * FS and len(self.tail) > 1:
+                self.tail_len -= len(self.tail.pop(0))
             # One instance, named the same way at both ends -- see fec_layer.
             if self.fec_rx:
                 d = self.layers[self.fec_layer][1]
@@ -544,6 +579,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   tone on|off         portadora continua 0x55 (precisa da caixa ligada)
   chirp [f0 f1 seg]   varredura de frequencia, para medir a resposta do canal
   tonef <hz> [seg]    um tom puro, para medir o que chega naquela frequencia
+  meas <hz> [seg]     mede quanta energia chegou nessa frequencia
   send <texto>        transmite <texto> pelo ar
   fecsend <texto>     transmite com correcao de erro (mfsk ~2 B/s, mary ~9 B/s)
   fecrx on <n>        escuta um bloco corrigido de n bytes (mfsk ou mary)
@@ -622,6 +658,19 @@ def execute(node, cmd):
         secs = max(0.5, min(secs, 20.0))
         node.tx_bytes.put((('chirp', f0, f1, secs), 'raw-samples'))
         return f"chirp {f0:.0f}-{f1:.0f} Hz em {secs:.1f}s"
+    if verb == "meas":
+        # The receiving half of tonef. With both in this table either machine
+        # can play and either can measure, so a frequency map can be made in
+        # whichever direction is the one misbehaving.
+        bits = arg.split()
+        if not bits:
+            return "uso: meas <hz> [segundos]"
+        try:
+            freq = float(bits[0])
+            secs = float(bits[1]) if len(bits) > 1 else 0.3
+        except ValueError:
+            return f"meas invalido: {arg!r}"
+        return node.measure(freq, max(0.05, min(secs, 2.0)))
     if verb == "tonef":
         # A steady tone at one frequency, which is what a per-frequency
         # measurement needs and what `tone` is not: `tone` sends 0x55 through
