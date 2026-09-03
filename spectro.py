@@ -225,6 +225,62 @@ def decided_panel(samples, meta, want, start, f_lo, f_hi, cols, rows, win, nsamp
     return (img * 255).astype(np.uint8)
 
 
+# A five-by-seven bitmap font, only the letters the legends need. A picture
+# whose colours have to be explained in prose elsewhere stops being a picture,
+# and pulling in a font library to write eight words would cost more than
+# drawing them.
+_FONT = {
+    'A': ("01110", "10001", "10001", "11111", "10001", "10001", "10001"),
+    'B': ("11110", "10001", "10001", "11110", "10001", "10001", "11110"),
+    'C': ("01110", "10001", "10000", "10000", "10000", "10001", "01110"),
+    'D': ("11110", "10001", "10001", "10001", "10001", "10001", "11110"),
+    'E': ("11111", "10000", "10000", "11110", "10000", "10000", "11111"),
+    'I': ("11111", "00100", "00100", "00100", "00100", "00100", "11111"),
+    'L': ("10000", "10000", "10000", "10000", "10000", "10000", "11111"),
+    'M': ("10001", "11011", "10101", "10101", "10001", "10001", "10001"),
+    'O': ("01110", "10001", "10001", "10001", "10001", "10001", "01110"),
+    'P': ("11110", "10001", "10001", "11110", "10000", "10000", "10000"),
+    'R': ("11110", "10001", "10001", "11110", "10100", "10010", "10001"),
+    'S': ("01111", "10000", "10000", "01110", "00001", "00001", "11110"),
+    'T': ("11111", "00100", "00100", "00100", "00100", "00100", "00100"),
+    'U': ("10001", "10001", "10001", "10001", "10001", "10001", "01110"),
+    '+': ("00000", "00100", "00100", "11111", "00100", "00100", "00000"),
+    ' ': ("00000", "00000", "00000", "00000", "00000", "00000", "00000"),
+}
+
+
+def draw_text(img, x, y, text, colour, scale=2):
+    """Stamp uppercase text into an RGB array. Unknown characters are skipped."""
+    for ch in text.upper():
+        glyph = _FONT.get(ch)
+        if glyph is None:
+            x += 6 * scale
+            continue
+        for ry, row in enumerate(glyph):
+            for rx, on in enumerate(row):
+                if on != '1':
+                    continue
+                y0, x0 = y + ry * scale, x + rx * scale
+                img[y0:y0 + scale, x0:x0 + scale] = colour
+        x += 6 * scale
+    return x
+
+
+def legend(width, entries, scale=2, pad=8):
+    """A strip of colour swatches with their meanings, to sit above a panel."""
+    h = 7 * scale + 2 * pad
+    strip = np.zeros((h, width, 3), dtype=np.uint8)
+    strip[:] = (18, 18, 22)
+    x = pad
+    for colour, text in entries:
+        sw = 7 * scale
+        strip[pad:pad + sw, x:x + sw] = colour
+        x += sw + 5 * scale
+        x = draw_text(strip, x, pad, text, (235, 235, 235), scale)
+        x += 7 * scale
+    return strip
+
+
 def blended(measured, ideal, decided):
     """Everything on one picture, the overlays added rather than blended.
 
@@ -294,6 +350,7 @@ def main():
     tiles = [(colourise(panel(db, 'cru')), 'cru'),
              (colourise(measured), 'contraste')]
 
+    legend_strip = None
     if args.fundido:
         args.ideal = True
     if args.ideal:
@@ -325,6 +382,12 @@ def main():
             tiles = [(blended(measured, ideal, dec_mask),
                       'fundido: vermelho=ideal, verde=interpretado, '
                       'amarelo=os dois, cinza=espectro real')]
+            legend_strip = legend(args.cols, [
+                ((235, 40, 40), "IDEAL"),
+                ((40, 235, 40), "LIDO"),
+                ((235, 235, 40), "AMBOS"),
+                ((120, 120, 120), "ESPECTRO"),
+            ])
         else:
             tiles.append(((over * 255).astype(np.uint8), 'sobreposto'))
             tiles.append((decided_panel(samples, meta, want, start, args.lo,
@@ -333,11 +396,15 @@ def main():
                           'decidido (verde=certo, vermelho=errado)'))
             tiles.append((colourise(ideal), 'ideal'))
 
+    strip = legend_strip if args.ideal and args.fundido else None
     sep = 6
-    h = args.rows * len(tiles) + sep * (len(tiles) - 1)
+    top0 = len(strip) if strip is not None else 0
+    h = top0 + args.rows * len(tiles) + sep * (len(tiles) - 1)
     img = np.zeros((h, args.cols, 3), dtype=np.uint8)
+    if strip is not None:
+        img[:top0] = strip
     for i, (tile, _name) in enumerate(tiles):
-        top = i * (args.rows + sep)
+        top = top0 + i * (args.rows + sep)
         # Row 0 of the array is the lowest frequency, but row 0 of a PNG is the
         # top of the picture, so flip: frequency should rise upward.
         img[top:top + args.rows] = tile[::-1]
@@ -350,7 +417,7 @@ def main():
             continue
         r = int((f - args.lo) / (args.hi - args.lo) * (args.rows - 1))
         for i in range(len(panels)):
-            y = i * (args.rows + sep) + (args.rows - 1 - r)
+            y = top0 + i * (args.rows + sep) + (args.rows - 1 - r)
             img[y, :10] = (255, 255, 255)
 
     write_png(args.out, img)
