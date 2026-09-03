@@ -642,6 +642,15 @@ class MaryDemodulator:
     def reset(self):
         self.buf = np.zeros(0, dtype=np.float64)
         self.floor = np.zeros(len(self.tones))
+        # Bits left over when a block does not end on a byte boundary. A
+        # symbol carries four bits and a byte takes two symbols, but audio
+        # arrives in 2048-sample blocks holding 4.27 symbols -- so a block
+        # that yields an odd number of symbols ends mid-byte. Dropping that
+        # half byte shifts every byte after it by a nibble, which is why a
+        # perfect channel decoded a message readable at each end and destroyed
+        # in the middle, wherever a boundary happened to fall. The soft path
+        # never had this, since it emits one value per bit and never packs.
+        self.bits = []
         self.input_rms = 0.0
         self.input_peak = 0.0
         self.contrast = 0.0
@@ -699,12 +708,13 @@ class MaryDemodulator:
 
     def demodulate(self, samples):
         out = []
-        bits = []
         for idx, contrast, _norm in self._symbols(samples):
             v = _UNGRAY[idx]
-            bits += [(v >> j) & 1 for j in range(MARY_BITS)]
-        for i in range(0, len(bits) - 7, 8):
-            out.append(sum(b << j for j, b in enumerate(bits[i:i + 8])))
+            self.bits += [(v >> j) & 1 for j in range(MARY_BITS)]
+        while len(self.bits) >= 8:
+            chunk = self.bits[:8]
+            del self.bits[:8]
+            out.append(sum(b << j for j, b in enumerate(chunk)))
         return bytes(out)
 
     def demodulate_soft(self, samples):

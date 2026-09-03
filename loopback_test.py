@@ -12,7 +12,8 @@ import numpy as np
 
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
-                   MFSKModulator, MFSKDemodulator)
+                   MFSKModulator, MFSKDemodulator,
+                   MaryModulator, MaryDemodulator)
 
 FS = 48000
 
@@ -217,9 +218,42 @@ def test_xfer():
     check("CRC32 covers the whole file", xfer.crc32(raw) == xfer.crc32(b"".join(parts)))
 
 
+def test_mary():
+    """The M-ary layer, fed the way the live path feeds it: in blocks.
+
+    Block size is the whole point of this test. A symbol is 480 samples and
+    audio arrives in blocks of 2048, so a block holds 4.27 symbols and most
+    blocks end in the middle of a byte. Decoding each block independently
+    discards that half byte and shifts every byte after it by a nibble --
+    which reads as a channel problem and is not one. Feeding the whole array
+    in one call hides it completely, so the test must not do that.
+    """
+    print()
+    print("M-ary (100 baud, 16 tons, 4 bits por simbolo):")
+    msg = b"ola mary, como vai voce"
+    mod = MaryModulator(fs=FS, baud=100)
+    audio = np.concatenate([mod.modulate(msg), mod.idle(6)])
+
+    # Several block sizes, none of them a whole number of symbols: the bug
+    # this guards against only appears when a boundary falls mid-byte.
+    for block in (2048, 1024, 777):
+        demod = MaryDemodulator(fs=FS, baud=100)
+        out = run(demod, audio, block=block)
+        check(f"bloco {block} preserva o byte partido", msg in out,
+              f"{out[:len(msg) + 4]!r}")
+
+    # Amplitude must not change the answer: every decision in this layer is a
+    # ratio, and the running floor is divided out before any comparison.
+    for gain in (1.0, 0.05):
+        demod = MaryDemodulator(fs=FS, baud=100)
+        out = run(demod, audio * gain, block=2048)
+        check(f"ganho x{gain}", msg in out)
+
+
 def main():
     test_bell202()
     test_mfsk()
+    test_mary()
     test_xfer()
     print()
     if failures:
