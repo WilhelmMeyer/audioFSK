@@ -31,8 +31,9 @@ import zlib
 
 import numpy as np
 
+import fec
 import recording
-from modem import MARY_TONES
+from modem import MARY_TONES, MARY_BITS, _GRAY
 
 
 def write_png(path, rgb):
@@ -92,6 +93,71 @@ def spectrogram(samples, fs, f_lo, f_hi, cols, rows, win=None):
     return 10 * np.log10(np.maximum(out, 1e-20))
 
 
+def tx_tone_indices(payload, repeat):
+    """The tone the transmitter sounded in each symbol slot, from the payload.
+
+    Reconstructed rather than guessed: the preamble is a fixed alternation and
+    the body is `fec.frame` of a payload the capture stored, so the intended
+    picture is fully known. That is what makes an "ideal" panel meaningful
+    instead of decorative -- it is the actual transmitted sequence, not an
+    illustration of one.
+    """
+    pre = []
+    for i in range(120):
+        v = 0 if i % 2 else (1 << MARY_BITS) - 1
+        pre += [(v >> j) & 1 for j in range(MARY_BITS)]
+    bits = list(pre) + list(fec.frame(payload, repeat=repeat))
+    return [_GRAY[sum(int(b) << j for j, b in enumerate(bits[i:i + MARY_BITS]))]
+            for i in range(0, len(bits) - (MARY_BITS - 1), MARY_BITS)]
+
+
+def find_start(samples, fs, sps, tones, want, guard=0.15, search=2.5):
+    """Sample offset of the first symbol, by trying them all.
+
+    Brute force on purpose. The receiver's own estimate is what is under
+    examination here, so borrowing it would beg the question.
+    """
+    g = int(guard * sps)
+    n = np.arange(g, sps)
+    probe = np.exp(-2j * np.pi * np.outer(tones, n) / fs)
+    best = (-1, 0)
+    for off in range(0, int(search * fs), 24):
+        ok = 0
+        for k in range(min(60, len(want))):
+            seg = samples[off + k * sps + g:off + k * sps + sps]
+            if len(seg) != len(n):
+                break
+            ok += int(np.argmax(np.abs(probe @ seg) ** 2)) == want[k]
+        if ok > best[0]:
+            best = (ok, off)
+    return best[1], best[0]
+
+
+def ideal_panel(want, start, fs, sps, tone_frac, f_lo, f_hi, cols, rows, win, nsamp):
+    """Where a perfect channel would put energy, on the same time axis.
+
+    Built against the *same* column-to-sample mapping the measured panel uses,
+    so a symbol that has slid in time shows up as a shift between the panels
+    rather than being quietly re-aligned away.
+    """
+    hop = max(1, (nsamp - win) // max(cols - 1, 1))
+    img = np.zeros((rows, cols))
+    half = max(1, int(rows * 26.0 / (f_hi - f_lo)))     # ~26 Hz of thickness
+    for c in range(cols):
+        centre = c * hop + win // 2
+        k = (centre - start) // sps
+        if k < 0 or k >= len(want):
+            continue
+        if (centre - start) % sps > tone_frac * sps:    # the transmitted gap
+            continue
+        f = MARY_TONES[want[k]]
+        if not f_lo <= f <= f_hi:
+            continue
+        r = int((f - f_lo) / (f_hi - f_lo) * (rows - 1))
+        img[max(0, r - half):min(rows, r + half + 1), c] = 1.0
+    return img
+
+
 def panel(db, mode, floor_db=45.0):
     """Map dB to 0..1, either absolutely or against each row's own median."""
     if mode == 'contraste':
@@ -116,10 +182,14 @@ def main():
     ap.add_argument('--secs', type=float, default=None)
     ap.add_argument('--win', type=int, default=None,
                     help="janela de analise em amostras (408 = um simbolo mary)")
+    ap.add_argument('--ideal', action='store_true',
+                    help="acrescenta o que um canal perfeito teria entregue, "
+                         "e os dois sobrepostos, no mesmo eixo de tempo")
     args = ap.parse_args()
 
     samples, payload, meta = recording.load(args.capture)
     fs = meta['fs']
+    full = samples
     a = int(args.t0 * fs)
     b = int((args.t0 + args.secs) * fs) if args.secs else len(samples)
     samples = samples[a:b]
@@ -127,16 +197,46 @@ def main():
         sys.exit("[spectro] trecho curto demais")
 
     db = spectrogram(samples, fs, args.lo, args.hi, args.cols, args.rows, args.win)
+    win = int(args.win) if args.win else max(256, int(len(samples) / args.cols))
 
-    panels = [panel(db, 'cru'), panel(db, 'contraste')]
+    measured = panel(db, 'contraste')
+    tiles = [(colourise(panel(db, 'cru')), 'cru'),
+             (colourise(measured), 'contraste')]
+
+    if args.ideal:
+        if meta.get('mode') != 'mary' or meta.get('kind') != 'fec':
+            sys.exit("[spectro] --ideal so vale para uma captura mary com --fec")
+        want = tx_tone_indices(payload, meta.get('fec_repeat', 1))
+        sps = int(fs / meta['baud'])
+        tone_frac = 1.0 - meta.get('gap', 0.0)
+        # Search the whole recording, not the slice being drawn: the burst
+        # begins wherever it begins, and a zoom into the middle of it contains
+        # no start to find.
+        start, hits = find_start(full, fs, sps, np.array(MARY_TONES, float), want)
+        print(f"[spectro] inicio da rajada em {start / fs:.3f}s "
+              f"({hits}/60 simbolos batem no alinhamento)")
+        start -= a
+        ideal = ideal_panel(want, start, fs, sps, tone_frac, args.lo, args.hi,
+                            args.cols, args.rows, win, len(samples))
+
+        # Overlay: what arrived in green, what should have arrived in red.
+        # Agreement turns yellow, so the eye reads the mismatch rather than
+        # having to compare two pictures held apart.
+        over = np.zeros((args.rows, args.cols, 3))
+        over[..., 1] = np.clip(measured, 0, 1)
+        over[..., 0] = ideal
+        tiles.append(((over * 255).astype(np.uint8), 'sobreposto'))
+        tiles.append((colourise(ideal), 'ideal'))
+
     sep = 6
-    h = args.rows * len(panels) + sep * (len(panels) - 1)
+    h = args.rows * len(tiles) + sep * (len(tiles) - 1)
     img = np.zeros((h, args.cols, 3), dtype=np.uint8)
-    for i, p in enumerate(panels):
+    for i, (tile, _name) in enumerate(tiles):
         top = i * (args.rows + sep)
         # Row 0 of the array is the lowest frequency, but row 0 of a PNG is the
         # top of the picture, so flip: frequency should rise upward.
-        img[top:top + args.rows] = colourise(p)[::-1]
+        img[top:top + args.rows] = tile[::-1]
+    panels = tiles
 
     # Mark the sixteen M-ary tones down the left edge, so a null is readable
     # as "that tone" rather than "somewhere around there".
@@ -152,9 +252,11 @@ def main():
     dur = len(samples) / fs
     print(f"[spectro] {args.out}  {args.cols}x{h}  "
           f"{dur:.1f}s, {args.lo:.0f}-{args.hi:.0f} Hz")
-    print(f"[spectro] painel de cima: energia absoluta (o que o detector premia)")
-    print(f"[spectro] painel de baixo: cada frequencia contra a propria mediana "
-          f"(o que de fato carrega informacao)")
+    print("[spectro] paineis, de cima para baixo: " +
+          ", ".join(name for _t, name in panels))
+    if args.ideal:
+        print("[spectro] no sobreposto: verde = o que chegou, vermelho = o que "
+              "deveria ter chegado, amarelo = os dois")
 
 
 if __name__ == '__main__':
