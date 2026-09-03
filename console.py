@@ -112,6 +112,14 @@ class AudioNode:
         self.fec_rx = False
         self.fec_llr = []
         self.fec_nbytes = 0
+        # The raw audio behind that llr, kept so the block can be demodulated
+        # again with different settings without asking for another
+        # transmission. This is the console side's capture.py, for the machine
+        # that has no capture.py: the room does not hold still, so judging a
+        # setting by transmitting again measures the setting and the room at
+        # once. 30 s at 48 kHz is 11 MB, which is worth it.
+        self.fec_audio = []
+        self.fec_audio_len = 0
         self.in_stream = None
         self.out_stream = None
 
@@ -232,6 +240,29 @@ class AudioNode:
             return fec.frame_parallel(data, k, repeat=self.fec_repeat)
         return fec.frame(data, repeat=self.fec_repeat)
 
+    def fec_plan(self, data):
+        """How many symbols a fecsend puts on the air, and for how long.
+
+        Mirrors _fec_frame and has to keep mirroring it. The reply used to
+        report the coded *bit* count as a symbol count and divide it by the
+        baud, which in M-ary -- four bits per symbol, plus a 120-symbol
+        preamble and an idle tail -- announced 11.7 s for a burst that lasts
+        4.2 s. Not cosmetic: that number is what a caller uses to decide how
+        long to listen and how long to record, and being 2.8x high once sent
+        me hunting a truncated capture that was never truncated.
+        """
+        k = len(MFSK_PAIRS)
+        if self.mode == 'mary':
+            nbits = len(fec.frame(data, repeat=self.fec_repeat))
+            symbols = 120 + -(-nbits // MARY_BITS) + 6
+        elif self.fec_parallel:
+            nbits = len(fec.frame_parallel(data, k, repeat=self.fec_repeat))
+            symbols = 80 + -(-nbits // k) + 4
+        else:
+            nbits = len(fec.frame(data, repeat=self.fec_repeat))
+            symbols = 80 + nbits + 4
+        return symbols, symbols / MFSK_BAUD
+
     def _fec_frame(self, data, repeat):
         """Alternating preamble, sync word, coded block, trailing idle.
 
@@ -284,6 +315,8 @@ class AudioNode:
                 return "uso: fecrx on <bytes esperados>"
             self.layers[self.fec_layer][1].reset()
             self.fec_llr = []
+            self.fec_audio = []
+            self.fec_audio_len = 0
             self.fec_rx = True
             return (f"fecrx LIGADO em {self.fec_layer}, esperando "
                     f"{self.fec_nbytes} bytes (rep {self.fec_repeat})")
@@ -342,6 +375,60 @@ class AudioNode:
         db = lambda v: 20 * np.log10(max(v, 1e-30))
         return (f"meas {freq:.0f} Hz  banda {db(band):7.1f}  "
                 f"larga {db(wide):7.1f}  razao {db(band) - db(wide):+6.1f} dB")
+
+    def fec_sweep(self, nbytes=None):
+        """Demodulate the block already heard, again, at other settings.
+
+        Sweeping `fecrep` here would be meaningless: each redundancy is a
+        physically different transmission with a different bit layout, so the
+        only one that can decode this recording is the one that made it. What
+        *can* be swept is the demodulator -- the guard interval and how fast
+        the per-tone floor adapts -- because those are applied when the stored
+        audio is read, not when it was sent.
+
+        That is bench.py's method, on the side that has no bench.py. It
+        matters most in the direction where this machine is the receiver,
+        because there the only alternative is transmitting again into a room
+        that has changed in between.
+        """
+        want = nbytes or self.fec_nbytes
+        if not want:
+            return "uso: fecsweep <bytes esperados>"
+        if not self.fec_audio:
+            return "nada guardado -- 'fecrx on <bytes>' e uma transmissao antes"
+        audio = np.concatenate(self.fec_audio)
+        lines = [f"{len(audio) / FS:.1f}s guardados, {want} bytes, "
+                 f"rep {self.fec_repeat}, camada {self.fec_layer}"]
+        npairs = len(MFSK_PAIRS)
+
+        def try_one(demod, label):
+            llr = np.concatenate([demod.demodulate_soft(audio[i:i + BLOCK])
+                                  for i in range(0, len(audio), BLOCK)])
+            if self.fec_layer == 'mfsk-par':
+                start = fec.find_sync_parallel(llr, npairs)
+                got = (None if start is None else
+                       fec.decode_parallel(llr[start:], want, npairs,
+                                           repeat=self.fec_repeat))
+            else:
+                start = fec.find_sync(llr)
+                got = (None if start is None else
+                       fec.decode(llr[start:], want, repeat=self.fec_repeat))
+            lines.append(f"  {label}: " +
+                         ("sem sync" if got is None else printable(got)))
+
+        if self.fec_layer == 'mary':
+            for guard in (0.10, 0.15, 0.25, 0.35, 0.45):
+                for alpha in (0.02, 0.08):
+                    try_one(MaryDemodulator(fs=FS, baud=MFSK_BAUD, guard=guard,
+                                            floor_alpha=alpha),
+                            f"guard {guard:.2f} alpha {alpha:.2f}")
+        else:
+            par = self.fec_layer == 'mfsk-par'
+            for guard in (0.15, 0.25, 0.35, 0.45):
+                try_one(MFSKDemodulator(fs=FS, baud=MFSK_BAUD, parallel=par,
+                                        guard=guard),
+                        f"guard {guard:.2f}")
+        return chr(10).join(lines)
 
     def _chirp(self, f0, f1, secs):
         """Linear sweep, amplitude-flat, with short fades at each end.
@@ -437,6 +524,10 @@ class AudioNode:
             if self.fec_rx:
                 d = self.layers[self.fec_layer][1]
                 self.fec_llr.append(d.demodulate_soft(samples))
+                self.fec_audio.append(np.asarray(samples, dtype=np.float64))
+                self.fec_audio_len += len(samples)
+                while self.fec_audio_len > 30 * FS and len(self.fec_audio) > 1:
+                    self.fec_audio_len -= len(self.fec_audio.pop(0))
                 out = b''
             else:
                 d = self.demod
@@ -594,6 +685,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   fecsend <texto>     transmite com correcao de erro (mfsk ~2 B/s, mary ~9 B/s)
   fecrx on <n>        escuta um bloco corrigido de n bytes (mfsk ou mary)
   fecrx [n]           decodifica o que foi escutado; 'fecrx off' encerra
+  fecsweep [n]        redecodifica o mesmo audio com outros ajustes
   fecpar on|off       fec em paralelo: 5 bits por simbolo, ~4x mais rapido
   fecrep <n>          repeticoes de cada bit codificado (padrao 2)
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
@@ -762,9 +854,19 @@ def execute(node, cmd):
             return "caixa desligada - rode 'spk on' antes"
         data = arg.encode("utf-8", "replace")
         node.tx_bytes.put((('fec', data, node.fec_repeat), 'raw-samples'))
-        bits = len(node.fec_bits(data))
-        return (f"fecsend {len(data)} bytes -> {bits} simbolos "
-                f"({bits / MFSK_BAUD:.1f}s no ar)")
+        symbols, secs = node.fec_plan(data)
+        return (f"fecsend {len(data)} bytes -> {symbols} simbolos "
+                f"({secs:.1f}s no ar, rep {node.fec_repeat})")
+    if verb == "fecsweep":
+        # Re-read what was already heard. The point is that it costs no air
+        # time and no room: the same seconds are demodulated again, so two
+        # settings can actually be compared instead of being transmitted at
+        # different moments into a room that moved in between.
+        try:
+            want = int(arg.split()[0]) if arg.split() else None
+        except ValueError:
+            return f"fecsweep: numero invalido: {arg!r}"
+        return node.fec_sweep(want)
     if verb == "fecrx":
         # The receiving half of fecsend, and the reason it belongs in this
         # table rather than in a tool: execute() is identical on both roles,
