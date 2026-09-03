@@ -11,6 +11,7 @@ to survive, so those are the conditions it has to pass.
 import numpy as np
 
 import fec
+import recording
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator,
@@ -293,12 +294,46 @@ def test_fec():
               "sync nao encontrado" if start is None else repr(got))
 
 
+def test_int16_transfer():
+    """The wire format for bringing a capture back over the serial cable.
+
+    On disk this project keeps 32-bit float because the capture *is* the
+    measurement. On the cable that is format rather than information -- and it
+    is the difference between 90 seconds and three minutes for one recording
+    at 115200 baud. What this checks is the size, the exactness on the 16-bit
+    grid, and that the error where it is not exact stays far under the room.
+    """
+    print()
+    print("Transferencia de gravacao em 16 bits:")
+    rng = np.random.default_rng(9)
+    x = 0.3 * np.sin(2 * np.pi * 1700 * np.arange(48000) / 48000)
+    x = x + 0.01 * rng.normal(0, 1, len(x))
+
+    blob = recording.as_int16(x)
+    check("metade do tamanho do float32", len(blob) == 2 * len(x),
+          f"{len(blob)} bytes para {len(x)} amostras")
+
+    back = recording.from_int16(blob)
+    err = float(np.max(np.abs(back - x)))
+    # One LSB of the 16-bit grid is -90 dBFS. The room this link lives in
+    # measures about -73 dBFS, so the quantisation is 17 dB under the quietest
+    # thing the microphone can hear -- which is why sending 16 bits is a
+    # saving and not a loss.
+    check("erro abaixo do piso da sala", err <= 1.0 / 32767 + 1e-12,
+          f"{20 * np.log10(max(err, 1e-12)):.0f} dBFS contra -73 da sala")
+
+    grid = np.round(x * 32767) / 32767
+    check("exato para audio ja em 16 bits",
+          np.array_equal(recording.from_int16(recording.as_int16(grid)), grid))
+
+
 def main():
     test_bell202()
     test_mfsk()
     test_mary()
     test_fec()
     test_xfer()
+    test_int16_transfer()
     print()
     if failures:
         print(f"FAILED: {len(failures)} check(s): {', '.join(failures)}")

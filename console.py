@@ -23,6 +23,9 @@ that is still the thing under test.
 """
 
 import argparse
+import base64
+import json
+import os
 import queue
 import sys
 import threading
@@ -32,6 +35,7 @@ import numpy as np
 import sounddevice as sd
 
 import fec
+import recording
 import updater
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
@@ -42,6 +46,15 @@ from serial_link import Control, pack, unpack
 
 FS = 48000
 BAUD = 1200
+# Bytes of file per serial packet, before base64 (which costs a third more).
+# Small enough that a lost or mangled line costs little and that no reply is
+# absurdly long; large enough that the per-packet round trip is not what sets
+# the transfer rate.
+PULL_CHUNK = 3072
+# Where `grave` puts what it records. The far machine has no capture.py -- it
+# is the one being recorded *by* the other side today -- so this is the whole
+# of its on-disk capture story.
+CAPTURE_DIR = 'captures'
 BLOCK = 2048
 PREAMBLE = bytes([0x55] * 10 + [0xFF])
 
@@ -172,6 +185,24 @@ class AudioNode:
         # question is per frequency. Two seconds is plenty and costs 384 kB.
         self.tail = []
         self.tail_len = 0
+
+        # `grave`: a recording taken on this machine, whichever role it holds.
+        # capture.py can only ever record the *far* side, because it owns the
+        # serial port and the microphone at once, so the direction that gets
+        # measured follows whoever holds the keyboard. The two chains are
+        # different hardware -- different speaker, different microphone -- so
+        # one direction cannot be deduced from the other. This is the missing
+        # half, and it lives in the shared command table for the same reason
+        # `fecrx` does: one entry, both machines.
+        self.rec_lock = threading.Lock()
+        self.rec_active = False
+        self.rec_buf = []
+        self.rec_have = 0
+        self.rec_want = 0
+        self.rec_label = 'remote'
+        self.rec_status = 'nada gravado ainda'
+        self.rec_stem = None
+        self.capture_dir = CAPTURE_DIR
 
         self.stats_lock = threading.Lock()
         self._reset_stats()
@@ -671,6 +702,7 @@ class AudioNode:
     def _demodder(self):
         while True:
             samples = self.in_queue.get()
+            self._record_feed(samples)
             self.tail.append(np.asarray(samples, dtype=np.float64))
             self.tail_len += len(samples)
             while self.tail_len > 2 * FS and len(self.tail) > 1:
@@ -709,6 +741,73 @@ class AudioNode:
                 del self.rx_buffer[:-4096]
                 if self.echo:
                     self.on_event(f"rx: {printable(out)}")
+
+    # --- recording on this machine
+
+    def record_start(self, secs, label):
+        """Arm a recording. Returns immediately, on purpose.
+
+        The agent's command loop is the only way into that machine, so a
+        command that blocks for ten seconds is ten seconds in which the far
+        side cannot tell a recording from a dead process. Arming is instant
+        and `gravou` reports; the samples are collected by the demodulator
+        thread, which is already draining the input queue and would otherwise
+        be throwing away the very audio being asked for.
+        """
+        if not self.in_stream:
+            return "microfone desligado - rode 'mic on' antes"
+        with self.rec_lock:
+            if self.rec_active:
+                return f"ja esta gravando ({self.rec_have / FS:.1f}s de {self.rec_want / FS:.1f}s)"
+            self.rec_buf = []
+            self.rec_have = 0
+            self.rec_want = int(secs * FS)
+            self.rec_label = label or 'remote'
+            self.rec_stem = None
+            self.rec_status = 'gravando'
+            self.rec_active = True
+        return f"gravando {secs:.1f}s como {self.rec_label!r} -- 'gravou' quando terminar"
+
+    def _record_feed(self, samples):
+        with self.rec_lock:
+            if not self.rec_active:
+                return
+            self.rec_buf.append(np.asarray(samples, dtype=np.float64))
+            self.rec_have += len(samples)
+            if self.rec_have < self.rec_want:
+                return
+            block = np.concatenate(self.rec_buf)[:self.rec_want]
+            self.rec_active = False
+            self.rec_buf = []
+        # Outside the lock: writing a few megabytes must not hold up the
+        # audio thread's next block, and nothing else touches these fields
+        # while `rec_active` is False.
+        try:
+            stem = recording.save(
+                self.capture_dir, block, b'',
+                label=self.rec_label, kind='room', mode=self.mode,
+                fs=FS, baud=BAUD if self.mode == 'fsk' else MFSK_BAUD,
+                gain=self.gain, side='local',
+                rms=float(np.sqrt(np.mean(np.square(block)))) if len(block) else 0.0,
+                peak=float(np.max(np.abs(block))) if len(block) else 0.0)
+            with self.rec_lock:
+                self.rec_stem = str(stem)
+                self.rec_status = 'pronto'
+        except Exception as e:                       # disk full, bad path
+            with self.rec_lock:
+                self.rec_status = f'ERRO ao gravar: {e}'
+
+    def record_status(self):
+        with self.rec_lock:
+            if self.rec_active:
+                return (f"gravando {self.rec_have / FS:.1f}s "
+                        f"de {self.rec_want / FS:.1f}s")
+            if self.rec_stem:
+                wav = self.rec_stem + '.wav'
+                size = os.path.getsize(wav) if os.path.exists(wav) else 0
+                return (f"pronto {self.rec_stem} "
+                        f"{size} bytes ({self.rec_want / FS:.1f}s)")
+            return self.rec_status
 
     def _meter(self):
         while True:
@@ -852,6 +951,13 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   marychord on|off    nibble como 3 tons em vez de 1; os DOIS lados
   syncsweep on|off    varredura nas duas pontas do frame mary; os DOIS lados
   mfskgroup on|off    mfsk: 5 graves = 0, 5 agudos = 1; os DOIS lados
+  grave <seg> [rot]   grava o microfone deste lado em disco (nao bloqueia)
+  gravou              estado da gravacao: em curso, ou nome e tamanho
+  gravacoes [pasta]   lista as gravacoes deste lado
+  baixa <stem> [pasta]  (so no console) traz uma gravacao da outra maquina
+  puxaarq <rem> <loc>   (so no console) traz um arquivo qualquer pelo cabo
+  puxainfo <arq> [int16]  tamanho, pacotes e crc32 para transferir pelo cabo
+  puxa <arq> <n> [int16]  devolve o pacote n em base64
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
   sendpkt <arq> <n>   transmite o pacote n do arquivo pelo ar
   fecpkt <arq> <n>    o mesmo, com correcao de erro (mfsk ou mary)
@@ -871,6 +977,50 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   pull [ref] [force]  atualiza o codigo pelo repositorio remoto
   restart             reinicia o processo com o codigo novo
   help / quit"""
+
+
+# --- serving a file over the serial cable -----------------------------------
+#
+# The acoustic link is the thing being measured, so a recording must not come
+# back over it: that would mix the instrument with what it measures, and at
+# ~9 B/s a 1 MB capture is a day and a half. The cable is the transport, and
+# on the cable the problem is small -- it does not drop bytes the way the air
+# does, so there is no need for FEC and no need for the stop-and-wait ARQ
+# `recvfile.py` runs. A packet with a CRC and a "send it again" is enough.
+#
+# Sizing, which is what decides whether this is usable at all: 115200 baud is
+# ~11.5 kB/s, and a 10 s capture as 32-bit float is 2 MB, so three minutes.
+# Sending it as 16-bit halves that -- see `recording.as_int16`, where the low
+# half of every float is format rather than information -- and raising the
+# cable to 921600 divides it by eight again. Both are parameters, because a
+# long USB-serial cable that will not hold 921600 must still be able to fetch
+# a capture slowly rather than not at all.
+
+_PULL_CACHE = {}
+
+
+def pull_blob(path, int16=False):
+    """The bytes to be transferred for `path`, cached by path and mtime.
+
+    Cached because every packet asks for the same file again: re-reading and
+    re-converting 2 MB per 3 kB packet turns a transfer into a CPU bound one.
+    """
+    stat = os.stat(path)
+    key = (os.path.abspath(path), bool(int16), stat.st_mtime_ns, stat.st_size)
+    hit = _PULL_CACHE.get(key)
+    if hit is None:
+        if int16:
+            hit = recording.as_int16(recording.read_wav(path))
+        else:
+            with open(path, 'rb') as fh:
+                hit = fh.read()
+        _PULL_CACHE.clear()          # one file at a time; this is not a server
+        _PULL_CACHE[key] = hit
+    return hit
+
+
+def pull_chunks(blob, chunk=PULL_CHUNK):
+    return [blob[i:i + chunk] for i in range(0, len(blob), chunk)] or [b'']
 
 
 def execute(node, cmd):
@@ -1118,6 +1268,68 @@ def execute(node, cmd):
         k = len(MFSK_PAIRS)
         return (f"fec paralelo {'ON' if node.fec_parallel else 'off'} "
                 f"({k} bits por simbolo)" if node.fec_parallel else "fec paralelo off (voto)")
+    if verb in ("grave", "gravar"):
+        bits = arg.split(None, 1)
+        if not bits:
+            return "uso: grave <segundos> [rotulo]"
+        try:
+            secs = float(bits[0])
+        except ValueError:
+            return f"grave invalido: {arg!r}"
+        secs = max(0.2, min(secs, 120.0))
+        return node.record_start(secs, bits[1].strip() if len(bits) > 1 else '')
+    if verb in ("gravou", "gravacao"):
+        return node.record_status()
+    if verb == "puxainfo":
+        # Everything the other end needs before asking for the first packet,
+        # in one round trip: how many packets there are, how big they are, and
+        # the checksum of the whole thing. The per-packet CRC says a packet
+        # arrived intact; only this one says the *file* did.
+        bits = arg.split()
+        if not bits:
+            return "uso: puxainfo <arquivo> [int16]"
+        path, int16 = bits[0], (len(bits) > 1 and bits[1].lower() == 'int16')
+        if not os.path.exists(path):
+            return f"puxainfo: {path} nao existe"
+        try:
+            blob = pull_blob(path, int16)
+        except Exception as e:
+            return f"puxainfo: {e}"
+        return (f"size={len(blob)} packets={len(pull_chunks(blob))} "
+                f"chunk={PULL_CHUNK} crc32={xfer.crc32(blob):08x} "
+                f"modo={'int16' if int16 else 'raw'}")
+    if verb == "puxa":
+        bits = arg.split()
+        if len(bits) < 2:
+            return "uso: puxa <arquivo> <n> [int16]"
+        path = bits[0]
+        int16 = len(bits) > 2 and bits[2].lower() == 'int16'
+        try:
+            seq = int(bits[1])
+        except ValueError:
+            return f"puxa: pacote invalido {bits[1]!r}"
+        if not os.path.exists(path):
+            return f"puxa: {path} nao existe"
+        try:
+            parts = pull_chunks(pull_blob(path, int16))
+        except Exception as e:
+            return f"puxa: {e}"
+        if not 0 <= seq < len(parts):
+            return f"puxa: pacote {seq} fora de 0..{len(parts) - 1}"
+        # base64 carries no CR and no LF, so `pack` has nothing to escape and
+        # the line survives a line protocol unchanged. The CRC is per packet
+        # because a mangled line has to be re-asked for by number, not
+        # discovered at the end of a megabyte.
+        payload = parts[seq]
+        return (f"PKT {seq} {xfer.crc16(payload):04x} "
+                + base64.b64encode(payload).decode('ascii'))
+    if verb == "gravacoes":
+        where = arg or node.capture_dir
+        try:
+            names = sorted(n[:-5] for n in os.listdir(where) if n.endswith('.json'))
+        except OSError as e:
+            return f"gravacoes: {e}"
+        return "\n".join(names) if names else f"(nada em {where})"
     if verb == "fileinfo":
         try:
             with open(arg, "rb") as fh:
@@ -1230,6 +1442,93 @@ def run_agent(args, ctl, node):
             updater.restart(cleanup=lambda: shutdown(ctl, node))
 
 
+def fetch_file(remote, path, int16=False, note=print, retries=3):
+    """Pull one file from the far machine. Returns bytes, or None.
+
+    Stop-and-wait with a CRC per packet and a CRC over the whole file: the
+    cable does not drop bytes the way the air does, so this needs none of the
+    machinery `recvfile.py` carries -- what it needs is to notice when a line
+    came back mangled and ask again by number.
+    """
+    head = remote(f"puxainfo {path}" + (" int16" if int16 else ""))
+    fields = dict(kv.split('=', 1) for kv in head.split() if '=' in kv)
+    if 'packets' not in fields:
+        note(f"  puxainfo falhou: {head}")
+        return None
+    total, size = int(fields['packets']), int(fields['size'])
+    want_crc = int(fields['crc32'], 16)
+    note(f"  {path}: {size} bytes em {total} pacotes ({fields.get('modo')})")
+
+    out, t0 = bytearray(), time.time()
+    for seq in range(total):
+        for attempt in range(retries):
+            reply = remote(f"puxa {path} {seq}" + (" int16" if int16 else ""),
+                           timeout=15.0)
+            bits = reply.split(None, 3)
+            if len(bits) == 4 and bits[0] == 'PKT' and bits[1] == str(seq):
+                try:
+                    data = base64.b64decode(bits[3], validate=True)
+                except Exception:
+                    continue
+                if xfer.crc16(data) == int(bits[2], 16):
+                    out += data
+                    break
+            if attempt == retries - 1:
+                note(f"  pacote {seq} falhou {retries}x: {reply[:80]}")
+                return None
+        if total > 20 and seq % max(1, total // 10) == 0:
+            done = len(out) / max(1, size)
+            note(f"  {done * 100:3.0f}%  {len(out) / max(1e-6, time.time() - t0) / 1024:.1f} kB/s")
+
+    secs = time.time() - t0
+    if xfer.crc32(bytes(out)) != want_crc:
+        note(f"  CRC32 do arquivo inteiro nao confere depois de {secs:.1f}s")
+        return None
+    note(f"  {len(out)} bytes em {secs:.1f}s "
+         f"({len(out) / max(1e-6, secs) / 1024:.1f} kB/s), CRC32 confere")
+    return bytes(out)
+
+
+def fetch_recording(remote, stem, outdir, note=print, exact=False):
+    """Bring a capture across: the JSON as it is, the audio as 16-bit.
+
+    16-bit for the audio because a 10 s capture is 2 MB as float and 1 MB as
+    int16, and the low half of every float never carried anything the
+    microphone said. The pair is rebuilt on this side in the project's own
+    format, under the *same stem*, so the offline tools cannot tell it from a
+    capture made here -- and so the number it produces stays traceable to the
+    machine and the moment that recorded it. `exact` sends the float bytes
+    instead, for when the extra precision matters more than the wait.
+    """
+    meta_raw = fetch_file(remote, stem + '.json', note=note)
+    if meta_raw is None:
+        return None
+    audio = fetch_file(remote, stem + '.wav', int16=not exact, note=note)
+    if audio is None:
+        return None
+    meta = json.loads(meta_raw.decode('utf-8'))
+    payload = bytes.fromhex(meta.pop('payload_hex', '') or '')
+    meta.pop('payload_len', None)
+    meta.pop('samples', None)
+    if exact:
+        tmp = os.path.join(outdir, '.exact.wav')
+        os.makedirs(outdir, exist_ok=True)
+        with open(tmp, 'wb') as fh:
+            fh.write(audio)
+        samples = recording.read_wav(tmp)
+        os.remove(tmp)
+    else:
+        samples = recording.from_int16(audio)
+    name = os.path.basename(stem)
+    # Which side of the link this audio was recorded on, written into the
+    # capture rather than left to the file name. The two chains are different
+    # hardware, so a number that does not say which one it came from is not
+    # comparable with anything.
+    meta['side'] = 'remote'
+    meta['transfer'] = 'float32' if exact else 'int16'
+    return recording.save_as(os.path.join(outdir, name), samples, payload, **meta)
+
+
 def run_console(args, ctl, node):
     replies = queue.Queue()
 
@@ -1276,7 +1575,35 @@ def run_console(args, ctl, node):
         if line.lower() in ("quit", "exit", "q"):
             return 0
 
+        # Two commands that only the keyboard side can run, because they
+        # need the *other* machine as well as this one's disk. They stay out
+        # of the shared table for that reason -- `execute()` has no way to
+        # talk to the far side, and giving it one would make every command
+        # able to.
         head, _, rest = line.partition(" ")
+        if head.lower() in ("baixa", "baixar"):
+            bits = rest.split()
+            if not bits:
+                print("  uso: baixa <stem-remoto> [pasta] [exato]")
+                continue
+            outdir = bits[1] if len(bits) > 1 else 'captures-remote'
+            exact = 'exato' in bits[2:] or 'exato' in bits[1:2]
+            stem = fetch_recording(remote, bits[0], outdir,
+                                   note=lambda t: print(t), exact=exact)
+            print(f"  {'gravado em ' + str(stem) if stem else 'falhou'}")
+            continue
+        if head.lower() == "puxaarq":
+            bits = rest.split()
+            if len(bits) < 2:
+                print("  uso: puxaarq <arquivo-remoto> <arquivo-local>")
+                continue
+            data = fetch_file(remote, bits[0], note=lambda t: print(t))
+            if data is not None:
+                with open(bits[1], 'wb') as fh:
+                    fh.write(data)
+                print(f"  {len(data)} bytes em {bits[1]}")
+            continue
+
         target, cmd = "local", line
         if head.lower() in ("r", "remote", "remoto"):
             target, cmd = "remote", rest

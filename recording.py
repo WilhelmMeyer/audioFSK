@@ -34,13 +34,18 @@ def _wav_bytes(samples, fs=FS):
     return b'RIFF' + struct.pack('<I', 4 + len(chunks)) + b'WAVE' + chunks
 
 
-def _read_wav(path):
+def read_wav(path):
     raw = Path(path).read_bytes()
     i = raw.find(b'data')
     if i < 0:
         raise ValueError(f"{path}: no data chunk")
     size = struct.unpack('<I', raw[i + 4:i + 8])[0]
     return np.frombuffer(raw[i + 8:i + 8 + size], dtype='<f4').astype(np.float64)
+
+
+# The name it had while this module was private. Kept because `channel.py`
+# and the campaign scripts import it.
+_read_wav = read_wav
 
 
 def save(directory, samples, payload, **meta):
@@ -59,14 +64,47 @@ def save(directory, samples, payload, **meta):
     # point of the label -- vanished from the name, and `g0.4` and `g0.2`
     # collided. Build the names by concatenation instead.
     stem = directory / f"{stamp}-{label}"
+    return save_as(stem, samples, payload, recorded=stamp, **meta)
 
+
+def save_as(stem, samples, payload, **meta):
+    """Write one capture under a name the caller chose.
+
+    `save` picks the name from the clock and the label; this one takes it, so
+    a capture that arrives from the *other* machine over the serial cable can
+    keep the name it was recorded under. A recording renamed in transit is a
+    recording whose number can no longer be traced back to the machine and the
+    moment that produced it, which is the whole reason the pair exists.
+    """
+    stem = Path(stem)
+    stem.parent.mkdir(parents=True, exist_ok=True)
     stem.with_name(stem.name + '.wav').write_bytes(
         _wav_bytes(samples, meta.get('fs', FS)))
     info = dict(meta)
+    info.setdefault('recorded', time.strftime("%Y%m%d-%H%M%S"))
     info.update(payload_hex=payload.hex(), payload_len=len(payload),
-                samples=len(samples), recorded=stamp)
+                samples=len(samples))
     stem.with_name(stem.name + '.json').write_text(json.dumps(info, indent=2) + "\n")
     return stem
+
+
+def as_int16(samples):
+    """Samples as 16-bit PCM bytes, for the serial cable.
+
+    On disk this project keeps 32-bit float, because a capture *is* the
+    measurement and the demodulators consume floats. On the wire that is
+    format rather than information: the samples came from an ADC of 16 bits or
+    fewer, so the low half of every float carries nothing the microphone ever
+    said. It halves a 2 MB capture, which at 115200 baud is the difference
+    between three minutes and ninety seconds.
+    """
+    x = np.clip(np.asarray(samples, dtype=np.float64), -1.0, 1.0)
+    return np.round(x * 32767.0).astype('<i2').tobytes()
+
+
+def from_int16(blob):
+    """The inverse. Exact for audio that was 16-bit to begin with."""
+    return np.frombuffer(blob, dtype='<i2').astype(np.float64) / 32767.0
 
 
 def load(json_path):
@@ -75,7 +113,7 @@ def load(json_path):
     meta = json.loads(json_path.read_text())
     payload = bytes.fromhex(meta['payload_hex'])
     wav = json_path.with_name(json_path.name[:-len('.json')] + '.wav')
-    return _read_wav(wav), payload, meta
+    return read_wav(wav), payload, meta
 
 
 def load_all(directory):
