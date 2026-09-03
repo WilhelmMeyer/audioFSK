@@ -321,6 +321,16 @@ def header(path, args, rows, metas, commit, started, elapsed):
         for k, rs in groups.items():
             lines.append(f"| {k} | {len(rs)} | {block(rs, 'gate_block')} "
                          f"| {bits(rs, 'gate_bits')} |")
+    # The paired count, and it is the stronger statement. Both columns come
+    # from the same recording, so "the sweeps won on 12 of 12" is a comparison
+    # with no room and no moment inside it -- where two averages a point apart
+    # over twelve noisy trials would not, by themselves, be an effect.
+    paired = [r for r in rows if r['sweep_bits'] is not None]
+    if paired:
+        wins = sum(r['sweep_bits'] > r['gate_bits'] for r in paired)
+        lines += ["",
+                  f"Comparacao pareada, mesmo audio nas duas colunas: a varredura "
+                  f"leu mais bits que o gate em {wins} de {len(paired)} gravacoes."]
     rms = [r['rms'] for r in rows]
     peak = [r['peak'] for r in rows]
     lines += [
@@ -416,8 +426,14 @@ def collect(run, args, commit, started, elapsed):
         seen.add(row['group'])
         jp = run / 'recordings' / (row['recording'] + '.json')
         out = figs / f"espectro-{row['group']}.png"
+        # Smaller than spectro.py's default, deliberately. These are archived
+        # per campaign and the repository holds the code, not a picture
+        # library: at the default 900x1524 one campaign's figures outweighed
+        # the entire history of the project. 620x170 per panel still resolves
+        # individual symbols, which is the only thing the panel is read for.
         subprocess.run([PY, 'spectro.py', str(jp), '-o', str(out),
-                        '--ideal'], capture_output=True)
+                        '--ideal', '--cols', '620', '--rows', '170'],
+                       capture_output=True)
         if out.exists():
             print(f"  figura {out.name}", flush=True)
     header(run / 'HEADER.md', args, rows, metas, commit, started, elapsed)

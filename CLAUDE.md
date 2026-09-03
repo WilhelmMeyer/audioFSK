@@ -15,6 +15,8 @@ It started as Bell 202 alone (mark 1200 Hz, space 2200 Hz, 1200 baud, UART 8N1) 
 | MFSK parallel + FEC | ~5.9 B/s | 5 of 9 blocks |
 | **M-ary 16 tones + FEC, gain 0.5** | **~9.4 B/s** | **9 of 11 blocks** |
 
+Every row above is the two-machine link. On the single-machine self-capture path (Bluetooth speaker, internal microphone -- see the caveats below, it is not the same channel), M-ary with the sync sweeps and the operating point calibrated reaches **10.7 B/s at 12 of 12 blocks**, `fecrep 1`, gain 0.30. That has to be re-measured across the room before it belongs in the table.
+
 Whole-file transfer does not work yet: 1 packet of 21 with 81-byte packets, where 24-58 byte blocks decoded 9 of 11 over the same link.
 
 This is a git repository.
@@ -227,6 +229,12 @@ Two sweeps land within 0.3 points of an oracle that was handed the correct offse
 **With few recordings, byte recovery is a noisy way to choose a parameter.** Neighbouring settings scored 8% and 22% with no trend, purely from which blocks happened to land. To decide a fine adjustment, measure *bit* accuracy at a brute-forced alignment, which is stable, or record far more.
 
 **A number is only usable if the audio, the settings and the code that read it are still identifiable together.** `selfcapture.py` records one condition and `align.py`/`bench.py` score what was recorded, but nothing kept the two together, and reproducing a figure from a bare table of percentages means running the room again. `study.py` makes one directory per campaign: `HEADER.md` (what was measured, on what hardware, with which settings held fixed, over how many trials, and the caveats), `results.csv`/`results.json` (one row per trial), `recordings/`, `figures/`. The header opens with the commit the code was at, and that is not bookkeeping -- a bit accuracy is a statement about a decoder as much as about a channel, and this decoder changes weekly. `--rescore <dir>` re-reads a campaign without touching the room. One swept axis at a time: two axes multiply the trials, and this link needs repetitions more than breadth.
+
+**With the sweeps and a calibrated gain, `fecrep 1` matches `fecrep 2` and costs 40% less air.** Twelve recordings per point on the self-capture path, gain 0.30, sweeps on: repeat 1 recovered 12 of 12 blocks at 4.49 s per 48-byte block (10.7 B/s), repeat 2 recovered 12 of 12 at 7.41 s (6.5 B/s). The extra redundancy buys nothing here. **This does not retire the `fecrep` table further down** -- that one is the two-machine link, and this is one machine through a Bluetooth speaker, which is a different channel and a kinder one. What it does retire is the assumption that rate 1/3 alone is hopeless: at `gain 0.45` it looked that way partly because three recordings of eight were clipping.
+
+**And the sweeps are what make `fecrep 1` viable, not the gain alone.** On the same twelve recordings the gate recovered 9 of 12 at repeat 1 and 8 of 12 at repeat 2 -- it does not reach 12 of 12 at any redundancy tested, because what it loses is not bits but occasional whole blocks to a timing collapse that coding cannot repair.
+
+**Compare paired, over the same recording, not by two averages.** Both the gate and the sweep columns are read off the same audio, so "the sweeps read more bits than the gate on 24 of 24 recordings" is a statement with no room and no moment inside it. Across the three campaigns run at the calibrated point it is **59 of 60** -- where the averages differ by one to two points over twelve noisy trials and would not, alone, establish an effect.
 
 **Measure the operating point before measuring anything else, because part of the old corpus was clipping rather than channel.** At `gain 0.45` on the Bluetooth self-capture path, three recordings of eight arrived at peak 1.00. Swept properly (`study.py --sweep gain=0.20,0.25,0.30,0.38`, `fecrep 1`, six recordings each), **0.30** is the best point and clips nowhere -- 90.1% of bits with the gate and 91.5% with the sweeps, against 88.1-88.2% at the neighbours. Calibrate at `fecrep 1`: at `fecrep 2` every condition recovers every block and the comparison measures nothing.
 
