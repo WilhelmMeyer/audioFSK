@@ -775,6 +775,15 @@ class ZeroWatch:
 # comparing is a per-frequency calibrated detector -- and unlike the
 # normalisation that failed on the chord layers, the estimate is not
 # contaminated by the signal it is meant to measure.
+# The byte path's framing, stamped into every recording's metadata. A
+# recording is scored by code that changes weekly, and the hard M-ary path
+# changed *protocol* when it gained 8N1: audio modulated before that decodes
+# to garbage under the framed receiver, which offline scoring would report as
+# a percentage rather than as an error. A version marker is the only thing
+# that lets a tool tell "this demodulator is worse" from "this recording is
+# from another protocol".
+MARY_FRAMING = '8n1'
+
 MARY_TONES = (888, 1050, 1212, 1375, 1538, 1700, 1862, 2025,
               2188, 2350, 2512, 2675, 2838, 3000, 3162, 3325)
 MARY_BITS = 4

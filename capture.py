@@ -27,6 +27,7 @@ import numpy as np
 import sounddevice as sd
 
 import recording
+from modem import MARY_FRAMING
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -248,6 +249,12 @@ def main():
                               band=args.band or 0.0,
                               chord=bool(args.chord),
                               grouped=bool(args.grouped),
+                              # Which byte-path protocol this audio was
+                              # modulated with. bench.py refuses to score a
+                              # recording from another one through the hard
+                              # path, where a protocol change would come back
+                              # as a percentage instead of an error.
+                              mary_framing=MARY_FRAMING,
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,
                               airtime_s=round(airtime, 2))

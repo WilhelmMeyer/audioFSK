@@ -25,7 +25,7 @@ import numpy as np
 import fec
 import recording
 from modem import (FSKDemodulator, MFSKDemodulator, MFSK_PAIRS,
-                   MaryDemodulator)
+                   MaryDemodulator, MARY_FRAMING)
 from scoring import score
 
 BLOCK = 2048
@@ -107,6 +107,9 @@ def main():
     ap.add_argument('--detail', action='store_true',
                     help="print the recovered bytes, not just the score")
     ap.add_argument('--only', help="run just the variants whose name contains this")
+    ap.add_argument('--legacy-mary', action='store_true',
+                    help='pontua gravacoes M-arias anteriores ao 8N1 pelo '
+                         'caminho hard, sabendo que o protocolo mudou')
     args = ap.parse_args()
 
     captures = recording.load_all(args.directory)
@@ -133,6 +136,19 @@ def main():
             continue
         print(f"\n{meta['recorded']}  {meta.get('label','')}  modo={meta['mode']} "
               f"{len(payload)}B  rms={meta.get('rms',0):.4f} pico={meta.get('peak',0):.3f}")
+        # The hard M-ary path changed protocol when it gained 8N1 framing, so
+        # audio modulated before that decodes to garbage here -- and garbage
+        # scores as a number, not as an error, which is how a protocol change
+        # gets read as a demodulator regression. Recordings stamp the framing
+        # they were made with; one that does not carry the stamp predates it.
+        # The FEC path above is unaffected: a coded block never had framing.
+        if (meta['mode'] == 'mary'
+                and meta.get('mary_framing') != MARY_FRAMING
+                and not args.legacy_mary):
+            print(f"  PULADO: gravado sem enquadramento 8N1 "
+                  f"(mary_framing={meta.get('mary_framing')!r}); o caminho "
+                  f"hard mudou de protocolo. --legacy-mary pontua assim mesmo.")
+            continue
         for name, mode, factory in variants:
             if mode != meta['mode']:
                 continue

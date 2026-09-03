@@ -40,7 +40,7 @@ import sounddevice as sd
 import fec
 import recording
 from modem import (FSKModulator, MFSKModulator, MFSK_PAIRS, MaryModulator,
-                   MARY_BITS, chirp, SYNC_CHIRP)
+                   MARY_BITS, MARY_FRAMING, chirp, SYNC_CHIRP)
 
 FS = 48000
 BLOCK = 2048
@@ -385,6 +385,7 @@ def main():
                               parallel=bool(args.fec and args.parallel),
                               gap=args.gap or 0.0, band=args.band or 0.0,
                               chord=bool(args.chord), grouped=bool(args.grouped),
+                              mary_framing=MARY_FRAMING,
                               sync_chirp=bool(args.sync_chirp),
                               sync_hush=args.sync_hush if args.sync_chirp else 0.0,
                               sync_span_symbols=args.sync_span_symbols,
