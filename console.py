@@ -331,6 +331,29 @@ class AudioNode:
             sig[-fade:] *= ramp[::-1]
         return (sig * self.gain).astype(np.float32)
 
+    def _sine(self, freq, secs):
+        """One steady tone, long enough to reach the room's steady state.
+
+        A chirp answers a different question than this one. It excites each
+        frequency for a fraction of a second while moving, so nothing settles,
+        and it recovers frequency from *time* -- which makes every reading
+        depend on knowing exactly when the far side started playing. A stepped
+        tone asks the question M-ary actually rests on: send f, and see how
+        much arrives at f. Compared against how much arrives at f when nobody
+        sent it, that is the whole of what the detector has to work with.
+
+        Same fades as the sweep, for the same reason: a sinusoid that starts
+        at full amplitude is a step, and a step is broadband.
+        """
+        n = int(secs * FS)
+        sig = np.sin(2 * np.pi * freq * np.arange(n) / FS)
+        fade = int(0.01 * FS)
+        if n > 2 * fade:
+            ramp = np.linspace(0.0, 1.0, fade)
+            sig[:fade] *= ramp
+            sig[-fade:] *= ramp[::-1]
+        return (sig * self.gain).astype(np.float32)
+
     def _feeder(self):
         while True:
             try:
@@ -345,6 +368,8 @@ class AudioNode:
                 if raw == 'raw-samples':
                     if payload[0] == 'fec':
                         self.out_queue.put(self._fec_frame(*payload[1:]))
+                    elif payload[0] == 'sine':
+                        self.out_queue.put(self._sine(*payload[1:]))
                     else:
                         self.out_queue.put(self._chirp(*payload[1:]))
                     continue
@@ -518,6 +543,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   spk on|off          liga/desliga a caixa de som
   tone on|off         portadora continua 0x55 (precisa da caixa ligada)
   chirp [f0 f1 seg]   varredura de frequencia, para medir a resposta do canal
+  tonef <hz> [seg]    um tom puro, para medir o que chega naquela frequencia
   send <texto>        transmite <texto> pelo ar
   fecsend <texto>     transmite com correcao de erro (mfsk ~2 B/s, mary ~9 B/s)
   fecrx on <n>        escuta um bloco corrigido de n bytes (mfsk ou mary)
@@ -596,6 +622,25 @@ def execute(node, cmd):
         secs = max(0.5, min(secs, 20.0))
         node.tx_bytes.put((('chirp', f0, f1, secs), 'raw-samples'))
         return f"chirp {f0:.0f}-{f1:.0f} Hz em {secs:.1f}s"
+    if verb == "tonef":
+        # A steady tone at one frequency, which is what a per-frequency
+        # measurement needs and what `tone` is not: `tone` sends 0x55 through
+        # the modulator, so it answers about the layer, not about the air.
+        if not node.out_stream:
+            return "caixa desligada - rode 'spk on' antes"
+        bits = arg.split()
+        if not bits:
+            return "uso: tonef <hz> [segundos]"
+        try:
+            freq = float(bits[0])
+            secs = float(bits[1]) if len(bits) > 1 else 1.0
+        except ValueError:
+            return f"tonef invalido: {arg!r}"
+        if not 20.0 <= freq <= FS / 2 - 100:
+            return f"frequencia fora de faixa: {freq}"
+        secs = max(0.1, min(secs, 10.0))
+        node.tx_bytes.put((('sine', freq, secs), 'raw-samples'))
+        return f"tonef {freq:.0f} Hz por {secs:.1f}s"
     if verb == "echo":
         node.echo = flag()
         return f"echo {'ON' if node.echo else 'off'}"
