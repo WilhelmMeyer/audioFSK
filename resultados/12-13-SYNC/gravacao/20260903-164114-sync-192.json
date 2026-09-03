@@ -22,5 +22,7 @@
   "samples": 1329152,
   "recorded": "20260903-164114",
   "sync_hush": 0.03,
-  "sync_span_symbols": 2452.0
+  "sync_span_symbols": 2453.0,
+  "sync_span_symbols_original": 2452.0,
+  "sync_span_corrigido": true
 }

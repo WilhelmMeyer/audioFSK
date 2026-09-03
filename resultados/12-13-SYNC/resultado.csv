@@ -1,0 +1,6 @@
+stem,camada,direcao,fecrep,gain,bytes,rms,pico,bits_gate,bloco_gate,bits_varr2,bloco_varr2,periodo_medido,span_simbolos,nota
+20260903-164114-sync-192,mary,B2A,2,1.00,192,0.0354,0.155,95.71,sim,95.71,sim,480.021,2453,span recarimbado (era 2452)
+20260903-164142-sync-192,mary,B2A,2,1.00,192,0.0364,0.194,95.28,sim,96.00,sim,479.951,2453,span recarimbado (era 2452)
+20260903-164210-sync-192,mary,B2A,2,1.00,192,0.0364,0.165,95.65,sim,95.67,sim,480.070,2453,span recarimbado (era 2452)
+20260903-164238-sync-192,mary,B2A,2,1.00,192,0.0325,0.152,94.59,sim,95.32,sim,479.899,2453,span recarimbado (era 2452)
+MEDIA,mary,B2A,2,1.00,192,0.0352,0.167,95.31,4/4,95.68,4/4,479.99,2453,"as duas colunas de bits saem do align.py; resultado.py e bench.py nao leem sync_chirp e leriam as duas condicoes pelo gate"
