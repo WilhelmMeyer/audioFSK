@@ -378,6 +378,8 @@ class MFSKDemodulator:
         self.input_rms = 0.0
         self.input_peak = 0.0
         self.contrast = 0.0
+        self.consumed = 0
+        self.last_window = 0
 
     def _score(self, start):
         """Bit and vote margin for the symbol window beginning at `start`.
@@ -500,7 +502,15 @@ class MFSKDemodulator:
             # reverberant channel, where timing genuinely drifts and needs
             # correcting every symbol rather than only at edges.
             self.last_bit = bit
-            self.buf = self.buf[self.samples_per_symbol + adjust:]
+            # Where this decision was actually measured, for the diagnostics.
+            # Inferring it from the buffer length is wrong by up to a quarter
+            # of a symbol, since the gate measures at an offset inside the
+            # buffer and then consumes a different amount.
+            self.last_window = self.consumed + (self.delta if adjust == 0
+                                                else (0 if adjust < 0 else 2 * self.delta))
+            step = self.samples_per_symbol + adjust
+            self.consumed += step
+            self.buf = self.buf[step:]
             yield bit, self.contrast, llr
 
     def demodulate(self, samples):

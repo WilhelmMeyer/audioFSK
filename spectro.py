@@ -33,7 +33,8 @@ import numpy as np
 
 import fec
 import recording
-from modem import MARY_TONES, MARY_BITS, MFSK_PAIRS, _GRAY
+from modem import (MARY_TONES, MARY_BITS, MFSK_PAIRS, _GRAY,
+                   MFSKDemodulator, MaryDemodulator)
 
 
 def write_png(path, rgb):
@@ -91,6 +92,56 @@ def spectrogram(samples, fs, f_lo, f_hi, cols, rows, win=None):
             break
         out[:, c] = np.abs(probe @ seg) ** 2
     return 10 * np.log10(np.maximum(out, 1e-20))
+
+
+def mfsk_plan(payload, meta):
+    """The tones sounding in each MFSK symbol, and the tone list to draw.
+
+    Both readings of the chord layer are covered. Voting sends one bit per
+    symbol and every pair sounds the member matching it, so five tones light
+    together. Parallel sends one bit per pair, so the five tones are chosen
+    independently and the pattern is arbitrary.
+    """
+    npairs = len(MFSK_PAIRS)
+    par = bool(meta.get('parallel'))
+    rep = meta.get('fec_repeat', 1)
+    if par:
+        pre = [0, 1] * 40 * npairs
+        body = list(fec.frame_parallel(payload, npairs, repeat=rep))
+    else:
+        pre = [0, 1] * 40
+        body = list(fec.frame(payload, repeat=rep))
+    bits = [int(b) for b in pre + body]
+
+    per_symbol = npairs if par else 1
+    tones = sorted(t for pair in MFSK_PAIRS for t in pair)
+    plan = []
+    for i in range(0, len(bits) - per_symbol + 1, per_symbol):
+        chunk = bits[i:i + per_symbol]
+        if par:
+            plan.append([MFSK_PAIRS[k][chunk[k]] for k in range(npairs)])
+        else:
+            plan.append([MFSK_PAIRS[k][chunk[0]] for k in range(npairs)])
+    return plan, tones
+
+
+def mfsk_decided(samples, meta):
+    """What the MFSK receiver concluded, as (window position, tones)."""
+    npairs = len(MFSK_PAIRS)
+    par = bool(meta.get('parallel'))
+    d = MFSKDemodulator(fs=meta['fs'], baud=meta['baud'], parallel=par)
+    out = []
+    for bit, _c, llr in d._symbols(samples):
+        if par:
+            # In parallel the soft value is one number per pair; its sign is
+            # that pair's bit, which is the only place the per-pair decision
+            # survives.
+            bits = [1 if v > 0 else 0 for v in np.atleast_1d(llr)]
+        else:
+            bits = [bit] * npairs
+        out.append((d.last_window,
+                    [MFSK_PAIRS[k][bits[k]] for k in range(npairs)]))
+    return out
 
 
 def tx_tone_indices(payload, repeat):
@@ -282,7 +333,7 @@ def legend(width, entries, scale=2, pad=8):
 
 
 def draw_grid(img, start, sps, tone_frac, hop, win, cols, rows,
-              f_lo=None, f_hi=None):
+              f_lo=None, f_hi=None, tone_list=None):
     """Faint dashed verticals where each symbol is expected to begin and end.
 
     Without them the eye has no ruler: a mark drawn slightly left of where it
@@ -319,7 +370,7 @@ def draw_grid(img, start, sps, tone_frac, hop, win, cols, rows,
     # wrong tone, which is the failure the error histogram measures and this
     # makes visible.
     if f_lo is not None and f_hi is not None:
-        tones = sorted(MARY_TONES)
+        tones = sorted(tone_list if tone_list is not None else MARY_TONES)
         for a, b in zip(tones[:-1], tones[1:]):
             fm = 0.5 * (a + b)
             if not f_lo <= fm <= f_hi:
@@ -349,6 +400,53 @@ def blended(measured, ideal, decided):
     img[..., 0] += ideal
     img[..., 1] += decided
     return (np.clip(img, 0, 1) * 255).astype(np.uint8)
+
+
+def chord_panel(events, fs, sps, tone_frac, f_lo, f_hi, cols, rows, win,
+                nsamp, shift=0):
+    """Mark several tones per symbol, for the layers that sound chords.
+
+    `events` is (sample position, list of frequencies). The M-ary panels take a
+    single tone index because that layer sounds one tone; here five sound at
+    once and the picture has to say so, or the ideal would look like a fifth of
+    what was transmitted.
+    """
+    hop = max(1, (nsamp - win) // max(cols - 1, 1))
+    img = np.zeros((rows, cols))
+    half = max(1, int(rows * 22.0 / (f_hi - f_lo)))
+    for pos, freqs in events:
+        p = pos - shift
+        c0 = int((p - win // 2) / hop)
+        c1 = int((p + tone_frac * sps - win // 2) / hop)
+        for f in freqs:
+            if not f_lo <= f <= f_hi:
+                continue
+            r = int((f - f_lo) / (f_hi - f_lo) * (rows - 1))
+            for c in range(max(0, c0), min(cols, max(c1, c0 + 1))):
+                img[max(0, r - half):min(rows, r + half + 1), c] = 1.0
+    return img
+
+
+def find_start_mfsk(samples, meta, plan, sps, search=2.5):
+    """Where the chord burst begins, by trying offsets against known symbols."""
+    npairs = len(MFSK_PAIRS)
+    tones = np.array(sorted(t for pair in MFSK_PAIRS for t in pair), float)
+    guard = int(0.15 * sps)
+    n = np.arange(guard, sps)
+    probe = np.exp(-2j * np.pi * np.outer(tones, n) / meta['fs'])
+    best = (-1, 0)
+    for off in range(0, int(search * meta['fs']), 24):
+        ok = 0
+        for k in range(min(60, len(plan))):
+            seg = samples[off + k * sps + guard:off + k * sps + sps]
+            if len(seg) != len(n):
+                break
+            e = np.abs(probe @ seg) ** 2
+            top = set(tones[np.argsort(e)[-npairs:]])
+            ok += len(top & set(plan[k]))
+        if ok > best[0]:
+            best = (ok, off)
+    return best[1], best[0]
 
 
 def panel(db, mode, floor_db=45.0):
@@ -402,21 +500,42 @@ def main():
     legend_strip = None
     if args.fundido:
         args.ideal = True
+    is_mary = meta.get('mode') == 'mary'
     if args.ideal:
-        if meta.get('mode') != 'mary' or meta.get('kind') != 'fec':
-            sys.exit("[spectro] --ideal so vale para uma captura mary com --fec")
-        want = tx_tone_indices(payload, meta.get('fec_repeat', 1))
+        if meta.get('kind') != 'fec':
+            sys.exit("[spectro] --ideal precisa de uma captura com --fec")
         sps = int(fs / meta['baud'])
         tone_frac = 1.0 - meta.get('gap', 0.0)
+        if is_mary:
+            want = tx_tone_indices(payload, meta.get('fec_repeat', 1))
+            tone_list = list(MARY_TONES)
+        else:
+            plan, tone_list = mfsk_plan(payload, meta)
+            # The chord layers decide a bit, not a tone, so alignment is
+            # scored on bits: which pair sounded is a consequence, not the
+            # thing being recovered.
+            want = [tone_list.index(p[0]) for p in plan]
         # Search the whole recording, not the slice being drawn: the burst
         # begins wherever it begins, and a zoom into the middle of it contains
         # no start to find.
-        start, hits = find_start(full, fs, sps, np.array(MARY_TONES, float), want)
+        if is_mary:
+            start, hits = find_start(full, fs, sps, np.array(MARY_TONES, float),
+                                     want)
+        else:
+            start, hits = find_start_mfsk(full, meta, plan, sps)
         print(f"[spectro] inicio da rajada em {start / fs:.3f}s "
-              f"({hits}/60 simbolos batem no alinhamento)")
+              f"({hits} acertos de tom no alinhamento)")
         start -= a
-        ideal = ideal_panel(want, start, fs, sps, tone_frac, args.lo, args.hi,
-                            args.cols, args.rows, win, len(samples))
+        if is_mary:
+            ideal = ideal_panel(want, start, fs, sps, tone_frac, args.lo,
+                                args.hi, args.cols, args.rows, win, len(samples))
+        else:
+            # Positions are absolute in the whole recording; the drawing is of
+            # a slice starting at sample `a`, so that is the only shift.
+            ideal = chord_panel([(start + k * sps, t)
+                                 for k, t in enumerate(plan)],
+                                fs, sps, tone_frac, args.lo, args.hi, args.cols,
+                                args.rows, win, len(samples), a)
 
         # Overlay: what arrived in green, what should have arrived in red.
         # Agreement turns yellow, so the eye reads the mismatch rather than
@@ -424,14 +543,20 @@ def main():
         over = np.zeros((args.rows, args.cols, 3))
         over[..., 1] = np.clip(measured, 0, 1)
         over[..., 0] = ideal
-        dec_mask = decided_panel(samples, meta, want, start, args.lo, args.hi,
-                                 args.cols, args.rows, win, len(samples),
-                                 want_mask=True)
+        if is_mary:
+            dec_mask = decided_panel(samples, meta, want, start, args.lo,
+                                     args.hi, args.cols, args.rows, win,
+                                     len(samples), want_mask=True)
+        else:
+            dec_mask = chord_panel(mfsk_decided(samples, meta), fs, sps,
+                                   tone_frac, args.lo, args.hi, args.cols,
+                                   args.rows, win, len(samples), 0)
         if args.fundido:
             hop = max(1, (len(samples) - win) // max(args.cols - 1, 1))
             fused = blended(measured, ideal, dec_mask)
             fused = draw_grid(fused[::-1], start, sps, tone_frac, hop, win,
-                              args.cols, args.rows, args.lo, args.hi)[::-1]
+                              args.cols, args.rows, args.lo, args.hi,
+                              tone_list)[::-1]
             tiles = [(fused,
                       'fundido: vermelho=ideal, verde=interpretado, '
                       'amarelo=os dois, cinza=espectro real, '
