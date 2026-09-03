@@ -29,7 +29,14 @@ class Control:
         buf = bytearray()
         while not self._stop:
             try:
-                chunk = self.ser.read(64)
+                # Whatever has arrived, not a fixed 64 bytes. `read(64)` waits
+                # out the full timeout whenever fewer than 64 bytes remain,
+                # which is once per reply -- 0.1 s of dead time on every
+                # command. Harmless when the traffic is a command and a short
+                # answer; ruinous when it is a file, where 322 packets paid
+                # 0.2 s each and a transfer ran at 14 kB/s no matter what the
+                # cable's baud rate was.
+                chunk = self.ser.read(max(1, self.ser.in_waiting))
             except Exception:
                 break
             for byte in chunk:
