@@ -10,12 +10,13 @@ to survive, so those are the conditions it has to pass.
 
 import numpy as np
 
+import distortion
 import fec
 import recording
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
-                   MFSKModulator, MFSKDemodulator,
-                   MaryModulator, MaryDemodulator)
+                   MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
+                   MaryModulator, MaryDemodulator, MARY_TONES)
 
 FS = 48000
 
@@ -327,6 +328,68 @@ def test_int16_transfer():
           np.array_equal(recording.from_int16(recording.as_int16(grid)), grid))
 
 
+def clipped_scene(mod, ceiling, level=0.6, noise_db=-45.0, seed=3):
+    """A capture-shaped recording: silence, burst, silence, plus a floor.
+
+    Shaped like a capture on purpose. The metric subtracts the room's own
+    out-of-band noise using the quiet stretches, so a bare burst with no
+    silence around it cannot exercise the path that actually runs on a
+    recording.
+    """
+    rng = np.random.default_rng(seed)
+    b = mod.modulate_bits(list(rng.integers(0, 2, 600)))
+    b = b / np.max(np.abs(b))
+    b = np.clip(b * level, -ceiling, ceiling)
+    sig = np.concatenate([np.zeros(2 * FS), b, np.zeros(2 * FS)])
+    return sig + rng.normal(0, 10 ** (noise_db / 20), len(sig))
+
+
+def test_distortion():
+    """The out-of-band metric answers a question no other tool here asks: was
+    the *transmitter* clipping? It found this on the real link only because a
+    person heard the speaker."""
+    print()
+    print("Distorcao (energia que ninguem transmitiu):")
+    tones = sorted(t for p in MFSK_PAIRS for t in p)
+    mod = MFSKModulator(fs=FS, baud=100)
+    base = distortion.baseline(mod, tones)
+
+    clean = distortion.measure(clipped_scene(mod, 1.0), FS, tones)
+    check("limpo nao acusa", not distortion.saturated(clean, base),
+          f"excesso {clean['harm_clean'] - base['harm_rel']:+.1f} dB")
+
+    hard = distortion.measure(clipped_scene(mod, 0.4), FS, tones)
+    check("33% do pico ceifado acusa", distortion.saturated(hard, base),
+          f"excesso {hard['harm_clean'] - base['harm_rel']:+.1f} dB")
+
+    # The midpoint reading must not be sold as a detector: it does not move
+    # under clipping, because the modulation's own sidebands already occupy
+    # the midpoints at these baud rates.
+    drift = abs(hard['imd_rel'] - clean['imd_rel'])
+    check("entre-tons nao serve de detector", drift < 1.5,
+          f"{drift:.1f} dB entre limpo e ceifado")
+
+    # A ratio, so it must not follow the volume on a linear channel. Both
+    # levels are kept clear of the noise floor: below it the out-of-band
+    # excess is genuinely gone and the metric reports None, which is a
+    # different statement from "no distortion" and is tested next.
+    loud = distortion.measure(clipped_scene(mod, 1.0, level=0.6,
+                                            noise_db=-60.0), FS, tones)
+    soft = distortion.measure(clipped_scene(mod, 1.0, level=0.15,
+                                            noise_db=-60.0), FS, tones)
+    spread = abs(soft['harm_clean'] - loud['harm_clean'])
+    check("nivel nao move o numero num canal linear", spread < 3.0,
+          f"{spread:.1f} dB entre nivel 0.6 e 0.15")
+
+    # Buried in the room, the honest answer is "nothing measurable", not a
+    # number. Reporting one would be the failure this whole module exists to
+    # avoid: a plausible figure standing in for an absent measurement.
+    buried = distortion.measure(clipped_scene(mod, 1.0, level=0.02,
+                                              noise_db=-35.0), FS, tones)
+    check("sinal enterrado no ruido nao inventa numero",
+          buried['harm_clean'] is None and not distortion.saturated(buried, base))
+
+
 def main():
     test_bell202()
     test_mfsk()
@@ -334,6 +397,7 @@ def main():
     test_fec()
     test_xfer()
     test_int16_transfer()
+    test_distortion()
     print()
     if failures:
         print(f"FAILED: {len(failures)} check(s): {', '.join(failures)}")
