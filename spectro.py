@@ -158,6 +158,68 @@ def ideal_panel(want, start, fs, sps, tone_frac, f_lo, f_hi, cols, rows, win, ns
     return img
 
 
+def decided_panel(samples, meta, want, start, f_lo, f_hi, cols, rows, win, nsamp):
+    """What the demodulator concluded, symbol by symbol, and whether it was right.
+
+    Drawn from the receiver's *own* timing rather than the rigid grid the ideal
+    panel uses, because that timing is part of what is being shown: if the
+    decisions drift away from the ideal marks along the picture, the drift is
+    the finding.
+
+    Green where the decision matches what was sent, red where it does not.
+    """
+    from modem import MaryDemodulator
+    d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'], gap=meta.get('gap', 0.0))
+    sps = d.samples_per_symbol
+
+    gen = d._symbols(samples)
+    marks = []                       # (sample position, tone index)
+    total = len(samples)
+    for idx, _c, _n in gen:
+        # The generator has already advanced its buffer, so what it consumed up
+        # to now places the window that produced this decision.
+        pos = total - len(d.buf) - sps
+        marks.append((pos, idx))
+
+    # Judge correctness by aligning the decision *sequence* to the transmitted
+    # one, not by sample position. The receiver's clock steers, so its symbol k
+    # drifts away from the rigid grid; scoring by position marks correct
+    # decisions wrong as soon as that drift exceeds half a symbol, which paints
+    # a working stretch red.
+    decided = [idx for _p, idx in marks]
+    # The slice being drawn is usually a zoom into the middle of the burst, so
+    # there are fewer decisions than transmitted symbols and the offset runs
+    # the other way. Getting this backwards compares a mid-burst stretch
+    # against the preamble and paints a 67%-correct passage almost entirely
+    # red -- which is how this was found.
+    if len(decided) <= len(want):
+        off = max(range(0, len(want) - len(decided) + 1),
+                  key=lambda o: sum(decided[k] == want[o + k]
+                                    for k in range(len(decided))))
+        shift = -off
+    else:
+        shift = max(range(0, len(decided) - len(want) + 1),
+                    key=lambda sh: sum(decided[sh + k] == want[k]
+                                       for k in range(len(want))))
+
+    hop = max(1, (nsamp - win) // max(cols - 1, 1))
+    img = np.zeros((rows, cols, 3))
+    half = max(1, int(rows * 26.0 / (f_hi - f_lo)))
+    for k, (pos, idx) in enumerate(marks):
+        f = MARY_TONES[idx]
+        if not f_lo <= f <= f_hi:
+            continue
+        slot = k - shift
+        right = 0 <= slot < len(want) and want[slot] == idx
+        c0 = int((pos - win // 2) / hop)
+        c1 = int((pos + sps - win // 2) / hop)
+        r = int((f - f_lo) / (f_hi - f_lo) * (rows - 1))
+        for c in range(max(0, c0), min(cols, max(c1, c0 + 1))):
+            img[max(0, r - half):min(rows, r + half + 1), c] = (
+                (0.15, 1.0, 0.35) if right else (1.0, 0.15, 0.15))
+    return (img * 255).astype(np.uint8)
+
+
 def panel(db, mode, floor_db=45.0):
     """Map dB to 0..1, either absolutely or against each row's own median."""
     if mode == 'contraste':
@@ -226,6 +288,9 @@ def main():
         over[..., 1] = np.clip(measured, 0, 1)
         over[..., 0] = ideal
         tiles.append(((over * 255).astype(np.uint8), 'sobreposto'))
+        tiles.append((decided_panel(samples, meta, want, start, args.lo, args.hi,
+                                    args.cols, args.rows, win, len(samples)),
+                      'decidido (verde=certo, vermelho=errado)'))
         tiles.append((colourise(ideal), 'ideal'))
 
     sep = 6
