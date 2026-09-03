@@ -1,0 +1,7 @@
+direcao,trial,freq,banda_dbfs,larga_dbfs,pico,margem_db,razao_db,regua
+A2B,piso,1700,-73.3,,,,,dBFS local (mediana de 01-LVL-BASE-A2B, +-25 Hz)
+A2B,1,1700,-18.9,-20.2,0.389,54.4,,dBFS local (gravado) -- pre-conserto do capture_a2b.py
+A2B,2,1700,-19.7,-21.6,0.301,53.5,,dBFS local (gravado) -- pre-conserto do capture_a2b.py
+A2B,3,1700,-21.7,-23.3,0.316,51.6,,dBFS local (gravado)
+A2B,4,1700,-22.8,-24.5,0.216,50.5,,dBFS local (gravado)
+A2B,5,1700,-23.0,-24.6,0.212,50.3,,dBFS local (gravado)

@@ -1,0 +1,5 @@
+stem,maquina,link,valido,secs,rms,dbfs,pico,pico_dbfs,rms_550_3600,dbfs_550_3600,nota
+20260903-173919-lvl-base-A2B,B,interno,sim,8.00,0.002562,-51.8,0.012421,-38.1,0.001882,-54.5,pre-conserto do capture_a2b.py (codigo de saida/recusa/abertura da caixa; nao altera audio)
+20260903-174102-lvl-base-A2B,B,interno,sim,8.00,0.002125,-53.5,0.009308,-40.6,0.001271,-57.9,pre-conserto do capture_a2b.py (idem)
+20260903-174729-lvl-base-A2B,B,interno,sim,8.00,0.002295,-52.8,0.011719,-38.6,0.001678,-55.5,pos-conserto
+20260903-174912-lvl-base-A2B,B,interno,sim,8.00,0.002609,-51.7,0.012421,-38.1,0.001895,-54.4,pos-conserto
