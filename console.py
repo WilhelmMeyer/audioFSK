@@ -37,6 +37,7 @@ import sounddevice as sd
 import fec
 import recording
 import updater
+import netlink
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
@@ -950,6 +951,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   syncsweep on|off    varredura nas duas pontas do frame mary; os DOIS lados
   mfskgroup on|off    mfsk: 5 graves = 0, 5 agudos = 1; os DOIS lados
   grave <seg> [rot]   grava o microfone deste lado em disco (nao bloqueia)
+  envia <stem> <url>  manda a gravacao pela rede, em vez do cabo
   gravou              estado da gravacao: em curso, ou nome e tamanho
   gravacoes [pasta]   lista as gravacoes deste lado
   baixa <stem> [pasta]  (so no console) traz uma gravacao da outra maquina
@@ -1278,6 +1280,25 @@ def execute(node, cmd):
         return node.record_start(secs, bits[1].strip() if len(bits) > 1 else '')
     if verb in ("gravou", "gravacao"):
         return node.record_status()
+    if verb == "envia":
+        # Push a capture to an HTTP endpoint the other machine just opened.
+        # The cable stays the control channel and carries the URL; the file
+        # itself goes over the WiFi, where it takes a second instead of two
+        # minutes. In the shared table like `grave` and `fecrx`, so a swap of
+        # roles costs nothing -- whichever machine is recording can push.
+        bits = arg.split()
+        if len(bits) < 2:
+            return "uso: envia <stem> <url>"
+        stem, url = bits[0], bits[1]
+        if not netlink.reachable(url):
+            return f"envia: {url} nao responde"
+        out = []
+        for suffix in ('.json', '.wav'):
+            ok, msg = netlink.post_file(url, stem + suffix)
+            out.append(msg)
+            if not ok:
+                return "envia FALHOU: " + " | ".join(out)
+        return "envia ok: " + " | ".join(out)
     if verb == "puxainfo":
         # Everything the other end needs before asking for the first packet,
         # in one round trip: how many packets there are, how big they are, and

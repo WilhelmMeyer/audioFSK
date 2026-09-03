@@ -29,9 +29,11 @@ import argparse
 import json
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 
+import netlink
 import recording
 from capture import ask, make_text_payload, sync_span, SYNC_HUSH, FS
 from console import AudioNode, execute, fetch_recording
@@ -68,6 +70,37 @@ def wait_recording(ctl, timeout):
     return None
 
 
+def bring_back(ctl, stem, args, rx):
+    """The capture, from the far machine to this directory.
+
+    Over the network when it is there, over the serial cable when it is not.
+    The cable works at 8.1 kB/s -- about two minutes for a ten-second capture,
+    which over a campaign is hours of moving files and minutes of measuring --
+    so the network is worth trying first and the cable is worth keeping as the
+    thing that always works. The cable carries the URL either way, so neither
+    machine needs to know the other's address.
+
+    The far side writes the pair under its own stem and this side must end up
+    with `recording.py`'s format under the *same* stem, whichever route the
+    bytes took: a capture renamed in transit is a capture whose number can no
+    longer be traced to the machine and the moment that produced it.
+    """
+    name = stem.replace('\\', '/').rsplit('/', 1)[-1]
+    if rx is not None and not args.serial_only:
+        before = len(rx.received)
+        reply = ask(ctl, f"envia {stem} {rx.url}", timeout=120.0) or ''
+        if reply.startswith('envia ok'):
+            got = Path(args.out) / name
+            if got.with_name(name + '.wav').exists():
+                print(f"[a2b] {name} pela rede ({len(rx.received) - before} arquivos)")
+                return got
+        print(f"[a2b] rede indisponivel ({reply.strip()[:90]}), caindo para o cabo")
+    print(f"[a2b] trazendo {stem} pelo cabo...")
+    return fetch_recording(remote_fn(ctl), stem, args.out,
+                           note=lambda t: print('   ' + str(t).strip()),
+                           exact=args.exact)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -97,6 +130,8 @@ def main():
                     help="um tom puro em vez de payload")
     ap.add_argument('--silence', type=float, default=None,
                     help="nao transmite nada; so grava o piso do microfone de la")
+    ap.add_argument('--serial-only', action='store_true',
+                    help="nao tenta a rede; traz tudo pelo cabo")
     ap.add_argument('--exact', action='store_true',
                     help="traz o audio em float32 em vez de int16 (bem mais lento)")
     ap.add_argument('--out', default='captures-a2b')
@@ -152,6 +187,19 @@ def main():
 
     baud = 1200 if args.mode == 'fsk' else 100
     label = args.label or f"{args.mode}-A2B"
+
+    # Opened before the first trial and left open for all of them: the port is
+    # ephemeral, so a receiver per trial would hand the far side a different
+    # URL every time for no gain. `None` means the cable, which always works.
+    rx = None
+    if not args.serial_only:
+        try:
+            rx = netlink.Receiver(args.out)
+            rx.__enter__()
+            print(f"[a2b] recebedor HTTP em {rx.url}")
+        except Exception as e:
+            print(f"[a2b] recebedor HTTP nao abriu ({e}); tudo pelo cabo")
+            rx = None
 
     def one_trial(trial):
         """Arm the far side, transmit, bring the pair back, stamp the JSON."""
@@ -228,10 +276,7 @@ def main():
         if stem is None:
             print("[a2b] a gravacao nao ficou pronta")
             return False
-        print(f"[a2b] trazendo {stem} pelo cabo...")
-        got = fetch_recording(remote_fn(ctl), stem, args.out,
-                              note=lambda t: print('   ' + str(t).strip()),
-                              exact=args.exact)
+        got = bring_back(ctl, stem, args, rx)
         if got is None:
             print("[a2b] a transferencia falhou")
             return False
@@ -280,6 +325,8 @@ def main():
             ask(ctl, "spk on")
         except Exception:
             pass
+        if rx is not None:
+            rx.__exit__(None, None, None)
         ctl.close()
     print(f"[a2b] {done} de {args.trials} gravacoes. "
           f"Agora: ./venv/bin/python bench.py {args.out}")
