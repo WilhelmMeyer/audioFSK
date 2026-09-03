@@ -22,10 +22,12 @@ from pathlib import Path
 
 import numpy as np
 
+import distortion
 import fec
 import recording
-from modem import (FSKDemodulator, MFSKDemodulator, MFSK_PAIRS,
-                   MaryDemodulator)
+from modem import (FSKDemodulator, FSKModulator, MFSKDemodulator,
+                   MFSKModulator, MFSK_PAIRS, MaryDemodulator, MaryModulator,
+                   MARY_TONES)
 from scoring import score
 
 BLOCK = 2048
@@ -64,6 +66,70 @@ VARIANTS = [
     ("fsk squelch 0.0005", 'fsk',
      lambda m: FSKDemodulator(fs=m['fs'], baud=m['baud'], squelch=0.0005)),
 ]
+
+
+# The frequencies each layer actually sends. The midpoints between
+# neighbours are where nobody transmits, and above the top one is where only
+# harmonics land -- which is what `distortion` listens to.
+def layer_tones(mode):
+    if mode == 'mary':
+        return sorted(float(t) for t in MARY_TONES)
+    if mode in ('mfsk', 'mfsk-par'):
+        return sorted(float(t) for p in MFSK_PAIRS for t in p)
+    if mode == 'fsk':
+        return [1200.0, 2200.0]
+    return None
+
+
+_BASELINES = {}
+
+
+def layer_baseline(mode, meta):
+    """The same ratios for a clean synthetic burst of the layer.
+
+    Cached per mode and baud: it is the leakage the modulation itself puts
+    between the tones and above the band, and subtracting it is what makes the
+    recorded figure a statement about the channel rather than about the
+    waveform.
+    """
+    baud = meta.get('baud') or (1200 if mode == 'fsk' else 100)
+    key = (mode, baud, meta.get('fs', 48000))
+    if key not in _BASELINES:
+        fs = meta.get('fs', 48000)
+        factory = {'fsk': FSKModulator, 'mfsk': MFSKModulator,
+                   'mfsk-par': MFSKModulator, 'mary': MaryModulator}[mode]
+        _BASELINES[key] = distortion.baseline(factory(fs=fs, baud=baud),
+                                              layer_tones(mode), fs=fs)
+    return _BASELINES[key]
+
+
+def distortion_line(meta, samples):
+    """One line saying how much of this recording nobody transmitted.
+
+    Printed for every capture of a tone layer, alongside whatever else the
+    recording is being scored for. See `distortion.py` for what the two
+    numbers can and cannot say -- in short, the out-of-band figure detects a
+    clipping transmitter and the midpoint figure does not, and on the Bell 202
+    layer the midpoint figure is not interpretable at all.
+    """
+    mode = meta.get('mode')
+    tones = layer_tones(mode)
+    if tones is None:
+        return None
+    r = distortion.measure(np.asarray(samples, dtype=np.float64),
+                           meta.get('fs', 48000), tones)
+    if r is None:
+        return None
+    base = layer_baseline(mode, meta)
+    imd_note = ("  (entre-tons sem sentido em fsk 1200: a modulacao ocupa o meio)"
+                if mode == 'fsk' else "")
+    flag = "  SATURADO?" if distortion.saturated(r, base) else ""
+    hc = r['harm_clean']
+    harm = (f"{hc:+6.1f} dB (exc {hc - base['harm_rel']:+5.1f})" if hc is not None
+            else "  sem excesso acima da banda")
+    return (f"  distorcao            entre-tons {r['imd_rel']:+6.1f} dB "
+            f"(exc {r['imd_rel'] - base['imd_rel']:+5.1f})   "
+            f"acima da banda {harm}{flag}{imd_note}")
 
 
 def run_fec(meta, samples, nbytes, repeat):
@@ -129,10 +195,16 @@ def main():
                   f"  {len(payload)}B  "
                   f"rms={meta.get('rms',0):.4f}")
             print(f"  {'viterbi soft':<20}  {'OK, bloco inteiro' if ok else f'falhou ({hits}/{len(payload)} bytes)'}")
+            line = distortion_line(meta, samples)
+            if line:
+                print(line)
             totals.setdefault('viterbi soft', []).append(100.0 if ok else 0.0)
             continue
         print(f"\n{meta['recorded']}  {meta.get('label','')}  modo={meta['mode']} "
               f"{len(payload)}B  rms={meta.get('rms',0):.4f} pico={meta.get('peak',0):.3f}")
+        line = distortion_line(meta, samples)
+        if line:
+            print(line)
         for name, mode, factory in variants:
             if mode != meta['mode']:
                 continue
