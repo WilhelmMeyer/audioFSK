@@ -167,6 +167,14 @@ def decodes(llr, payload, meta):
     rep = meta.get('fec_repeat', 1)
     if llr is None or not len(llr):
         return False
+    # An empty payload decodes to an empty block, and `b'' == b''` is True: a
+    # recording of a silent room, with nothing transmitted into it, scored as a
+    # block delivered whole. This project already knows the shape of that
+    # mistake -- a vote is a ratio, so five tones of noise still elect a bit --
+    # and it belongs in the scorer as much as in the demodulator. There is
+    # nothing to deliver, so nothing was delivered.
+    if not payload:
+        return False
     if meta.get('parallel'):
         npairs = len(MFSK_PAIRS)
         start = fec.find_sync_parallel(llr, npairs)
@@ -267,6 +275,13 @@ def score_one(json_path, run):
     llr = soft(demodulator(meta), samples)
     want = frame_bits(payload, meta)
     at, acc = best_slide(llr, want)
+    # A capture with no payload -- a noise floor, a tone, a sweep -- has no bit
+    # accuracy to report. Without this the sync word alone is the whole of
+    # `want`, and correlating 31 bits against noise returned 71-78% for four
+    # recordings of a silent room. A number that high, printed beside a real
+    # one, is worse than no number.
+    if not payload:
+        at, acc = None, None
     nsym = write_llr(run / 'llr' / f'{stem}.csv', llr, symbol_bits(meta))
     if at is not None:
         write_bits(run / 'bits' / f'{stem}.txt', llr, want, at, meta, stem)
@@ -280,7 +295,7 @@ def score_one(json_path, run):
         'fec_repeat': meta.get('fec_repeat'),
         'bytes': len(payload),
         'acerto_bits': None if acc is None else round(100 * acc, 2),
-        'bloco_ok': int(decodes(llr, payload, meta)),
+        'bloco_ok': int(decodes(llr, payload, meta)) if payload else None,
         # Measured off the samples, not copied from the metadata: the level
         # that matters is the one in the file being scored.
         'pico_rx': round(float(np.max(np.abs(samples))) if len(samples) else 0.0, 4),
@@ -293,6 +308,9 @@ def header(path, name, rows, metas, args, commit, errors):
     """The file someone writing this up reads first."""
     m = metas[0] if metas else {}
     ok = [r for r in rows if r['acerto_bits'] is not None]
+    # Recordings with no payload -- floor, tone, sweep -- are collected and
+    # filed, but they are not blocks and must not appear in the denominator.
+    scored = [r for r in rows if r['bloco_ok'] is not None]
     lines = [
         f"# {name}",
         "",
@@ -319,12 +337,12 @@ def header(path, name, rows, metas, args, commit, errors):
         bits = '--' if r['acerto_bits'] is None else f"{r['acerto_bits']:.2f}%"
         lines.append(
             f"| `{r['stem']}` | {r['gain']} | {r['fec_repeat']} | {r['bytes']} "
-            f"| {bits} | {'OK' if r['bloco_ok'] else 'nao'} "
+            f"| {bits} | {'--' if r['bloco_ok'] is None else ('OK' if r['bloco_ok'] else 'nao')} "
             f"| {r['pico_rx']:.2f} | {r['rms_rx']:.3f} |")
-    if ok:
+    if ok and scored:
         lines += ["",
                   f"Media de bits certos: {np.mean([r['acerto_bits'] for r in ok]):.2f}%. "
-                  f"Blocos inteiros: {sum(r['bloco_ok'] for r in rows)} de {len(rows)}."]
+                  f"Blocos inteiros: {sum(r['bloco_ok'] for r in scored)} de {len(scored)}."]
     lines += [
         "",
         "## Como ler",
@@ -401,7 +419,7 @@ def main():
             errors.append((row['stem'], err))
         bits = '--' if row['acerto_bits'] is None else f"{row['acerto_bits']:.2f}%"
         print(f"  {row['stem']}  {nsym} simbolos  bits {bits}  "
-              f"bloco {'OK' if row['bloco_ok'] else 'nao'}  "
+              f"bloco {'--' if row['bloco_ok'] is None else ('OK' if row['bloco_ok'] else 'nao')}  "
               f"pico {row['pico_rx']:.2f}" + ("  [figura falhou]" if err else ""),
               flush=True)
 
