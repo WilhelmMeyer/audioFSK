@@ -112,24 +112,24 @@ A alternativa é dar a ele algo para **adquirir** em vez de algo para convergir.
 
 **O padrão é desligado, e o padrão é a proteção.** As varreduras mudam o formato do quadro, então as duas máquinas têm de concordar. Um receptor que espera varredura e não acha cai de volta no gate e só perde a melhoria; mas um transmissor que manda varredura para um receptor que não procura põe 80 ms de tom varrido onde deviam estar os primeiros símbolos do preâmbulo. O perigo não é a divergência em si, é como ela chega — `pull` alcança uma máquina de cada vez, e na seguidora o canal serial é feito dos arquivos que estão sendo substituídos. Desligado por padrão, um `pull` que chega só numa ponta não muda nada; `b syncsweep on` liga as duas de uma vez.
 
-### O que elas compram, medido nos dois extremos do canal
+### O que elas compram
 
-Um canal limpo não deixa margem para uma melhoria de sincronismo aparecer — tudo decodifica de qualquer jeito e a comparação não mede nada. Por isso o mecanismo foi desenvolvido contra um canal **degradado de propósito**: caixa Bluetooth com o ganho acima do teto do limitador, onde parte das gravações chega saturada. Isso é estressor deliberado, não erro de calibração, e precisa ser dito ao lado do número — distorção não é ruído, e um resultado lido ali não transfere sozinho para um enlace limpo. Depois o mesmo mecanismo foi validado no outro extremo: alto-falante interno com fio, ganho calibrado, **limpo de propósito**.
+Um canal limpo não deixa margem para uma melhoria de sincronismo aparecer — tudo decodifica de qualquer jeito e a comparação não mede nada. Por isso o mecanismo foi desenvolvido contra um canal **degradado de propósito**: ganho acima do teto do limitador, onde parte das gravações chega saturada. Isso é estressor deliberado, não erro de calibração, e precisa ser dito ao lado do número — distorção não é ruído, e um resultado lido ali não transfere sozinho para um enlace com folga.
 
-**Ressalva, e ela vem antes dos números: isto é auto-captura, uma máquina só.** O mesmo computador toca pelo alto-falante e grava pelo microfone. O ar, o pente da sala, o limitador e o microfone são reais; o que falta é específico. Com alto-falante **com fio** as duas pontas dividem o clock da placa, então a deriva de taxa de amostragem — parte do que o gate existe para corrigir — desaparece, e os números de sincronismo saem otimistas. Com **Bluetooth** a deriva volta, porque a caixa tem cristal próprio, ao custo de um codec com perda que o enlace real não tem. **Não misture os dois acervos na mesma média**, e nada disso entra na tabela principal deste README antes de ser revalidado nas duas máquinas.
+**Ressalva, e ela vem antes dos números: isto é auto-captura, uma máquina só.** O mesmo computador toca pela caixa Bluetooth e grava pelo microfone interno. O ar, o pente da sala, o limitador e o microfone são reais; o que falta é específico — a caixa tem cristal próprio, então a deriva de taxa de amostragem está presente, ao custo de um codec com perda que o enlace real não tem. Nada disso entra na tabela principal deste README antes de ser revalidado nas duas máquinas.
 
-Dois acervos de 60 gravações cada. As colunas gate e varredura saem do **mesmo** áudio, então a comparação não tem sala nem momento diferente dentro dela:
+Sessenta gravações no ponto de operação calibrado (ganho 0,30). As colunas gate e varredura saem do **mesmo** áudio, então a comparação não tem sala nem momento diferente dentro dela:
 
-| Acervo | Bits (gate) | Bits (varredura) | Blocos (gate) | Blocos (varredura) |
-|---|---|---|---|---|
-| Bluetooth, degradado de propósito | 88,8% | **90,8%** | 43/60 | **59/60** |
-| Com fio, limpo de propósito | **96,3%** | 93,8% | 26/60 | **57/60** |
+| Alinhamento | Bits certos | Blocos íntegros |
+|---|---|---|
+| gate early/late | 88,8% | 43/60 |
+| **varredura nas duas pontas** | **90,8%** | **59/60** |
 
-**O canal com fio lê 7,5 pontos a mais de bits e o gate recupera menos blocos nele** — 26 de 60 contra 43 de 60. A taxa 1/3 é íntegra até cerca de 13% de bits errados, então 4% de erro deveria decodificar com folga, e não decodifica. O que o gate perde não é bit, é o próprio alinhamento; e a coluna de bits não mostra isso porque acerto de bit é medido no melhor deslizamento por força bruta, enquanto bloco recuperado é medido onde o gate de fato caiu. A varredura fica em 59/60 e 57/60 — praticamente a mesma coisa nos dois canais, e é essa indiferença ao canal que se está comprando.
+A varredura lê mais bits em **59 das 60** gravações — comparação pareada, mesmo áudio nas duas colunas, o que é bem mais forte que a diferença de duas médias.
 
-**Num canal limpo a varredura lê *menos* bits que o gate, e ainda assim é a escolha certa.** Ela ganha a comparação de bits em 59 de 60 gravações no Bluetooth e em apenas 8 de 60 nas com fio: um relógio travado não acompanha o que um gate corrigível acompanha, e num canal com folga não há o que resgatar. Os blocos dizem o contrário, e bloco é o que o enlace entrega. Meio ponto de acerto de bit vale zero colapsos, porque taxa de código nenhuma conserta um bloco cujos símbolos nunca foram amostrados onde os símbolos estavam.
+**O que ela compra é seguro contra colapso, não caso médio.** O gate fica cerca de um ponto abaixo do melhor deslocamento possível na maioria das vezes; o problema é quando ele erra feio. Numa gravação leu 49,0% dos bits onde um relógio travado no lugar certo leu 84,9%. Taxa de código nenhuma conserta um bloco cujos símbolos nunca foram amostrados onde os símbolos estavam — por isso a diferença aparece inteira na coluna de blocos e quase não aparece na de bits.
 
-**Uma anomalia que fica registrada sem explicação.** O caminho com fio foi medido três vezes na mesma configuração: seis gravações deram 6/6 blocos ao gate, depois doze deram 1/12, depois mais doze deram 3/12 — com `rms` recebido entre 0,079 e 0,084 nas três, e a varredura em 6/6, 11/12 e 11/12 sobre o mesmo áudio. **A causa não é conhecida.** Não é nível, não é saturação, e não é deriva de taxa de amostragem: esse caminho divide o clock da placa e o período medido é 480,00. Não tire média de uma janela dessas, e não leia seis gravações como resultado — a primeira leitura aqui teria sido publicada como `6/6` e foi contradita duas vezes.
+**Bits e blocos não são a mesma régua, e não devem ser lidos como se fossem.** Acerto de bit é medido no melhor deslizamento achado por força bruta contra o payload conhecido — é um oráculo, serve para diagnosticar. Bloco recuperado é medido onde o alinhamento de fato caiu, e é o que o enlace entrega.
 
 ### Redundância: com as varreduras, `fecrep 1` basta
 
@@ -174,7 +174,7 @@ Uma ideia nova é **uma entrada na lista `VARIANTS` do `bench.py`** e custa segu
 
 `align.py` é a sonda que separa essas duas coisas: força o deslocamento de símbolo por força bruta e entrega ao detector divisores que ele não teria como calcular sozinho. Serve para responder "vale a pena construir isto" **antes** de construir. Foi ele que matou metade de um esquema proposto — um piloto por tom pontuou 80,9% dos bits contra 88,3% da estimativa cega que já estava no código, porque dividir pelo *ganho* do canal é a operação errada: a decisão "este tom está presente" quer energia sobre o **ruído** daquela frequência, não sobre o sinal.
 
-Leia o `--link` antes de comparar duas gravações de auto-captura: com fio e Bluetooth são canais diferentes, e a ressalva está na seção *Sincronismo*.
+Leia o `--link` antes de comparar duas gravações de auto-captura: alto-falantes diferentes são canais diferentes, e a ressalva está na seção *Sincronismo*.
 
 ### Uma campanha, uma pasta
 
@@ -215,7 +215,7 @@ Toda escolha de tom neste projeto tinha vindo de uma banda tomada por fé — 70
 - **O `loopback_test.py` não vê falha de sincronismo.** O quadro sintético dele abre com preâmbulo alternado em nível de bit, que entrega o travamento pronto antes da carga começar. Uma regressão que zerou o link real passou nele sem reclamar. Toda mudança que toque em temporização precisa passar pelo acervo, não só pelo loopback.
 - **Recuperação de bytes é métrica abrupta.** Com poucas gravações, variações de 8% a 22% entre parâmetros vizinhos aparecem sem tendência nenhuma — é ruído. Para decidir ajuste fino, meça acerto de *bits* com alinhamento por força bruta, que é estável, ou grave muito mais.
 - **Acerto de bit e bloco recuperado não medem a mesma coisa, e não podem ser lidos na mesma régua.** Acerto de bit é medido no melhor deslizamento por força bruta, que é escolhido para favorecer; bloco recuperado é medido onde o receptor de fato caiu. Um gate pode ler 95% dos bits e perder o bloco, e a coluna de bits não mostra por quê. Meça as duas, sempre no mesmo critério em todas as linhas.
-- **Seis gravações não são um resultado.** A mesma configuração com fio deu 6/6 blocos ao gate numa leitura e 1/12 na seguinte, quatro minutos depois e com o mesmo nível recebido. Veja a anomalia em *Sincronismo*.
+- **Poucas gravações não são um resultado.** Configurações vizinhas já pontuaram 8% e 22% sem tendência nenhuma, só por quais blocos calharam de cair. Para decidir um ajuste fino, meça acerto de bit num alinhamento forçado, que é estável, ou grave muito mais.
 
 ## O canal, medido
 
@@ -456,7 +456,7 @@ Avalie um link com `linktest.py` e sua carga aleatória. Trate throughput de tom
 - Uma mensagem legível de 58 caracteres atravessou íntegra.
 - Ruído puro decodifica 2 bytes de lixo, contra 485 antes do gate de presença.
 - O fluxo de gravação-e-pontuação: uma ideia nova custa segundos, não uma ida e volta com a segunda máquina.
-- **Sincronismo por varredura** (`syncsweep on`), que recupera 59 e 57 blocos de 60 nos dois acervos de auto-captura, contra 43 e 26 do gate early/late sobre o mesmo áudio.
+- **Sincronismo por varredura** (`syncsweep on`), que recupera 59 blocos de 60 na auto-captura contra 43 do gate early/late, sobre o mesmo áudio.
 - **Campanha arquivada** (`study.py`): dados, gravações, figuras e cabeçalho numa pasta, com o commit que produziu os números.
 - Atualização e reinício remotos pela serial, incluindo no Windows.
 
@@ -472,7 +472,6 @@ Avalie um link com `linktest.py` e sua carga aleatória. Trate throughput de tom
 3. **Fechar a lacuna da camada paralela.** A falha não é do decodificador — foi o sincronismo, e a correção que o levou de 1/9 para 5/9 saiu de reprocessar gravações, sem transmitir nada.
 4. **Revalidar a varredura nas duas máquinas.** Todo número dela vem de auto-captura. `b syncsweep on` nos dois lados antes de medir; nada disso entra na tabela principal antes disso.
 5. **Ensinar o `recvfile.py` a usar as varreduras.** Hoje ele as desliga no setup, por segurança. É o caminho que mais precisa delas, e é a transferência de arquivo que ainda não funciona.
-6. **Por que o gate colapsa no canal limpo.** Ele recupera 26 blocos de 60 com fio contra 43 de 60 no Bluetooth, lendo 7,5 pontos a mais de bits — e três leituras da mesma configuração deram 6/6, 1/12 e 3/12. A causa não é nível, saturação nem deriva de clock. É a pista mais estranha aberta aqui.
 
 **Coisas já tentadas e rejeitadas pela medição** (não repita sem um motivo novo):
 
