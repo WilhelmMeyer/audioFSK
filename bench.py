@@ -74,7 +74,8 @@ def run_fec(meta, samples, nbytes, repeat):
     it: the 8N1 path hands back plausible-looking garbage.
     """
     if meta.get('mode') == 'mary':
-        d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'])
+        d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
+                            gap=meta.get('gap', 0.0))
         llr = np.concatenate([d.demodulate_soft(samples[i:i + BLOCK])
                               for i in range(0, len(samples), BLOCK)])
         start = fec.find_sync(llr)

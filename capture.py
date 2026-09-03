@@ -141,6 +141,9 @@ def main():
                     help="seconds to keep recording after the burst should have ended")
     ap.add_argument('--text', help="send this exact text instead of a random "
                                    "payload (for a readable demonstration)")
+    ap.add_argument('--gap', type=float, default=None,
+                    help="silence at the end of each M-ary symbol, as a "
+                         "fraction; both machines must agree")
     ap.add_argument('--repeat', type=int, default=2,
                     help="how many times each coded bit is sent")
     ap.add_argument('--parallel', action='store_true',
@@ -169,6 +172,8 @@ def main():
     if args.fec:
         ask(ctl, f"fecpar {'on' if args.parallel else 'off'}")
         ask(ctl, f"fecrep {args.repeat}")
+    if args.gap is not None:
+        ask(ctl, f"marygap {args.gap}")
     if args.gain is not None:
         ask(ctl, f"gain {args.gain}")
 
@@ -227,6 +232,7 @@ def main():
                               kind='fec' if args.fec else 'stream',
                               fec_repeat=args.repeat if args.fec else 0,
                               parallel=bool(args.fec and args.parallel),
+                              gap=args.gap or 0.0,
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,
                               airtime_s=round(airtime, 2))
