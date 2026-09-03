@@ -33,7 +33,7 @@ import numpy as np
 
 import fec
 import recording
-from modem import MARY_TONES, MARY_BITS, _GRAY
+from modem import MARY_TONES, MARY_BITS, MFSK_PAIRS, _GRAY
 
 
 def write_png(path, rgb):
@@ -465,9 +465,14 @@ def main():
         img[top:top + args.rows] = tile[::-1]
     panels = tiles
 
-    # Mark the sixteen M-ary tones down the left edge, so a null is readable
-    # as "that tone" rather than "somewhere around there".
-    for f in MARY_TONES:
+    # Mark the layer's own tones down the left edge, so a null is readable as
+    # "that tone" rather than "somewhere around there". Which tones those are
+    # depends on the capture: the chord layers and the M-ary one do not share a
+    # single frequency, and marking the wrong set would put the ticks where
+    # nothing was ever transmitted.
+    marks = (MARY_TONES if meta.get('mode') == 'mary'
+             else sorted(t for pair in MFSK_PAIRS for t in pair))
+    for f in marks:
         if not args.lo <= f <= args.hi:
             continue
         r = int((f - args.lo) / (args.hi - args.lo) * (args.rows - 1))
