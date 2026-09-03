@@ -158,9 +158,21 @@ def post_file(url, path, timeout=60.0):
         return False, f'{path.name}: {e}'
 
 
-def reachable(url, timeout=5.0):
+def probe(url, timeout=5.0):
+    """(ok, why). The `why` matters more than the ok.
+
+    "connection refused" is a machine that answered and had nothing listening;
+    a timeout is a packet that never arrived, which on a WiFi usually means
+    client isolation between two stations rather than anything on either host.
+    A boolean cannot tell those apart, and they have opposite fixes.
+    """
     try:
         with urllib.request.urlopen(f'{url.rstrip("/")}/ping', timeout=timeout) as r:
-            return r.read().strip() == b'pong'
-    except Exception:
-        return False
+            body = r.read().strip()
+            return body == b'pong', body.decode('utf-8', 'replace')
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+
+
+def reachable(url, timeout=5.0):
+    return probe(url, timeout)[0]

@@ -1280,6 +1280,17 @@ def execute(node, cmd):
         return node.record_start(secs, bits[1].strip() if len(bits) > 1 else '')
     if verb in ("gravou", "gravacao"):
         return node.record_status()
+    if verb == "rede":
+        # What this machine's address is, and what it sees when it dials the
+        # other one. Two hosts on the same WiFi that cannot reach each other is
+        # usually the access point isolating its clients, and that reads
+        # exactly like a firewall until someone prints the errno.
+        bits = arg.split()
+        out = [f"ip local: {netlink.local_ip()}"]
+        for url in bits:
+            ok, why = netlink.probe(url)
+            out.append(f"{url}: {'ok' if ok else 'FALHOU'} -- {why}")
+        return "\n".join(out)
     if verb == "envia":
         # Push a capture to an HTTP endpoint the other machine just opened.
         # The cable stays the control channel and carries the URL; the file
@@ -1290,8 +1301,9 @@ def execute(node, cmd):
         if len(bits) < 2:
             return "uso: envia <stem> <url>"
         stem, url = bits[0], bits[1]
-        if not netlink.reachable(url):
-            return f"envia: {url} nao responde"
+        ok, why = netlink.probe(url)
+        if not ok:
+            return f"envia: {url} nao responde -- {why}"
         out = []
         for suffix in ('.json', '.wav'):
             ok, msg = netlink.post_file(url, stem + suffix)
