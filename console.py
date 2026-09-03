@@ -104,6 +104,14 @@ class AudioNode:
         self.echo = False
         self.fec_parallel = False
         self.fec_repeat = FEC_REPEAT
+        # Receiving an error-corrected block, the mirror of fecsend. Without
+        # it only the console side could decode FEC, through capture.py and
+        # recvfile.py -- separate programs that own their own audio -- so the
+        # good direction followed whoever held the keyboard. It lives in the
+        # shared command table precisely so a role swap costs nothing.
+        self.fec_rx = False
+        self.fec_llr = []
+        self.fec_nbytes = 0
         self.in_stream = None
         self.out_stream = None
 
@@ -136,6 +144,20 @@ class AudioNode:
     def demod(self):
         return self.layers[self.mode][1]
 
+    @property
+    def fec_layer(self):
+        """Which instance pair an error-corrected block uses.
+
+        Not always `self.mode`: parallel MFSK is a separate pair. The
+        transmitter already picked 'mfsk-par' here while `self.mode` stayed
+        'mfsk', so a receiver reading `self.demod` would have listened on a
+        different instance than the one that spoke -- harmless only for as
+        long as there was no receive path. Both ends read this property now.
+        """
+        if self.mode == 'mary':
+            return 'mary'
+        return 'mfsk-par' if self.fec_parallel else 'mfsk'
+
     def threshold(self, value=None):
         """The two layers gate on different quantities and must not share a
         number: Bell 202 squelches on absolute baseband amplitude, the ratio
@@ -153,6 +175,10 @@ class AudioNode:
         self.mod.reset()
         self.demod.reset()
         self.rx_buffer.clear()
+        # A half-heard block belongs to the layer that was listening. Keeping
+        # it would feed one layer's soft values to the other's decoder.
+        self.fec_rx = False
+        self.fec_llr = []
         with self.stats_lock:
             self._reset_stats()
         baud = BAUD if mode == 'fsk' else MFSK_BAUD
@@ -211,7 +237,7 @@ class AudioNode:
         """
         k = len(MFSK_PAIRS)
         if self.mode == 'mary':
-            mod = self.layers['mary'][0]
+            mod = self.layers[self.fec_layer][0]
             bits = fec.frame(data, repeat=repeat)
             # Alternate between the two extreme tones. A preamble that repeats
             # one symbol is a steady tone, and timing recovery learns nothing
@@ -224,7 +250,7 @@ class AudioNode:
                                       mod.modulate_bits(list(bits)),
                                       mod.idle(6)])
             return (samples * self.gain).astype(np.float32)
-        mod = self.layers['mfsk-par' if self.fec_parallel else 'mfsk'][0]
+        mod = self.layers[self.fec_layer][0]
         bits = self.fec_bits(data)
         # The preamble alternates on every pair at once so timing recovery
         # sees the same thing either way, and so the far side can lock before
@@ -234,6 +260,57 @@ class AudioNode:
                                   mod.modulate_bits(list(bits)),
                                   mod.idle(4)])
         return (samples * self.gain).astype(np.float32)
+
+    def fec_listen(self, on, nbytes=None):
+        """Arm or disarm soft-decision accumulation.
+
+        Hard and soft cannot both run over one block: `_symbols` consumes the
+        buffer, so whichever call came second would see an empty one. Arming
+        therefore switches the thread's path rather than adding to it, and
+        resets the demodulator so the block starts on a clean filter state.
+        """
+        if on:
+            if self.mode == 'fsk':
+                return "fecrx nao existe em fsk (sem saida soft) -- 'mode mary'"
+            if nbytes:
+                self.fec_nbytes = nbytes
+            if not self.fec_nbytes:
+                return "uso: fecrx on <bytes esperados>"
+            self.layers[self.fec_layer][1].reset()
+            self.fec_llr = []
+            self.fec_rx = True
+            return (f"fecrx LIGADO em {self.fec_layer}, esperando "
+                    f"{self.fec_nbytes} bytes (rep {self.fec_repeat})")
+        self.fec_rx = False
+        return f"fecrx desligado ({sum(len(a) for a in self.fec_llr)} valores)"
+
+    def fec_read(self, nbytes=None):
+        """Sync, then Viterbi, over everything heard since arming.
+
+        Same two steps as bench.run_fec, and deliberately the same order: the
+        sync word is found by correlation over the soft stream because symbol
+        counting drifts -- the early/late gate eats a different number of
+        samples per symbol as it steers.
+        """
+        want = nbytes or self.fec_nbytes
+        if not want:
+            return "uso: fecrx <bytes esperados>"
+        if not self.fec_llr:
+            return "nada acumulado -- 'fecrx on <bytes>' primeiro"
+        llr = np.concatenate(self.fec_llr)
+        npairs = len(MFSK_PAIRS)
+        if self.fec_layer == 'mfsk-par':
+            start = fec.find_sync_parallel(llr, npairs)
+            if start is None:
+                return f"sync nao encontrado ({len(llr)} valores)"
+            data = fec.decode_parallel(llr[start:], want, npairs,
+                                       repeat=self.fec_repeat)
+        else:
+            start = fec.find_sync(llr)
+            if start is None:
+                return f"sync nao encontrado ({len(llr)} valores)"
+            data = fec.decode(llr[start:], want, repeat=self.fec_repeat)
+        return f"{len(data)} bytes ({len(llr)} valores): {printable(data)}"
 
     def _chirp(self, f0, f1, secs):
         """Linear sweep, amplitude-flat, with short fades at each end.
@@ -272,11 +349,14 @@ class AudioNode:
                         self.out_queue.put(self._chirp(*payload[1:]))
                     continue
                 samples = self.mod.modulate(payload if raw else PREAMBLE + payload)
-                if self.mode == 'mfsk':
-                    # The MFSK demodulator keeps just over a symbol buffered,
-                    # so a burst that stops dead leaves its last byte stranded
-                    # there -- every send losing its tail, silently. Bell 202
-                    # needs no such tail and its modulator offers none.
+                if self.mode != 'fsk':
+                    # Every ratio-detecting layer keeps just over a symbol
+                    # buffered, so a burst that stops dead leaves its last
+                    # byte stranded there -- every send losing its tail,
+                    # silently. That is true of M-ary exactly as it is of the
+                    # chord layers, and testing for 'mfsk' alone left M-ary
+                    # sends short by a byte. Bell 202 needs no such tail and
+                    # its modulator offers none.
                     samples = np.concatenate([samples, self.mod.idle(4)])
                 self.out_queue.put((samples * self.gain).astype(np.float32))
                 continue
@@ -293,22 +373,29 @@ class AudioNode:
     def _demodder(self):
         while True:
             samples = self.in_queue.get()
-            out = self.demod.demodulate(samples)
+            # One instance, named the same way at both ends -- see fec_layer.
+            if self.fec_rx:
+                d = self.layers[self.fec_layer][1]
+                self.fec_llr.append(d.demodulate_soft(samples))
+                out = b''
+            else:
+                d = self.demod
+                out = d.demodulate(samples)
             with self.stats_lock:
-                self.peak = max(self.peak, self.demod.input_peak)
+                self.peak = max(self.peak, d.input_peak)
                 # Sum the two levels and divide once at the end. Averaging the
                 # per-block ratio instead lets a near-silent block, where the
                 # denominator is almost zero and the bandpass is still ringing
                 # from its own initial state, throw the whole window past 100%.
-                self.rms_sum += self.demod.input_rms
+                self.rms_sum += d.input_rms
                 # Each layer reports quality in its own currency: in-band
                 # energy for the Bell 202 detector, decision contrast for the
                 # ratio detector. Both are fractions of the input, so the
                 # meter renders them the same way.
                 if self.mode == 'fsk':
-                    self.level_sum += self.demod.level_rms
+                    self.level_sum += d.level_rms
                 else:
-                    self.level_sum += self.demod.contrast * self.demod.input_rms
+                    self.level_sum += d.contrast * d.input_rms
                 self.blocks += 1
                 self.bytes_in += len(out)
             if out:
@@ -433,6 +520,8 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   chirp [f0 f1 seg]   varredura de frequencia, para medir a resposta do canal
   send <texto>        transmite <texto> pelo ar
   fecsend <texto>     transmite com correcao de erro (mfsk ~2 B/s, mary ~9 B/s)
+  fecrx on <n>        escuta um bloco corrigido de n bytes (mfsk ou mary)
+  fecrx [n]           decodifica o que foi escutado; 'fecrx off' encerra
   fecpar on|off       fec em paralelo: 5 bits por simbolo, ~4x mais rapido
   fecrep <n>          repeticoes de cada bit codificado (padrao 2)
   fileinfo <arq>      tamanho, pacotes e crc32 de um arquivo
@@ -572,6 +661,29 @@ def execute(node, cmd):
         bits = len(node.fec_bits(data))
         return (f"fecsend {len(data)} bytes -> {bits} simbolos "
                 f"({bits / MFSK_BAUD:.1f}s no ar)")
+    if verb == "fecrx":
+        # The receiving half of fecsend, and the reason it belongs in this
+        # table rather than in a tool: execute() is identical on both roles,
+        # so adding it here makes either machine able to receive. Before it,
+        # soft decoding lived only in bench.py and recvfile.py -- which own
+        # their own audio and so only ever ran on the console side, which is
+        # why the working direction followed the keyboard instead of being a
+        # property of the link.
+        bits = arg.split()
+        if bits and bits[0].lower() in ("on", "off", "1", "0", "true", "false", "sim"):
+            on = bits[0].lower() in ("on", "1", "true", "sim")
+            try:
+                want = int(bits[1]) if len(bits) > 1 else None
+            except ValueError:
+                return f"fecrx: numero invalido: {bits[1]!r}"
+            if on and not node.in_stream:
+                return "mic desligado - rode 'mic on' antes"
+            return node.fec_listen(on, want)
+        try:
+            want = int(bits[0]) if bits else None
+        except ValueError:
+            return f"fecrx: numero invalido: {bits[0]!r}"
+        return node.fec_read(want)
     if verb == "fecrep":
         # How many times each coded bit is sent. The right value is a property
         # of the link, not of the code: what the decoder needs is a number of
@@ -653,6 +765,8 @@ def execute(node, cmd):
     if verb == "reset":
         node.demod.reset()
         node.rx_buffer.clear()
+        node.fec_rx = False
+        node.fec_llr = []
         with node.stats_lock:
             node._reset_stats()
         return "demodulador e buffers resetados"

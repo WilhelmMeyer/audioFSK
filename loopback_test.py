@@ -10,6 +10,7 @@ to survive, so those are the conditions it has to pass.
 
 import numpy as np
 
+import fec
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator,
@@ -250,10 +251,53 @@ def test_mary():
         check(f"ganho x{gain}", msg in out)
 
 
+def mary_fec_air(msg, repeat=2):
+    """Exactly what console.py's fecsend puts on the air, in M-ary.
+
+    Kept here rather than imported because console.py pulls in sounddevice,
+    and this suite has to run on a machine with no PortAudio at all.
+    """
+    mod = MaryModulator(fs=FS, baud=100)
+    pre = []
+    for i in range(120):
+        v = 0 if i % 2 else (1 << 4) - 1
+        pre += [(v >> j) & 1 for j in range(4)]
+    bits = fec.frame(msg, repeat=repeat)
+    return np.concatenate([mod.modulate_bits(pre),
+                           mod.modulate_bits(list(bits)),
+                           mod.idle(6)])
+
+
+def test_fec():
+    """The error-corrected block, end to end, over the impaired channel.
+
+    This is the path both machines now use to receive -- console.py's fecrx
+    reads exactly these two steps, sync by correlation then Viterbi. The hard
+    path is for eyeballing a link; this is the one that carries data.
+    """
+    print()
+    print("FEC sobre M-ary (sync + Viterbi soft):")
+    msg = b"ola mary, como vai voce"
+
+    for name, chan in (("limpo", lambda a: a),
+                       ("tilt -16 dB", tilt),
+                       ("tilt + limiter", lambda a: limiter(tilt(a))),
+                       ("ganho x0.02", lambda a: a * 0.02)):
+        audio = chan(mary_fec_air(msg))
+        demod = MaryDemodulator(fs=FS, baud=100)
+        llr = np.concatenate([demod.demodulate_soft(audio[i:i + 2048])
+                              for i in range(0, len(audio), 2048)])
+        start = fec.find_sync(llr)
+        got = b"" if start is None else fec.decode(llr[start:], len(msg), repeat=2)
+        check(f"{name} decodifica o bloco", got == msg,
+              "sync nao encontrado" if start is None else repr(got))
+
+
 def main():
     test_bell202()
     test_mfsk()
     test_mary()
+    test_fec()
     test_xfer()
     print()
     if failures:
