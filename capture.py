@@ -19,6 +19,7 @@ the serial port takes one owner.
 """
 
 import argparse
+import queue
 import sys
 import time
 
@@ -43,6 +44,62 @@ def make_text_payload(seed, n):
     import random
     rng = random.Random(seed)
     return bytes(rng.choice(ALPHABET) for _ in range(n))
+
+
+class Recorder:
+    """Capture through the callback API, because the device this project
+    needs on Windows refuses the blocking one.
+
+    WDM-KS is the host API that bypasses the Windows audio processing that
+    destroys these tones, and PortAudio has no blocking read for it -- it
+    fails outright with 'Blocking API not supported yet'. So the one machine
+    that most needs a recording was the one that could not make one. The
+    callback path works on every host API here, which is why there is no
+    longer a second one.
+    """
+
+    def __init__(self, device):
+        self.q = queue.Queue()
+        self.stream = sd.InputStream(samplerate=FS, channels=1,
+                                     blocksize=BLOCK, device=device,
+                                     callback=self._cb)
+
+    def _cb(self, indata, frames, time_info, status):
+        # Real-time thread: copy and queue, nothing else.
+        self.q.put(indata[:, 0].copy())
+
+    def __enter__(self):
+        self.stream.start()
+        time.sleep(0.2)          # let the device settle before it counts
+        self.drain()
+        return self
+
+    def __exit__(self, *exc):
+        self.stream.stop()
+        self.stream.close()
+
+    def drain(self):
+        while True:
+            try:
+                self.q.get_nowait()
+            except queue.Empty:
+                return
+
+    def collect(self, secs):
+        """Everything heard over the next `secs`, in order."""
+        chunks = []
+        t0 = time.time()
+        while time.time() - t0 < secs:
+            try:
+                chunks.append(self.q.get(timeout=0.5))
+            except queue.Empty:
+                pass
+        while True:
+            try:
+                chunks.append(self.q.get_nowait())
+            except queue.Empty:
+                break
+        return np.concatenate(chunks) if chunks else np.zeros(0)
 
 
 _seq = [0]
@@ -120,19 +177,11 @@ def main():
     # is worthless, and disk is free.
     if args.chirp:
         f0, f1, secs = (float(x) for x in args.chirp.split())
-        with sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
-                            device=args.device) as stream:
-            for _ in range(3):
-                stream.read(BLOCK)
+        with Recorder(args.device) as rec:
             reply = ask(ctl, f"chirp {f0:.0f} {f1:.0f} {secs}")
             if reply is None or 'chirp' not in reply:
                 sys.exit(f"[capture] a outra maquina recusou o chirp: {reply!r}")
-            t0 = time.time()
-            chunks = []
-            while time.time() - t0 < secs + 2.0:
-                data, _ = stream.read(BLOCK)
-                chunks.append(data[:, 0].copy())
-        samples = np.concatenate(chunks)
+            samples = rec.collect(secs + 2.0)
         stem = recording.save(args.out, samples, b'', kind='chirp',
                               label=args.label or 'chirp', mode=args.mode,
                               baud=0, fs=FS, chirp=[f0, f1, secs],
@@ -163,24 +212,13 @@ def main():
             airtime = (len(payload) + 16) * 10 / baud
         duration = airtime + args.tail + 1.0
 
-        with sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
-                            device=args.device) as stream:
-            for _ in range(3):          # let the device settle before it counts
-                stream.read(BLOCK)
-
+        with Recorder(args.device) as rec:
             verb = "fecsend" if args.fec else "send"
             reply = ask(ctl, f"{verb} " + payload.decode())
             if reply is None or ('enviando' not in reply and 'fecsend' not in reply):
                 print(f"[capture] a outra maquina recusou o envio: {reply!r}")
                 break
-            t0 = time.time()
-
-            chunks = []
-            while time.time() - t0 < duration:
-                data, _ = stream.read(BLOCK)
-                chunks.append(data[:, 0].copy())
-
-        samples = np.concatenate(chunks) if chunks else np.zeros(0)
+            samples = rec.collect(duration)
         rms = float(np.sqrt(np.mean(np.square(samples)))) if len(samples) else 0.0
         peak = float(np.max(np.abs(samples))) if len(samples) else 0.0
 
