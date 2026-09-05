@@ -8,7 +8,7 @@ Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do rep
 
 **Enquadramento, decidido em 2026-09-05: didático.** O artigo apresenta o sistema, compara brevemente com outros meios de transmissão, avalia o problema do canal acústico e propõe uma solução para este caso. Não pretende substituir outro meio nem reivindicar melhoria sobre a literatura. Nada de "supera", "melhor que", "novo". O valor está em mostrar o problema sendo medido, cada camada falhando de um jeito nomeável, e a correção que cada falha pediu.
 
-**O canal de controle da bancada (o cabo serial entre as máquinas) não entra no artigo.** Decisão de 2026-09-05. O método diz que a carga conhecida é gerada dos dois lados e que só o ar carrega os bytes pontuados, e para.
+**O canal de controle da bancada (o cabo serial entre as máquinas) não entra no artigo, em nenhuma seção, figura ou legenda.** Decisão do autor, 2026-09-05, e a razão: ele só auxilia e automatiza o ensaio, não é recurso da comunicação em si, e apresentá-lo confundiria mais do que ajudaria a entender. O método diz que a carga conhecida é gerada dos dois lados e que só o ar carrega os bytes pontuados, e para. Não reabrir.
 
 ## Arquivos desta pasta
 
@@ -67,6 +67,5 @@ Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas
 - Levantamento de referências: seis clusters listados no fim do `.md` (meios de transmissão, Bell 202/AFSK, canal acústico em ambiente fechado, OFDM/chirp/MFSK acústicos, códigos convolucionais e Viterbi suave, m-sequências). Nada levantado ainda.
 - Figuras: nenhuma feita. Candidatas no `.md`: diagrama do enlace; resposta em frequência medida com os 16 tons sobre o pente; bancada; bits e blocos contra nível do alto-falante. Fontes em `../resultados/*/figuras/` e `../channel.py`.
 - Financiamento: preencher ou remover a seção.
-- Decidir se o "cabo" fica na comparação de meios da introdução (hoje fica, como meio, não como recurso da bancada).
 - Ensaios A→B faltantes: 04 a 07 e 09 a 15. Decidir quais o artigo precisa nas duas direções (no mínimo 14-FEC-REP e 15-PKT-ARQ, que dão os números do resumo) e quais ficam declarados como medidos só em B→A.
 - Estado do texto: zero parágrafos redigidos. Próximo passo natural é o resumo ou a introdução, a pedido.
