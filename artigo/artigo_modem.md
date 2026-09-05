@@ -98,7 +98,8 @@ P5  O caso: duas maquinas de prateleira numa sala, sem nada a instalar, que prec
 P6  Em primeira pessoa, "apresentamos": a implementacao das camadas fisica e de enlace. (a) o canal medido, (b) a
     camada fisica, com as tres modulacoes experimentadas no mesmo enlace e o sincronismo de simbolo, (c) a camada de
     enlace, com o bloco codificado e a transferencia de arquivo em pacotes com reenvio do que nao chega, (d) o metodo de medicao com gravacoes e pontuacao
-    pareada, (e) o que a bancada ensinou sobre a cadeia analogica. Acima das duas, a aplicacao ve uma porta serial. Fecha com uma linha
+    pareada, (e) o que a bancada ensinou sobre a cadeia analogica. Acima das duas, a aplicacao ve uma porta serial;
+    uma frase, nao uma secao. Fecha com uma linha
     anunciando a verificacao: duas maquinas, um arquivo inteiro pelo ar.
 -->
 
@@ -154,7 +155,7 @@ Tres modulacoes, uma por paragrafo, na ordem em que foram experimentadas; depois
   entrelacamento, repeticao r, palavra de sincronismo de 31 bits (m-sequencia) achada por correlacao, nunca por
   contagem de simbolos. Tabela candidata: taxa de erro tolerada por variante (hard 8%, soft 8%, 1/3 soft 13%,
   1/3 x2 25%), da simulacao contra erros de bit; declarar que e simulada.
-- Transferencia de arquivo: o arquivo e quebrado em pacotes de tamanho
+- Transferencia de arquivo, recurso proprio do enlace, um paragrafo: o arquivo e quebrado em pacotes de tamanho
   fixo, cada um com byte de sincronismo, numero de sequencia, comprimento e CRC-16 (cabecalho de 3 bytes, cauda
   de 2). O receptor pede um pacote, confere o CRC e, se o pacote nao chega ou chega errado, pede de novo, ate um
   limite de tentativas por pacote (4 na bancada); so entao desiste. Pare-e-espere dirigido pelo receptor, com o
@@ -163,7 +164,7 @@ Tres modulacoes, uma por paragrafo, na ordem em que foram experimentadas; depois
   arquivo. Tamanho do pacote: 32 bytes de carga na camada sem codigo (16-24 bytes recuperaram 91% dos pacotes onde
   64 recuperaram 50%, na sala reverberante); 64 e 128 sobre o bloco codificado. A redundancia do bloco e um parametro
   do enlace acertado entre os dois lados. Fonte: xfer.py (docstring e constantes), recvfile.py, resultados/15-PKT-ARQ.
-- Acima: a aplicacao ve uma porta serial virtual.
+- Acima: a aplicacao ve uma porta serial virtual. Uma frase.
 Gancho: a tabela de resultados mostra o que o bloco e o pacote recuperam.
 -->
 

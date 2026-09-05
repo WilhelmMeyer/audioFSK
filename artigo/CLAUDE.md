@@ -4,7 +4,7 @@ Instruções locais para qualquer sessão que trabalhe nesta pasta. Registram as
 
 ## O que é este trabalho
 
-Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do repositório raiz. O que o artigo apresenta é a implementação de **duas camadas, física e de enlace**: a física com as modulações e o sincronismo de símbolo, o enlace com o bloco codificado e a transferência de arquivo, que quebra o arquivo em pacotes numerados com CRC e reenvia o pacote que não chega, até um limite de tentativas. Acima delas a aplicação vê uma porta serial virtual. Dois autores: Winderson (primeiro autor, dados a completar por ele) e Jefferson (mesmos dados do artigo da roda de reação).
+Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do repositório raiz. O que o artigo apresenta é a implementação de **duas camadas, física e de enlace**: a física com as modulações e o sincronismo de símbolo, o enlace com o bloco codificado e a transferência de arquivo, que quebra o arquivo em pacotes numerados com CRC e reenvia o pacote que não chega, até um limite de tentativas. Esse recurso de quebra e reenvio aparece nomeado no resumo, na introdução e na seção de enlace. Acima delas a aplicação vê uma porta serial virtual; isso é uma frase, não uma camada nem uma seção. Dois autores: Winderson (primeiro autor, dados a completar por ele) e Jefferson (mesmos dados do artigo da roda de reação).
 
 **Enquadramento, decidido em 2026-09-05: didático.** O artigo apresenta o sistema, compara brevemente com outros meios de transmissão, avalia o problema do canal acústico e propõe uma solução para este caso. Não pretende substituir outro meio nem reivindicar melhoria sobre a literatura.
 
@@ -55,7 +55,6 @@ Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas
 ## Processo de trabalho
 
 - O autor conduz **trecho a trecho**; nenhuma seção é redigida sem pedido explícito daquele trecho. Discutir não é aprovação para escrever.
-- **Estrutura é do autor.** Que seções existem, o que entra em cada uma e com que tamanho, é ele quem decide. Quando ele passa um fato ou um recurso a constar, a IAG o registra nos comentários do `.md` com a fonte; não o aloca em seção, não lhe dá parágrafo nem frase, não reorganiza o sumário.
 - Cada trecho redigido passa pela lista de verificação do `estilo.md` antes de ser mostrado.
 - Montar com `./artigo/monta.sh --sem-figuras` para revisar texto; com figuras só no fim.
 - Manter a declaração de uso de IAG atualizada: ferramenta usada e não declarada é omissão; declarada e não usada é inverdade.
