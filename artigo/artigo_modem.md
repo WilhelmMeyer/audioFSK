@@ -238,7 +238,7 @@ Os autores declaram não haver conflito de interesses no desenvolvimento e na pu
 ## REFERÊNCIAS
 
 <!--
-ABNT autor-data, ordem alfabetica, uma referencia por linha. Levantamento pendente. Clusters a cobrir:
+ABNT autor-data, ordem alfabetica, uma referencia por linha. Clusters:
 - comunicacao acustica audivel entre dispositivos (P1)
 - Bell 202 / AFSK e discriminador (P2)
 - canal acustico em ambiente fechado, resposta em pente (P3)
