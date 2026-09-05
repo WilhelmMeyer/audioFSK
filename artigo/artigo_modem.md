@@ -59,8 +59,7 @@ Cinco frases, conceitual ate a ultima, so ela com numeros (estilo.md, secao 9). 
    limitador de saida, decisao por sinal.
 3. A solucao, camada a camada: na fisica, um tom por vez entre dezesseis, decisao pelo piso de ruido de cada tom,
    sincronismo de simbolo; no enlace, bloco com codificacao convolucional K=7 e Viterbi de decisao suave, palavra de
-   sincronismo por correlacao, e a transferencia de arquivo, que quebra o arquivo em pacotes numerados com CRC e
-   reenvia o pacote que nao chega, ate um limite de tentativas; sem recuperacao de portadora, sem equalizador, sem
+   sincronismo por correlacao, pacote com CRC e pare-e-espere; sem recuperacao de portadora, sem equalizador, sem
    estimador de canal.
 4. A implementacao: duas maquinas, carga conhecida gerada dos dois lados, gravacoes pontuadas offline.
 5. Resultados com numeros-chave: ~11,3 B/s com 12 de 12 blocos; arquivo de 1334 bytes em 21 de 21 pacotes sem
@@ -97,7 +96,7 @@ P5  O caso: duas maquinas de prateleira numa sala, sem nada a instalar, que prec
     (10-25% dos bits chegam errados), e um jeito de medir sem que a sala entre na medida.
 P6  Em primeira pessoa, "apresentamos": a implementacao das camadas fisica e de enlace. (a) o canal medido, (b) a
     camada fisica, com as tres modulacoes experimentadas no mesmo enlace e o sincronismo de simbolo, (c) a camada de
-    enlace, com o bloco codificado e a transferencia de arquivo em pacotes com reenvio do que nao chega, (d) o metodo de medicao com gravacoes e pontuacao
+    enlace, com o bloco codificado, o pacote e a retransmissao, (d) o metodo de medicao com gravacoes e pontuacao
     pareada, (e) o que a bancada ensinou sobre a cadeia analogica. Acima das duas, a aplicacao ve uma porta serial;
     uma frase, nao uma secao. Fecha com uma linha
     anunciando a verificacao: duas maquinas, um arquivo inteiro pelo ar.
@@ -155,15 +154,8 @@ Tres modulacoes, uma por paragrafo, na ordem em que foram experimentadas; depois
   entrelacamento, repeticao r, palavra de sincronismo de 31 bits (m-sequencia) achada por correlacao, nunca por
   contagem de simbolos. Tabela candidata: taxa de erro tolerada por variante (hard 8%, soft 8%, 1/3 soft 13%,
   1/3 x2 25%), da simulacao contra erros de bit; declarar que e simulada.
-- Transferencia de arquivo, recurso proprio do enlace, um paragrafo: o arquivo e quebrado em pacotes de tamanho
-  fixo, cada um com byte de sincronismo, numero de sequencia, comprimento e CRC-16 (cabecalho de 3 bytes, cauda
-  de 2). O receptor pede um pacote, confere o CRC e, se o pacote nao chega ou chega errado, pede de novo, ate um
-  limite de tentativas por pacote (4 na bancada); so entao desiste. Pare-e-espere dirigido pelo receptor, com o
-  transmissor sem estado. Por que pacotes: o modem derruba bytes, nao so os corrompe, e um byte perdido desloca tudo
-  o que vem depois; o pacote e a unidade que se confere e se reenvia, e um pacote perdido custa um reenvio, nao o
-  arquivo. Tamanho do pacote: 32 bytes de carga na camada sem codigo (16-24 bytes recuperaram 91% dos pacotes onde
-  64 recuperaram 50%, na sala reverberante); 64 e 128 sobre o bloco codificado. A redundancia do bloco e um parametro
-  do enlace acertado entre os dois lados. Fonte: xfer.py (docstring e constantes), recvfile.py, resultados/15-PKT-ARQ.
+- Pacote: divisao do arquivo, cabecalho, CRC, pare-e-espere com retransmissao dirigida pelo receptor; a redundancia
+  do bloco e um parametro do enlace, acertado entre os dois lados. resultados/15-PKT-ARQ.
 - Acima: a aplicacao ve uma porta serial virtual. Uma frase.
 Gancho: a tabela de resultados mostra o que o bloco e o pacote recuperam.
 -->
@@ -210,10 +202,8 @@ causa + o que passou a alimentar. Orcamento ~750 palavras.
     (49,0% onde o relogio congelado leu 84,9%). Pareado: as varreduras leem mais bits em 59 de 60.
     resultados/12-13-SYNC. Dizer que parte disso foi na auto-captura Bluetooth, canal diferente.
 4.e Arquivo inteiro. testcard.bmp, 1334 bytes, 21 de 21 pacotes de 64 bytes sem retransmissao a 6,8 B/s; 11 de 11
-    a 7,2 B/s com 128 bytes (3 retransmissoes). Pacote maior amortiza o preambulo e falha mais; quase empata.
-    Antes entregava 1 de 21 com pacotes de 81 bytes, e nada na quebra em pacotes ou no reenvio mudou: a correcao
-    analogica. resultados/15-PKT-ARQ. Frase: o reenvio converge so quando a taxa de erro por pacote e baixa o
-    bastante; zero retransmissoes em 21 e resultado forte, mas nao mede essa taxa com precisao, so diz que e baixa.
+    a 7,2 B/s com 128 bytes. Antes entregava 1 de 21, e nada em recvfile/xfer mudou: a correcao analogica.
+    resultados/15-PKT-ARQ. Frase: um ARQ converge so quando a taxa de erro por pacote e baixa o bastante.
 4.f O que nao ajudou e o que ficou fora: marygap, maryband, marychord (custam ou nao medem nada); piloto por tom
     morto; a correcao do estimador de piso, boa na cadeia distorcida e pior na linear (0 de 3 contra 2 de 3),
     ainda nao no ar. Cada um com o numero e a pasta. Curto.
