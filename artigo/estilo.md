@@ -1,6 +1,6 @@
 # Estilo do autor
 
-Extraído de dois artigos do mesmo autor: o do VII SIMECA sobre a haste com roda de reação (português, controle, 2026) e o da IEEE Transactions on Industrial Electronics sobre o IVR-PFM (inglês, eletrônica de potência, 2026). Áreas e línguas diferentes, mesma forma. O que aparece nos dois é o estilo; o que aparece em um só está marcado. Serve de estrutura para o artigo do modem acústico.
+Extraído de dois artigos do mesmo autor, guardados em `estilo/`: o do VII SIMECA sobre a haste com roda de reação (português, controle, 2026) e o da IEEE Transactions on Industrial Electronics sobre o IVR-PFM (inglês, eletrônica de potência, 2026). Áreas e línguas diferentes, mesma forma. O que aparece nos dois é o estilo; o que aparece em um só está marcado. Serve de estrutura para o artigo do modem acústico.
 
 ## 1 O algoritmo do artigo
 
