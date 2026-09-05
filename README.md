@@ -15,6 +15,8 @@ Medido no ar, entre duas máquinas na mesma sala, com blocos protegidos por corr
 | MFSK paralelo + FEC | ~5,9 B/s | 5 de 9 |
 | **M-ária 16 tons + FEC, ganho 0,5** | **~9,4 B/s** | **9 de 11** |
 
+**Os nomes desta tabela, do código e do resto deste arquivo são os do projeto, não os da literatura.** O artigo em `artigo/` usa os da literatura e o código não é renomeado. Correspondência: Bell 202 é a **2-FSK**; MFSK votado é a **5×2-FSK votada** (cinco canais binários com o mesmo bit, decisão por maioria); MFSK paralelo é a **5×2-FSK multicanal** (um bit distinto por canal); M-ária 16 tons é a **16-FSK**. No artigo, *M-ária* é a modulação de ordem M e abrange as quatro, inclusive a binária; *MFSK* expande como *multiple frequency shift keying* e abrange as com mais de duas frequências, 5×2-FSK e 16-FSK. Ou seja, "MFSK" aqui (cinco pares) e no artigo (mais de dois tons) são conjuntos diferentes, e "M-ária" aqui (só a de dezesseis) é mais estreita que lá. Vale para `TESTES.md`, `HANDOFF.md` e os `HEADER.md` de `resultados/`, que são registros de campanha e ficam como estão. A tabela completa está no `CLAUDE.md`, seção "Nomes no código e nomes no artigo".
+
 Esses números são do enlace de duas máquinas, e é o único acervo que entra nesta tabela. Há também um acervo de **auto-captura** — uma máquina só, alto-falante e microfone no mesmo computador — com números melhores, 10,7 B/s a 12 blocos de 12. Ele é outro canal e mais fácil; veja *Sincronismo* abaixo e leia a ressalva ali antes de citá-lo.
 
 Uma saudação de 58 caracteres atravessou íntegra pela M-ária. **A transferência de arquivo inteiro ainda não funciona**: 1 pacote de 21 com pacotes de 81 bytes, enquanto blocos isolados de 24 a 58 bytes decodificaram 9 de 11 no mesmo link. O suspeito é o comprimento do bloco — mais símbolos entre re-sincronizações, e a M-ária é implacável com escorregão de relógio.
@@ -61,8 +63,8 @@ A polaridade alterna ao longo da banda (nos pares 0, 2 e 4 o tom grave significa
 
 ### M-ária — 16 tons, um por vez
 
-Na literatura em inglês isto é *M-ary FSK*; em português, **modulação M-ária**,
-formada como binário, ternário e quaternário. No código o modo se chama `mary`
+Na literatura em inglês isto é *M-ary FSK* com M = 16, ou 16-FSK; em português, **modulação M-ária**,
+formada como binário, ternário e quaternário. A rigor M-ária é a modulação de ordem M e a binária também é uma (M = 2); o artigo em `artigo/` usa o termo nesse sentido amplo e chama esta camada de 16-FSK. No código o modo se chama `mary`
 e as classes são `MaryModulator`/`MaryDemodulator` — o nome do identificador,
 não do conceito, e ele também está gravado como `"mode": "mary"` nos JSON do
 acervo, então renomear quebraria a leitura das gravações.

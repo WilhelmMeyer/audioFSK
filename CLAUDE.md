@@ -22,6 +22,21 @@ On the single-machine self-capture path (Bluetooth speaker, internal microphone 
 
 Whole-file transfer works: `testcard.bmp`, 1334 bytes, arrived byte-identical over the air in **21 of 21 packets with zero retransmissions** at 6.8 B/s, and in 11 of 11 packets at 7.2 B/s with 128-byte payloads. It used to deliver 1 packet of 21. Nothing in `recvfile.py` or `xfer.py` changed -- the same correction to the analogue chain did it, which is the point: a protocol that retries until it gives up needs a per-packet error rate low enough that retrying converges, and a saturated chain does not have one at any number of retries. `resultados/15-PKT-ARQ/`.
 
+### Nomes no código e nomes no artigo
+
+The names in this file and in the code predate the paper and do not follow the literature. The paper (`artigo/`) uses the textbook names, and the code is **not** renamed. Map:
+
+| code, this file | paper | what it is |
+|---|---|---|
+| `fsk`, `FSKModulator`, "Bell 202" | 2-FSK | one tone of two, one bit per symbol; Bell 202 is the name of the standard the tones come from |
+| `mfsk`, `MFSKModulator`, "MFSK voted" | 5×2-FSK votada | five 2-FSK channels carrying the same bit, majority decides; one bit per symbol |
+| `mfsk-par`, `parallel=True`, "MFSK parallel" | 5×2-FSK multicanal | five 2-FSK channels, one distinct bit each; five bits per symbol |
+| `mary`, `MaryModulator`, "M-ary" | 16-FSK | one tone of sixteen, four bits per symbol |
+
+In the paper, **M-ária** is the order-M modulation and covers all four (M = 2 included); **FSK** is the 2-FSK; **MFSK** expands as *multiple frequency shift keying* and covers the ones with more than two frequencies, i.e. 5×2-FSK and 16-FSK. So "MFSK" here (five pairs) and "MFSK" there (more than two tones) are different sets, and "M-ary" here (sixteen tones only) is narrower than "M-ária" there. Read `artigo/CLAUDE.md` before writing prose.
+
+One more discrepancy, measured 2026-09-05: `fec.SYNC` is described in `fec.py` and below as a 31-bit maximum-length sequence. It is not one (17 ones in 31 bits; cyclic autocorrelation ranges −9 to 11 off-peak, where an m-sequence gives −1). Its *linear* autocorrelation, which is what `find_sync` actually uses over a stream, has peak 31 and sidelobes within ±7, and that is why it works. The code is left as is; the paper calls it a 31-bit reference word found by correlation and does not name the type.
+
 This is a git repository.
 
 ## Commands
