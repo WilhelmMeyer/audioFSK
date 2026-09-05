@@ -19,6 +19,10 @@ Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do rep
 - `figuras/`: figuras do artigo, versionadas (exceção ao `.gitignore` global de `figuras/`). Vazia por enquanto.
 - `artigo_modem.docx`, `artigo_modem.pdf`: saídas, ignoradas pelo git.
 
+## Estado dos resultados (2026-09-05)
+
+Campanhas em `../resultados/`, cada uma com `HEADER.md` (commit, condições, caveats) e `resultado.csv`. A direção **B→A está completa**: 01 a 15, uma pasta por campanha. A direção **A→B tem parte**: 01, 02, 03, 08 (e 08B), 16 e 17 têm a variante `-A2B`; **faltam A→B de 04 a 07 (camadas físicas) e de 09 a 15 (gap, banda, acorde, sincronismo, redundância, arquivo).** Cada número no artigo diz de qual direção veio, e o que só foi medido em uma direção é dito assim. A assimetria em si é conteúdo: A→B tem menos SNR por tom (10,3 dB contra 13,2) e foi onde a saturação do alto-falante se mediu (16, 17).
+
 Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas que quebram") e `../resultados/<pasta>/`. Não há `fatos.md` ainda; se a redação começar a precisar de números fora do CLAUDE.md, criar um, no formato do outro repositório (número, unidade, condição, arquivo de origem).
 
 ## Regras de escrita
@@ -64,4 +68,5 @@ Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas
 - Figuras: nenhuma feita. Candidatas no `.md`: diagrama do enlace; resposta em frequência medida com os 16 tons sobre o pente; bancada; bits e blocos contra nível do alto-falante. Fontes em `../resultados/*/figuras/` e `../channel.py`.
 - Financiamento: preencher ou remover a seção.
 - Decidir se o "cabo" fica na comparação de meios da introdução (hoje fica, como meio, não como recurso da bancada).
+- Ensaios A→B faltantes: 04 a 07 e 09 a 15. Decidir quais o artigo precisa nas duas direções (no mínimo 14-FEC-REP e 15-PKT-ARQ, que dão os números do resumo) e quais ficam declarados como medidos só em B→A.
 - Estado do texto: zero parágrafos redigidos. Próximo passo natural é o resumo ou a introdução, a pedido.
