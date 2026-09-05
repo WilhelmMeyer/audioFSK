@@ -23,6 +23,14 @@ Nenhum numero entra sem origem em resultados/<pasta>. Quando houver fatos.md, el
 ENQUADRAMENTO (decisao do autor, 2026-09-05): artigo didatico. Apresenta o sistema proposto, compara brevemente
 com outros meios de transmissao, avalia o problema do canal acustico e propoe uma solucao para este caso. Nao
 pretende substituir outro meio nem reivindicar melhoria sobre a literatura.
+
+CAMADAS (decisao do autor, 2026-09-05): o artigo apresenta a implementacao de duas camadas.
+  Fisica: as modulacoes (Bell 202, MFSK votado, M-ario de 16 tons), o sincronismo de simbolo (gate early/late e
+    varreduras) e a decisao suave que o demodulador entrega.
+  Enlace: o bloco codificado (convolucional K=7, Viterbi suave, entrelacamento, repeticao, palavra de sincronismo por
+    correlacao), o pacote com numero de sequencia e CRC, a subdivisao do arquivo em pacotes e o reenvio do pacote que
+    nao chega ate um limite de tentativas. Subdivisao e reenvio sao enlace, ao modo de HDLC, nao transporte.
+  Acima das duas a aplicacao ve uma porta serial virtual.
 -->
 
 # Transmissão de dados por som audível entre dois computadores: o canal acústico medido e um modem para ele

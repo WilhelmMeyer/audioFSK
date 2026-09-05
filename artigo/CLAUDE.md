@@ -8,6 +8,8 @@ Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do rep
 
 **Enquadramento, decidido em 2026-09-05: didático.** O artigo apresenta o sistema, compara brevemente com outros meios de transmissão, avalia o problema do canal acústico e propõe uma solução para este caso. Não pretende substituir outro meio nem reivindicar melhoria sobre a literatura.
 
+**Duas camadas, decisão do autor em 2026-09-05.** O artigo apresenta a implementação da camada física e da camada de enlace. Física: as modulações (Bell 202, MFSK votado, M-ário de 16 tons), o sincronismo de símbolo e a decisão suave do demodulador. Enlace: o bloco codificado (convolucional K=7, Viterbi suave, entrelaçamento, repetição, palavra de sincronismo por correlação), o pacote com número de sequência e CRC, a subdivisão do arquivo em pacotes e o reenvio do que não chega até um limite de tentativas. Subdivisão e reenvio são enlace, ao modo de HDLC, não transporte. Acima das duas a aplicação vê uma porta serial virtual.
+
 **O canal de controle da bancada (o cabo serial entre as máquinas) não entra no artigo, em nenhuma seção, figura ou legenda.** Decisão do autor, 2026-09-05, e a razão: ele só auxilia e automatiza o ensaio, não é recurso da comunicação em si, e apresentá-lo confundiria mais do que ajudaria a entender. O método diz que a carga conhecida é gerada dos dois lados e que só o ar carrega os bytes pontuados, e para. Não reabrir.
 
 ## Arquivos desta pasta
