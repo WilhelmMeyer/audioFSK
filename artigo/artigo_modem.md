@@ -22,9 +22,7 @@ Nenhum numero entra sem origem em resultados/<pasta>. Quando houver fatos.md, el
 
 ENQUADRAMENTO (decisao do autor, 2026-09-05): artigo didatico. Apresenta o sistema proposto, compara brevemente
 com outros meios de transmissao, avalia o problema do canal acustico e propoe uma solucao para este caso. Nao
-pretende substituir outro meio nem reivindicar melhoria sobre a literatura. O valor didatico esta em mostrar o
-problema sendo medido, cada camada falhando de um jeito nomeavel, e a correcao que cada falha pediu. Tom: "o que
-o ar faz com o sinal e o que fizemos a respeito", nunca "melhor que".
+pretende substituir outro meio nem reivindicar melhoria sobre a literatura.
 -->
 
 # Transmissão de dados por som audível entre dois computadores: o canal acústico medido e um modem para ele
@@ -64,7 +62,6 @@ Cinco frases, conceitual ate a ultima, so ela com numeros (estilo.md, secao 9). 
 4. A implementacao: duas maquinas, carga conhecida gerada dos dois lados, gravacoes pontuadas offline.
 5. Resultados com numeros-chave: ~11,3 B/s com 12 de 12 blocos; arquivo de 1334 bytes em 21 de 21 pacotes sem
    retransmissao; e a observacao de que a linearidade da cadeia analogica pesou mais que qualquer mudanca no codigo.
-Sem "supera", "melhor que", "novo". O artigo apresenta e mede.
 Origem: CLAUDE.md (tabela de camadas), resultados/14-FEC-REP, resultados/15-PKT-ARQ.
 -->
 
@@ -96,7 +93,7 @@ P5  O caso: duas maquinas de prateleira numa sala, sem nada a instalar, que prec
     confianca. O que o caso pede: decisao insensivel ao ganho (o canal e um pente), erro reparavel onde cai
     (10-25% dos bits chegam errados), e um jeito de medir sem que a sala entre na medida.
 P6  Em primeira pessoa, "apresentamos": (a) o canal medido, (b) tres camadas fisicas experimentadas no mesmo
-    enlace e como cada uma falha, (c) a camada de correcao com sincronismo por correlacao, (d) o metodo de medicao
+    enlace, (c) a camada de correcao com sincronismo por correlacao, (d) o metodo de medicao
     com gravacoes e pontuacao pareada, (e) o que a bancada ensinou sobre a cadeia analogica. Fecha com uma linha
     anunciando a verificacao: duas maquinas, um arquivo inteiro pelo ar.
 -->
@@ -125,20 +122,19 @@ Figura 2 candidata: resposta em frequencia medida, com os 16 tons marcados sobre
 ### 2.2 Três camadas físicas
 
 <!--
-Uma por paragrafo, cada uma com o modo de falha que a proxima corrige (cadeia ideal -> nao idealidade -> correcao).
-- Bell 202: bandpass, x[n]·x[n-D], lowpass, bit pelo sinal. Sem portadora recuperada. Falha: qualquer inclinacao
+Uma por paragrafo, na ordem em que foram experimentadas.
+- Bell 202: bandpass, x[n]·x[n-D], lowpass, bit pelo sinal. Sem portadora recuperada. Qualquer inclinacao
   do canal enviesa toda decisao no mesmo sentido; squelch quadratico. Nunca entregou uma mensagem no ar.
   Equacao (1) candidata: saida do discriminador e D = fs/(4 f_c).
 - MFSK votado, 100 baud: cinco pares de tons a 200 Hz, um voto por par, maioria decide; ganho cancela
   (identico de x2 a x0,001). Polaridade alternada ao longo da banda para que ambos os simbolos tenham a mesma
-  frequencia media. Falha: acorde de cinco divide a amplitude por cinco, 14 dB a menos por tom.
+  frequencia media. Acorde de cinco divide a amplitude por cinco, 14 dB a menos por tom.
   ~1,8 B/s, 4 de 4. resultados/05-MFSK-VOTE, 06-MFSK-PAR.
 - M-ario 16 tons: um tom por vez, quatro bits por simbolo, Gray entre vizinhos; cada tom dividido pelo seu piso
   corrente (silencioso 15 simbolos em 16, entao o piso e mesmo o ruido). Recebe 0,14 rms onde os acordes
   recebiam 0,07-0,09. Guarda de 35% do simbolo. resultados/07-MARY-BASE, 11-MARY-CHORD.
   Equacao (2) candidata: pontuacao do tom k = E_k / piso_k, decisao argmax.
 - Frase curta: a camada M-aria existe por potencia, e foi a maior alavanca que esta bancada mediu.
-Didatica: cada camada e apresentada com o modo de falha que motivou a seguinte; e a sequencia que ensina.
 -->
 
 ### 2.3 Correção de erros e sincronismo
@@ -190,7 +186,7 @@ causa + o que passou a alimentar. Orcamento ~750 palavras.
     Figura 4 candidata: bits certos e blocos contra nivel do alto-falante.
 4.b As tres camadas no mesmo enlace. Tabela 2: camada | taxa | medido no ar (Bell 202 nunca; MFSK 1,8 B/s 4/4;
     paralelo 5,9 B/s 5/9; M-ario rep 2 gain 0,5 9,4 B/s 9/11; M-ario rep 1 cadeia linear 11,3 B/s 12/12).
-    Ligar cada linha ao modo de falha da 2.2.
+    Ligar cada linha a camada da 2.2.
 4.c Redundancia. Cadeia saturada: rep 1 0/6 e 1/6, rep 2 2/6 e 5/6, rep 4 4/7. Cadeia corrigida, 48 bytes, quatro
     gravacoes por ponto: rep 1, 2 e 4 todos 4 de 4, a 11,3 / 6,7 / 3,7 B/s. Redundancia comprava a cauda, nao a
     media (um rep 4 leu 64% dos bits e entregou o bloco). resultados/14-FEC-REP.

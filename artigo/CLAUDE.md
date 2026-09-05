@@ -6,7 +6,7 @@ Instruções locais para qualquer sessão que trabalhe nesta pasta. Registram as
 
 Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do repositório raiz. Dois autores: Winderson (primeiro autor, dados a completar por ele) e Jefferson (mesmos dados do artigo da roda de reação).
 
-**Enquadramento, decidido em 2026-09-05: didático.** O artigo apresenta o sistema, compara brevemente com outros meios de transmissão, avalia o problema do canal acústico e propõe uma solução para este caso. Não pretende substituir outro meio nem reivindicar melhoria sobre a literatura. Nada de "supera", "melhor que", "novo". O valor está em mostrar o problema sendo medido, cada camada falhando de um jeito nomeável, e a correção que cada falha pediu.
+**Enquadramento, decidido em 2026-09-05: didático.** O artigo apresenta o sistema, compara brevemente com outros meios de transmissão, avalia o problema do canal acústico e propõe uma solução para este caso. Não pretende substituir outro meio nem reivindicar melhoria sobre a literatura.
 
 **O canal de controle da bancada (o cabo serial entre as máquinas) não entra no artigo, em nenhuma seção, figura ou legenda.** Decisão do autor, 2026-09-05, e a razão: ele só auxilia e automatiza o ensaio, não é recurso da comunicação em si, e apresentá-lo confundiria mais do que ajudaria a entender. O método diz que a carga conhecida é gerada dos dois lados e que só o ar carrega os bytes pontuados, e para. Não reabrir.
 
