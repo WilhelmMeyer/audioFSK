@@ -51,14 +51,16 @@ Linha 1: o proprio Winderson preenche ORCID, campus e e-mail.
 
 <!--
 Cinco frases, conceitual ate a ultima, so ela com numeros (estilo.md, secao 9). Ordem:
-1. O que o artigo apresenta: um modem que envia bytes como som pela placa de audio e os recupera do outro lado,
-   expondo o canal acustico como porta serial virtual, com hardware que toda maquina ja tem; situado entre os
-   outros meios (cabo, radio, infravermelho) como o de menor exigencia de hardware e menor taxa.
+1. O que o artigo apresenta: a implementacao das camadas fisica e de enlace de um modem que envia bytes como som
+   pela placa de audio e os recupera do outro lado, expondo o canal acustico a aplicacao como porta serial virtual,
+   com hardware que toda maquina ja tem; situado entre os outros meios (cabo, radio, infravermelho) como o de menor
+   exigencia de hardware e menor taxa.
 2. O problema / contraste: a camada Bell 202 a 1200 baud nunca entregou uma mensagem no enlace real; canal em pente,
    limitador de saida, decisao por sinal.
-3. A solucao com o mecanismo nomeado e a lista do que dispensa: um tom por vez entre dezesseis, decisao pelo piso
-   de ruido de cada tom, codificacao convolucional K=7 com Viterbi de decisao suave, palavra de sincronismo por
-   correlacao; sem recuperacao de portadora, sem equalizador, sem estimador de canal.
+3. A solucao, camada a camada: na fisica, um tom por vez entre dezesseis, decisao pelo piso de ruido de cada tom,
+   sincronismo de simbolo; no enlace, bloco com codificacao convolucional K=7 e Viterbi de decisao suave, palavra de
+   sincronismo por correlacao, pacote com CRC e pare-e-espere; sem recuperacao de portadora, sem equalizador, sem
+   estimador de canal.
 4. A implementacao: duas maquinas, carga conhecida gerada dos dois lados, gravacoes pontuadas offline.
 5. Resultados com numeros-chave: ~11,3 B/s com 12 de 12 blocos; arquivo de 1334 bytes em 21 de 21 pacotes sem
    retransmissao; e a observacao de que a linearidade da cadeia analogica pesou mais que qualquer mudanca no codigo.
@@ -92,9 +94,11 @@ P4  O que se faz nesse canal: OFDM acustico, chirp, MFSK, em geral com equalizad
 P5  O caso: duas maquinas de prateleira numa sala, sem nada a instalar, que precisam trocar poucos bytes com
     confianca. O que o caso pede: decisao insensivel ao ganho (o canal e um pente), erro reparavel onde cai
     (10-25% dos bits chegam errados), e um jeito de medir sem que a sala entre na medida.
-P6  Em primeira pessoa, "apresentamos": (a) o canal medido, (b) tres camadas fisicas experimentadas no mesmo
-    enlace, (c) a camada de correcao com sincronismo por correlacao, (d) o metodo de medicao
-    com gravacoes e pontuacao pareada, (e) o que a bancada ensinou sobre a cadeia analogica. Fecha com uma linha
+P6  Em primeira pessoa, "apresentamos": a implementacao das camadas fisica e de enlace. (a) o canal medido, (b) a
+    camada fisica, com as tres modulacoes experimentadas no mesmo enlace e o sincronismo de simbolo, (c) a camada de
+    enlace, com o bloco codificado, o pacote e a retransmissao, (d) o metodo de medicao com gravacoes e pontuacao
+    pareada, (e) o que a bancada ensinou sobre a cadeia analogica. Acima das duas, a aplicacao ve uma porta serial;
+    uma frase, nao uma secao. Fecha com uma linha
     anunciando a verificacao: duas maquinas, um arquivo inteiro pelo ar.
 -->
 
@@ -119,12 +123,12 @@ O canal primeiro, porque tudo o que segue e resposta a ele.
 Figura 2 candidata: resposta em frequencia medida, com os 16 tons marcados sobre o pente.
 -->
 
-### 2.2 Três camadas físicas
+### 2.2 Camada física
 
 <!--
-Uma por paragrafo, na ordem em que foram experimentadas.
-- Bell 202: bandpass, x[n]·x[n-D], lowpass, bit pelo sinal. Sem portadora recuperada. Qualquer inclinacao
-  do canal enviesa toda decisao no mesmo sentido; squelch quadratico. Nunca entregou uma mensagem no ar.
+Tres modulacoes, uma por paragrafo, na ordem em que foram experimentadas; depois o sincronismo de simbolo.
+- Bell 202: bandpass, x[n]·x[n-D], lowpass, bit pelo sinal, bytes em 8N1. Sem portadora recuperada. Qualquer
+  inclinacao do canal enviesa toda decisao no mesmo sentido; squelch quadratico. Nunca entregou uma mensagem no ar.
   Equacao (1) candidata: saida do discriminador e D = fs/(4 f_c).
 - MFSK votado, 100 baud: cinco pares de tons a 200 Hz, um voto por par, maioria decide; ganho cancela
   (identico de x2 a x0,001). Polaridade alternada ao longo da banda para que ambos os simbolos tenham a mesma
@@ -134,10 +138,14 @@ Uma por paragrafo, na ordem em que foram experimentadas.
   corrente (silencioso 15 simbolos em 16, entao o piso e mesmo o ruido). Recebe 0,14 rms onde os acordes
   recebiam 0,07-0,09. Guarda de 35% do simbolo. resultados/07-MARY-BASE, 11-MARY-CHORD.
   Equacao (2) candidata: pontuacao do tom k = E_k / piso_k, decisao argmax.
-- Frase curta: a camada M-aria existe por potencia, e foi a maior alavanca que esta bancada mediu.
+- Frase curta: a modulacao M-aria existe por potencia, e foi a maior alavanca que esta bancada mediu.
+- Sincronismo de simbolo: gate early/late guiado por contraste, e a alternativa de duas varreduras de 80 ms
+  bracketing o quadro, com periodo medido entre elas (479,96 ± 0,07 amostras onde o nominal e 480).
+  Ordenar por posicao, nao por altura: a varredura de tras ganhou 4 vezes em 8. resultados/12-13-SYNC.
+  Equacao (3) candidata: periodo medido = (n2 - n1) / simbolos do quadro.
 -->
 
-### 2.3 Correção de erros e sincronismo
+### 2.3 Camada de enlace
 
 <!--
 - Por que: o enlace entrega 10-25% dos bits errados; CRC so relata o dano; sem 8N1 dentro do bloco nao ha o que
@@ -146,11 +154,10 @@ Uma por paragrafo, na ordem em que foram experimentadas.
   entrelacamento, repeticao r, palavra de sincronismo de 31 bits (m-sequencia) achada por correlacao, nunca por
   contagem de simbolos. Tabela candidata: taxa de erro tolerada por variante (hard 8%, soft 8%, 1/3 soft 13%,
   1/3 x2 25%), da simulacao contra erros de bit; declarar que e simulada.
-- Sincronismo de simbolo: gate early/late guiado por contraste, e a alternativa de duas varreduras de 80 ms
-  bracketing o quadro, com periodo medido entre elas (479,96 ± 0,07 amostras onde o nominal e 480).
-  Ordenar por posicao, nao por altura: a varredura de tras ganhou 4 vezes em 8.
-  Gancho: a tabela de resultados mostra o que cada uma recupera.
-Equacao (3) candidata: periodo medido = (n2 - n1) / simbolos do quadro.
+- Pacote: divisao do arquivo, cabecalho, CRC, pare-e-espere com retransmissao dirigida pelo receptor; a redundancia
+  do bloco e um parametro do enlace, acertado entre os dois lados. resultados/15-PKT-ARQ.
+- Acima: a aplicacao ve uma porta serial virtual. Uma frase.
+Gancho: a tabela de resultados mostra o que o bloco e o pacote recuperam.
 -->
 
 ## 3 MÉTODO DE MEDIÇÃO
