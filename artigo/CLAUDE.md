@@ -4,7 +4,7 @@ Instruções locais para qualquer sessão que trabalhe nesta pasta. Registram as
 
 ## O que é este trabalho
 
-Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do repositório raiz. O que o artigo apresenta é a implementação de **duas camadas, física e de enlace**: a física com as modulações e o sincronismo de símbolo, o enlace com o bloco codificado, o pacote com CRC e a retransmissão. Acima delas a aplicação vê uma porta serial virtual; isso é uma frase, não uma camada nem uma seção. Dois autores: Winderson (primeiro autor, dados a completar por ele) e Jefferson (mesmos dados do artigo da roda de reação).
+Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do repositório raiz. O que o artigo apresenta é a implementação de **duas camadas, física e de enlace**: a física com as modulações e o sincronismo de símbolo, o enlace com o bloco codificado e a transferência de arquivo, que quebra o arquivo em pacotes numerados com CRC e reenvia o pacote que não chega, até um limite de tentativas. Esse recurso de quebra e reenvio aparece nomeado no resumo, na introdução e na seção de enlace. Acima delas a aplicação vê uma porta serial virtual; isso é uma frase, não uma camada nem uma seção. Dois autores: Winderson (primeiro autor, dados a completar por ele) e Jefferson (mesmos dados do artigo da roda de reação).
 
 **Enquadramento, decidido em 2026-09-05: didático.** O artigo apresenta o sistema, compara brevemente com outros meios de transmissão, avalia o problema do canal acústico e propõe uma solução para este caso. Não pretende substituir outro meio nem reivindicar melhoria sobre a literatura.
 
