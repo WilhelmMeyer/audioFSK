@@ -9,3 +9,6 @@ figuras/
 captures-*/
 old/
 got-*.bmp
+artigo/*.docx
+artigo/*.pdf
+!artigo/figuras/

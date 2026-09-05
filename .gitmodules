@@ -1,0 +1,3 @@
+[submodule "artigo/simeca-md"]
+	path = artigo/simeca-md
+	url = https://github.com/WilhelmMeyer/simeca-md.git
