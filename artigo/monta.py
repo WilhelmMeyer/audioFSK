@@ -6,16 +6,14 @@ tabela de comandos so: forkar a logica em dois sistemas e' deixar os dois
 divergirem em silencio.
 
 Roda de qualquer pasta, no Linux e no Windows, com o Python do sistema. O
-conversor nao tem dependencia de terceiros (`dependencies = []` no
-pyproject), entao nao ha venv envolvida aqui.
+conversor esta em `artigo/simeca-md/`, versionado neste repositorio, e nao usa
+biblioteca de terceiros, entao nao ha `pip install` nem venv envolvida aqui.
 """
 
-import subprocess
 import sys
 from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
-RAIZ = AQUI.parent
 CONVERSOR = AQUI / "simeca-md"
 FONTE = AQUI / "artigo_modem.md"
 MODELO = CONVERSOR / "modelos" / "simeca-vii" / "modelo.docx"
@@ -39,45 +37,18 @@ def confere_python():
     return 0
 
 
-def garante_conversor():
-    """Inicializa o submodulo do conversor se a pasta estiver vazia.
-
-    Iniciar um submodulo vazio nao descarta nada, entao aqui e' seguro agir
-    em vez de so imprimir o comando. Uma pasta com conteudo mas sem o modulo
-    e' outra coisa, e essa so' reporta.
-    """
+def confere_conversor():
     if (CONVERSOR / "simeca_md" / "__main__.py").is_file():
         return 0
-
-    existente = [p for p in CONVERSOR.glob("*")] if CONVERSOR.is_dir() else []
-    if existente:
-        return erro(
-            "conversor incompleto em %s.\n"
-            "Rode: git submodule update --init --recursive -- artigo/simeca-md" % CONVERSOR
-        )
-
-    if not (RAIZ / ".gitmodules").is_file():
-        return erro(
-            "conversor ausente em %s e o repositorio nao tem .gitmodules.\n"
-            "Provavelmente o projeto veio de um ZIP do GitHub, que nao traz submodulo.\n"
-            "Clone com: git clone --recurse-submodules <url>" % CONVERSOR
-        )
-
-    print("conversor ausente, inicializando o submodulo artigo/simeca-md...", flush=True)
-    comando = ["git", "submodule", "update", "--init", "--recursive",
-               "--", str(CONVERSOR)]
-    try:
-        codigo = subprocess.call(comando, cwd=str(RAIZ))
-    except OSError as e:
-        return erro("nao consegui rodar o git (%s). Instale o git e rode: %s"
-                    % (e, " ".join(comando)))
-    if codigo != 0 or not (CONVERSOR / "simeca_md" / "__main__.py").is_file():
-        return erro("a inicializacao do submodulo falhou. Rode a mao: " + " ".join(comando))
-    return 0
+    return erro(
+        "conversor nao encontrado em %s.\n"
+        "Ele e' versionado junto com o projeto; recupere a pasta com:\n"
+        "    git checkout -- artigo/simeca-md" % CONVERSOR
+    )
 
 
 def main(argv):
-    codigo = confere_python() or garante_conversor()
+    codigo = confere_python() or confere_conversor()
     if codigo:
         return codigo
 

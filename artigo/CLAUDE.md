@@ -35,10 +35,10 @@ Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do rep
 
 - `artigo_modem.md`: **fonte única da prosa.** Esqueleto com o resumo redigido; o resto são seções e comentários com o que entra em cada trecho, orçamento de palavras e a pasta de `resultados/` que sustenta cada número.
 - `estilo.md`: o estilo do autor, extraído dos dois artigos dele (SIMECA roda de reação e IEEE TIE). **Ler antes de redigir qualquer trecho.** Tem lista de verificação no fim.
-- `monta.py`: **a montagem, em um lugar só.** Confere a versão do Python, inicializa o submódulo do conversor se faltar, e chama o conversor com caminhos absolutos. Não roda `cd` para dentro do conversor: as figuras já resolvem a partir da pasta do `.md`.
+- `monta.py`: **a montagem, em um lugar só.** Confere a versão do Python e chama o conversor com caminhos absolutos. Não roda `cd` para dentro do conversor: as figuras já resolvem a partir da pasta do `.md`.
 - `monta.sh` e `monta.cmd`: invocadores finos do `monta.py`, um para Linux e macOS, outro para Windows. Só escolhem o interpretador. **Não duplicar lógica neles**, pela mesma razão que a tabela de comandos do `console.py` é única. Aceitam `--verifica`, `--sem-figuras`. Rode de qualquer pasta.
 - `MONTAGEM.md`: instruções de montagem para quem não trabalha neste repositório todo dia, inclusive no Windows. É o arquivo a apontar quando alguém pergunta como gerar o docx.
-- `simeca-md/`: submódulo do conversor (`github.com/WilhelmMeyer/simeca-md`). Vazio num clone novo até `git submodule update --init`. **Correção no conversor se faz naquele repositório, nunca por cópia local**; aqui só se avança o ponteiro.
+- `simeca-md/`: o conversor, **versionado dentro deste repositório** (decisão do autor, 2026-09-06, revendo a de mantê-lo como submódulo). Quem clona o audioFSK já tem tudo para montar o artigo, sem passo de submódulo e sem depender de o clone ter sido feito de um jeito específico, que era o que atrapalhava o segundo autor no Windows. A cópia veio de `github.com/WilhelmMeyer/simeca-md` em `0daa5246a85192bb50f56e03f86f679e0e396ff6`; o preço é que ela não recebe mais correção de lá nem devolve correção para lá, e a sincronia com o artigo da roda de reação, que usa o mesmo conversor, passou a ser trabalho manual. Correção no conversor se faz aqui e, se valer para os dois artigos, se leva à mão para o outro lado.
 - `figuras/`: figuras do artigo, versionadas (exceção ao `.gitignore` global de `figuras/`). Vazia por enquanto.
 - `artigo_modem.docx`, `artigo_modem.pdf`: saídas, ignoradas pelo git.
 

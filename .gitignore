@@ -12,3 +12,5 @@ got-*.bmp
 artigo/*.docx
 artigo/*.pdf
 !artigo/figuras/
+!artigo/simeca-md/exemplos/figuras/
+!artigo/simeca-md/modelos/*/figuras/

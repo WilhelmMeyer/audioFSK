@@ -22,7 +22,7 @@ Rode de qualquer pasta; os dois scripts descobrem sozinhos onde estão. Eles nã
 
 ## O que precisa estar instalado
 
-**Git com submódulos.** O conversor mora em `artigo/simeca-md`, que é um submódulo. Clone com `git clone --recurse-submodules <url>`; o ZIP que o GitHub oferece não traz submódulo nenhum e não há como o script consertar isso. Num clone comum, o `monta` inicializa o submódulo sozinho na primeira vez e diz que está fazendo isso.
+O conversor vem dentro do repositório, em `artigo/simeca-md`. Não há passo de submódulo, nem `pip install`, nem `venv`: quem tem a pasta do projeto tem a ferramenta.
 
 **Python 3.11 ou mais novo.** No Windows, o instalador de python.org ou a Microsoft Store; o `monta.cmd` procura o `py -3` e, se não houver, o `python`. O conversor não usa nenhuma biblioteca de terceiros, então não há `pip install` e não se usa a `venv` do modem.
 
@@ -32,4 +32,4 @@ Rode de qualquer pasta; os dois scripts descobrem sozinhos onde estão. Eles nã
 
 ## Se der errado
 
-Uma correção no conversor se faz no repositório dele (`github.com/WilhelmMeyer/simeca-md`), nunca por cópia local dentro desta pasta. Aqui só se avança o ponteiro do submódulo.
+O conversor é uma cópia de `github.com/WilhelmMeyer/simeca-md`, trazida para cá em 2026-09-06. Corrija-o aqui mesmo, em `artigo/simeca-md`, e avise, porque a cópia lá fora não fica sabendo.

@@ -392,7 +392,7 @@ artigo\monta.cmd --sem-figuras
 artigo\monta.cmd --verifica
 ```
 
-O conversor é o submódulo `artigo/simeca-md` e não usa a `venv` deste projeto, nem biblioteca de terceiros; pede Python 3.11 ou mais novo, pandoc para as equações, e LibreOffice ou Word só para o PDF. Na primeira execução o `monta` inicializa o submódulo sozinho, desde que o repositório tenha vindo de um `git clone --recurse-submodules` e não do ZIP do GitHub, que não traz submódulo nenhum. Instalação, mensagens de erro e o caso do Windows estão em `artigo/MONTAGEM.md`.
+O conversor está em `artigo/simeca-md`, versionado dentro deste repositório: não há passo de submódulo, nem `pip install`, e ele não usa a `venv` do projeto nem biblioteca de terceiros. Pede Python 3.11 ou mais novo, pandoc para as equações, e LibreOffice ou Word só para o PDF. Instalação, mensagens de erro e o caso do Windows estão em `artigo/MONTAGEM.md`.
 
 ## Arquivos
 
@@ -417,7 +417,8 @@ O conversor é o submódulo `artigo/simeca-md` e não usa a `venv` deste projeto
 | `channel.py` | Offline. Transforma uma varredura em mapa de frequências úteis. | áudio, serial |
 | `loopback_test.py` | A suíte de testes inteira. | hardware |
 | `agent.sh` | Supervisor da máquina seguidora. | — |
-| `artigo/monta.py` | Montagem do artigo: confere o Python, inicializa o submódulo do conversor, chama o conversor. | — |
+| `artigo/monta.py` | Montagem do artigo: confere o Python e chama o conversor. | — |
+| `artigo/simeca-md/` | O conversor de markdown para docx, cópia versionada aqui. | — |
 | `artigo/monta.sh`, `artigo/monta.cmd` | Invocadores do `monta.py`, Linux e Windows. Só escolhem o interpretador. | duplicar a lógica |
 
 ## Decisões de arquitetura

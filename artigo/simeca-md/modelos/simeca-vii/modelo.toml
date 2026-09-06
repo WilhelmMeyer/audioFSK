@@ -1,0 +1,53 @@
+# Descritor do modelo de artigo do VII SIMECA.
+#
+# O conversor nao conhece este modelo por dentro: tudo que e especifico dele
+# esta aqui. Editar o docx no Word (fonte, posicao, logotipo) nao quebra o
+# descritor, desde que o texto marcador dos paragrafos do bloco de titulo
+# continue reconhecivel pelas expressoes de [ancoras].
+
+nome = "VII SIMECA"
+arquivo = "modelo.docx"
+max_autores = 6
+
+# Expressao regular casada com o texto simples de cada paragrafo do bloco de
+# titulo. As de autor e filiacao capturam o numero da linha no grupo 1.
+[ancoras]
+titulo = "^T[ÍI]TULO EM ARIAL"
+resumo = "^RESUMO:"
+palavras_chave = "^PALAVRAS-CHAVE:"
+autor_nome = "^Nome completo do Autor\\s*(\\d+)"
+autor_filiacao = "^\\[(\\d+)\\]\\s*Institui[çc][ãa]o do Autor"
+doi = "doi\\.org/"
+
+# Nomes de estilo como o Word os gravou no styles.xml do modelo, ja sem
+# acento e sem espaco.
+[estilos]
+titulo_secao = "Ttulo1"
+subtitulo_secao = "Ttulo2"
+titulo_referencias = "palavra-resumo"
+referencia = "Referncias"
+legenda = "Legenda"
+lista = "PargrafodaLista"
+tabela_dados = "Style10ptJustified"
+tabela_grade = "Tabelacomgrade"
+
+# Listas de numeracao automatica do modelo.
+[numeracao]
+secao = 4
+marcador = 12
+
+[fonte]
+# Corpo do texto, usado para estimar a largura das equacoes.
+corpo_pt = 11.0
+# Tabela de dados, em meios-pontos.
+tabela_meia_pt = 18
+
+[equacao]
+# Largura reservada ao numero da equacao, a direita. O resto da coluna fica
+# para a equacao.
+largura_numero_twips = 413
+
+[figura]
+# Altura maxima de uma figura, em twips, para sobrar coluna para a legenda e
+# para o texto que a acompanha.
+altura_max_twips = 11000
