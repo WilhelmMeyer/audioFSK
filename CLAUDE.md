@@ -81,6 +81,17 @@ Interpreter is the venv, not system Python:
     --fec --mode mary --gain 0.5 --packet-size 64 --repeat 1
 ```
 
+Montar o artigo do VII SIMECA. Não usa a venv nem o PortAudio; a lógica está em `artigo/monta.py` e os dois scripts abaixo só escolhem o interpretador, um por sistema. Detalhes de instalação em `artigo/MONTAGEM.md`, decisões de forma em `artigo/CLAUDE.md`:
+
+```bash
+./artigo/monta.sh --sem-figuras     # revisar texto; sem a flag, com figuras
+./artigo/monta.sh --verifica        # só confere o que já foi gerado
+```
+
+```bat
+artigo\monta.cmd --sem-figuras
+```
+
 `loopback_test.py` covers the Bell 202 and MFSK layers, and judges MFSK against the impairments actually measured on the two-machine link (a −16 dB high-frequency tilt, the output limiter's envelope, 80 ms reverberation) rather than generic AWGN. It is the whole test suite — one script, no framework, prints `SUCCESS!`/`FAILED`. There is no lint or build step.
 
 Needs PortAudio at the system level (`libportaudio2`) only for `app.py`. `loopback_test.py` runs without it.

@@ -1,0 +1,5 @@
+# monta.sh precisa de LF mesmo quando o clone e' no Windows com autocrlf, e
+# monta.cmd precisa de CRLF: um .cmd com LF quebra em versoes antigas do
+# interpretador de lote.
+*.sh text eol=lf
+*.cmd text eol=crlf

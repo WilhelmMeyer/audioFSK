@@ -376,6 +376,24 @@ mostrou que aquele valor não serve para um tom sozinho em amplitude cheia.
 
 `console.py`, `capture.py`, `recvfile.py` e `linktest.py` todos querem a porta. **Pare o console antes de rodar qualquer um dos outros.** Ao trocar de processo, dê alguns segundos: o adaptador USB-serial não libera a porta no instante em que o processo morre, e abrir cedo demais falha de um jeito que parece a outra máquina não responder.
 
+## O artigo
+
+O artigo do VII SIMECA vive em `artigo/`, escrito em markdown (`artigo/artigo_modem.md`) e montado em docx e pdf por um conversor que preenche o modelo do evento. Monta-se de qualquer pasta, e nos dois sistemas, porque a lógica está num arquivo só (`artigo/monta.py`) e os dois scripts abaixo apenas escolhem o interpretador:
+
+```bash
+./artigo/monta.sh                 # docx e pdf, com figuras
+./artigo/monta.sh --sem-figuras   # só as legendas, para revisar o texto
+./artigo/monta.sh --verifica      # só confere o que já foi gerado
+```
+
+```bat
+artigo\monta.cmd
+artigo\monta.cmd --sem-figuras
+artigo\monta.cmd --verifica
+```
+
+O conversor é o submódulo `artigo/simeca-md` e não usa a `venv` deste projeto, nem biblioteca de terceiros; pede Python 3.11 ou mais novo, pandoc para as equações, e LibreOffice ou Word só para o PDF. Na primeira execução o `monta` inicializa o submódulo sozinho, desde que o repositório tenha vindo de um `git clone --recurse-submodules` e não do ZIP do GitHub, que não traz submódulo nenhum. Instalação, mensagens de erro e o caso do Windows estão em `artigo/MONTAGEM.md`.
+
 ## Arquivos
 
 | Arquivo | Papel | O que não pode tocar |
@@ -399,6 +417,8 @@ mostrou que aquele valor não serve para um tom sozinho em amplitude cheia.
 | `channel.py` | Offline. Transforma uma varredura em mapa de frequências úteis. | áudio, serial |
 | `loopback_test.py` | A suíte de testes inteira. | hardware |
 | `agent.sh` | Supervisor da máquina seguidora. | — |
+| `artigo/monta.py` | Montagem do artigo: confere o Python, inicializa o submódulo do conversor, chama o conversor. | — |
+| `artigo/monta.sh`, `artigo/monta.cmd` | Invocadores do `monta.py`, Linux e Windows. Só escolhem o interpretador. | duplicar a lógica |
 
 ## Decisões de arquitetura
 

@@ -35,7 +35,9 @@ Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do rep
 
 - `artigo_modem.md`: **fonte única da prosa.** Esqueleto com o resumo redigido; o resto são seções e comentários com o que entra em cada trecho, orçamento de palavras e a pasta de `resultados/` que sustenta cada número.
 - `estilo.md`: o estilo do autor, extraído dos dois artigos dele (SIMECA roda de reação e IEEE TIE). **Ler antes de redigir qualquer trecho.** Tem lista de verificação no fim.
-- `monta.sh`: monta docx e pdf. Aceita `--verifica`, `--sem-figuras`. Rode de qualquer pasta.
+- `monta.py`: **a montagem, em um lugar só.** Confere a versão do Python, inicializa o submódulo do conversor se faltar, e chama o conversor com caminhos absolutos. Não roda `cd` para dentro do conversor: as figuras já resolvem a partir da pasta do `.md`.
+- `monta.sh` e `monta.cmd`: invocadores finos do `monta.py`, um para Linux e macOS, outro para Windows. Só escolhem o interpretador. **Não duplicar lógica neles**, pela mesma razão que a tabela de comandos do `console.py` é única. Aceitam `--verifica`, `--sem-figuras`. Rode de qualquer pasta.
+- `MONTAGEM.md`: instruções de montagem para quem não trabalha neste repositório todo dia, inclusive no Windows. É o arquivo a apontar quando alguém pergunta como gerar o docx.
 - `simeca-md/`: submódulo do conversor (`github.com/WilhelmMeyer/simeca-md`). Vazio num clone novo até `git submodule update --init`. **Correção no conversor se faz naquele repositório, nunca por cópia local**; aqui só se avança o ponteiro.
 - `figuras/`: figuras do artigo, versionadas (exceção ao `.gitignore` global de `figuras/`). Vazia por enquanto.
 - `artigo_modem.docx`, `artigo_modem.pdf`: saídas, ignoradas pelo git.
@@ -77,7 +79,7 @@ Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas
 
 - O autor conduz **trecho a trecho**; nenhuma seção é redigida sem pedido explícito daquele trecho. Discutir não é aprovação para escrever.
 - Cada trecho redigido passa pela lista de verificação do `estilo.md` antes de ser mostrado.
-- Montar com `./artigo/monta.sh --sem-figuras` para revisar texto; com figuras só no fim.
+- Montar com `./artigo/monta.sh --sem-figuras` (no Windows, `artigo\monta.cmd --sem-figuras`) para revisar texto; com figuras só no fim.
 - Manter a declaração de uso de IAG atualizada: ferramenta usada e não declarada é omissão; declarada e não usada é inverdade.
 - Commits em `main`, direto; sem branch.
 - Estado do texto: resumo aprovado em 2026-09-05; seções 1 e 2 redigidas em 2026-09-05 e por revisar; 3, 4 e 5 são esqueleto.
