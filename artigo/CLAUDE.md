@@ -52,6 +52,8 @@ Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas
 
 - Idioma: português. Termos em inglês em itálico só quando não há tradução corrente (*feedforward*).
 - **Proibido travessão na prosa.** Vírgula, parênteses ou frase nova. Dois-pontos no máximo um por parágrafo, ponto e vírgula só em referência ABNT.
+- **Um parágrafo = uma ideia** (regra do autor, 2026-09-06). Passou de uma ideia, abre parágrafo novo. Na prática isso põe um teto de umas quatro frases e umas 80 palavras; parágrafo de sete frases e 160 palavras, que é o que a introdução e a fundamentação tinham nesta data, é sempre duas ou três ideias empilhadas. A exceção é o resumo, que o modelo do evento exige em parágrafo único, de 150 a 300 palavras; ali a regra vira corte, não quebra.
+- **Direto, e curto pelo corte, não pela compressão** (regra do autor, 2026-09-06). Falar mais é dizer menos. Uma informação está bem dada quando é dada franca e direta, então some a frase que só prepara a próxima, o adjetivo que não muda o fato e a recapitulação do que o parágrafo anterior já disse. Encurtar não é espremer duas ideias numa frase longa, é tirar o que não informa.
 - **Um parágrafo = uma linha.** Quebra só em fim de parágrafo, nunca para ficar bonito. Vale para comentários também.
 - Voz: primeira pessoa do plural para o que fizemos, medimos ou apresentamos ("medimos", "apresentamos"). Impessoal para física e dedução.
 - Tempo: presente para mecanismo e para o que a figura mostra; passado só para o ato de medir.
