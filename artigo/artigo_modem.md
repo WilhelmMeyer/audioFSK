@@ -85,20 +85,46 @@ Este artigo apresenta a transmissão de dados por som audível entre dois comput
 ## 1 INTRODUÇÃO
 
 <!--
-Redigida 2026-09-06, condensando a introducao e a fundamentacao de 2026-09-05 em uma lauda. Quatro
-paragrafos: os meios; o fio e o ar; o caso e o que exige; o que apresentamos. Numeros so na secao 2 e na 4.
+Refeita 2026-09-07. Escopo estreitado por decisao do autor: a introducao fala SO de FSK, Bell 202,
+protocolo industrial HART e transmissao de dados por som. Saiu a comparacao entre cabo, radio,
+infravermelho e som, e saiu com ela a Tabela 1, que existia so para aquela comparacao. Saiu tambem o
+paragrafo de OFDM e chirp, que apresentava ferramentas do campo nao usadas aqui.
+Cinco paragrafos: o que e FSK e o que o Bell 202 fixa; o Bell 202 vivo, no HART; o mesmo principio no
+ar; o que o ar cobra; o que apresentamos.
+Uma frase de cada artigo, e as quatro fontes foram LIDAS no PDF, nao no resumo:
+  P1 FINNEGAN e BENSON (2014), p. 2: "The Bell 202 protocol is an audio frequency shift keyed (AFSK)
+     modulation that encodes data by shifting between 1200Hz and 2200Hz audio tones. These tones
+     represent a binary one and zero respectively and transitions occur at a rate of 1200 symbols per
+     second. Originally developed by AT&T for use on the telephone network".
+  P2 WU (2023), p. 2 e 4: "a backward-compatible enhancement to 4-20 mA instrumentation that allows
+     two-way communication with smart, microprocessor-based field devices"; "The standard HART
+     transmission is a frequency shift keyed (FSK) signal superimposed on the 4-20mA signal. The FSK
+     bits are transmitted at 1200 bits per second"; a figura 1-3 marca 1200 Hz em "1" e 2200 Hz em "0",
+     o que encerra a divergencia com as fontes secundarias que dizem 2400 Hz.
+  P3 LOPES e AGUIAR (2001), p. 1: "Inter-machine communications have always been kept away from our
+     own communication channel, audible sound in air. There are good reasons for this: the data rates
+     are relatively low when compared to other media (e.g. electric wires, radio) and the sounds tend to
+     be annoying. But as more and more devices support an audio channel for voice or music, that
+     channel becomes a cheap option for transferring arbitrary information among devices that happen
+     to be near each other."
+  P4 PUTZ et al. (2026), p. 2: "sound waves travel more than 87 000 times slower than electromagnetic
+     waves, leading to delay spreads on the order of tens of milliseconds"; e "Commercial products for
+     acoustic data transmission on smart devices typically achieve only 10-200 bps"; a revisao e de 31
+     estudos com mais de 11000 transmissoes.
+P5 nao cita: e o que fizemos. Nenhum numero desta bancada entra aqui; ficam na secao 4.
+NUMERACAO DE TABELA: a Tabela 1 saiu, entao a antiga Tabela 2 vira Tabela 1 e assim por diante. Nao
+renumerei porque as secoes 3 a 5 estao em merge com a versao remota; renumerar depois do merge.
 -->
 
-Levar bytes de uma máquina a outra tem vários meios, e cada um cobra a sua instalação. O cabo entrega megabytes por segundo e exige um conector livre em cada ponta. O rádio, no Wi-Fi ou no Bluetooth, exige um transceptor, um pareamento e a permissão de operar, que nem todo ambiente concede. O infravermelho exige linha de visada. O som audível não exige nenhuma das três coisas, pois o alto-falante e o microfone já vêm em qualquer computador ou telefone, e o que ele cobra é a taxa. A Tabela 1 põe os quatro meios lado a lado. (CITAR: comunicação acústica entre dispositivos, transferência de dados por áudio)
+A modulação por chaveamento na frequência, do inglês *frequency shift keying* (FSK), põe dados num canal de voz comutando a portadora entre duas frequências, uma para cada valor do bit. O padrão Bell 202 fixa essas duas frequências em 1200 e 2200 Hz, com transições a 1200 símbolos por segundo, e foi desenvolvido pela AT&T para a rede telefônica (FINNEGAN; BENSON, 2014). Um canal projetado para conduzir voz passa a conduzir bytes sem que nada no meio precise mudar.
 
-<!-- TABELA 1, aqui. Colunas: meio | hardware exigido | taxa tipica | alcance | onde cabe. Linhas: cabo,
-radio, infravermelho, som audivel, esta por ultimo e julgada pela mesma regua. Legenda ACIMA da tabela. -->
+O Bell 202 não é peça de museu. O protocolo de transdutor remoto endereçável em barramento, do inglês *Highway Addressable Remote Transducer* (HART), superpõe um sinal FSK de 1200 bits por segundo à malha de 4 a 20 mA que liga o transmissor de campo ao sistema de controle, sem perturbar o valor analógico que ela já carrega (WU, 2023). A retrocompatibilidade é o que o difundiu, pois o instrumento antigo filtra o sinal digital e continua medindo como antes.
 
-A resposta clássica para pôr dados num canal de voz é a modulação por chaveamento na frequência, do inglês *frequency shift keying* (FSK), em que a portadora comuta entre duas frequências e cada uma vale um valor do bit. O padrão Bell 202 fixa 1200 e 2200 Hz a 1200 símbolos por segundo, com os bytes enquadrados em 8N1, e o receptor decide o bit pelo sinal de um discriminador de frequência. No par de fios telefônico as duas frequências chegam no mesmo nível. No ar, o canal não é um fio. O som chega pelo caminho direto e pelas reflexões da sala, que se somam com fases dependentes da frequência, e a resposta vira um pente, com mais de dez decibéis entre frequências vizinhas. O alto-falante limita os picos e o microfone comprime, os dois relógios de amostragem são independentes, e a banda é a da fala, dividida com qualquer conversa. (CITAR: Bell 202, canal acústico em ambiente fechado, resposta em pente)
+O mesmo princípio vale no ar, e Lopes e Aguiar (2001) já observavam por que quase ninguém o usa assim. A comunicação entre máquinas sempre foi mantida longe do som audível por duas boas razões, a taxa baixa diante do fio e do rádio e o incômodo do som. A contrapartida é que o canal de áudio existe em cada aparelho, o que o torna uma opção barata de transferir informação entre dispositivos próximos, sem instalar nada.
 
-O caso deste artigo é o de duas máquinas comuns numa sala, sem nada a instalar, que precisam trocar poucos bytes com confiança. Ele exige três coisas. A decisão do receptor não pode depender da amplitude, pois num pente a amplitude de cada frequência é acidente da geometria da sala. O erro precisa ser reparável onde cai, pois uma fração grande dos bits chega errada e pedir de novo não converge quando quase todo bloco vem danificado. E a medição precisa comparar variantes sem que a sala entre na conta, pois duas execuções do mesmo código na mesma sala discordam. As ferramentas do campo contra esse canal são a multiplexação por divisão ortogonal de frequência, do inglês *orthogonal frequency division multiplexing* (OFDM), as varreduras de frequência e o chaveamento em múltiplas frequências, e adotamos as mais simples delas. (CITAR: OFDM acústico, chirp acústico, MFSK acústico)
+O ar, porém, não é o par de fios. O som viaja mais de 87000 vezes mais devagar que a onda eletromagnética, de modo que as reflexões da sala se espalham por dezenas de milissegundos, e o multipercurso em ambiente fechado é a maior degradação dos esquemas acústicos publicados (PUTZ *et al.*, 2026). Na mesma revisão, de 31 estudos e mais de 11000 transmissões em aparelhos reais, os produtos comerciais entregam de 10 a 200 bits por segundo, que é a ordem de grandeza a esperar do meio.
 
-Apresentamos um modem acústico que atende a esse caso e se expõe à aplicação como uma porta serial. As contribuições são o canal medido com os próprios tons do sistema, duas camadas sobre ele, a física com quatro formas de transmissão experimentadas no mesmo enlace e a de enlace com correção antecipada de erros e sincronismo de bloco por correlação, e o método de medição por gravação, que congela o canal e permite pontuar variantes sobre os mesmos segundos de ar. As quatro formas entraram na ordem em que o enlace as exigiu, da 2-FSK herdada da telefonia à 16-FSK com um tom por vez entre dezesseis, e essa ordem é o fio da seção Princípio de funcionamento. Verificamos o conjunto entre duas máquinas na mesma sala, com a transferência de um arquivo inteiro pelo ar.
+Apresentamos um modem acústico que leva bytes de um computador a outro por som audível, com alto-falante e microfone comuns, e que se expõe à aplicação como uma porta serial. Partimos das duas frequências do Bell 202 e chegamos a dezesseis tons com correção de erros, porque cada forma anterior falhou no ar por uma razão que medimos. Verificamos o conjunto entre duas máquinas na mesma sala, transferindo um arquivo inteiro pelo ar.
 
 ## 2 PRINCÍPIO DE FUNCIONAMENTO
 
