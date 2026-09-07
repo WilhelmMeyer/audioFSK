@@ -7,11 +7,16 @@ Texto integral lido em nenhuma delas ainda; onde o artigo for usar um NUMERO da 
 Os grupos G1 a G8 sao os do comentario de REFERENCIAS em artigo_modem.md.
 Formato ABNT autor-data, uma referencia por linha, para copiar direto.
 
-ESCOPO (decisao do autor, 2026-09-07): estas fontes servem A INTRODUCAO e so a ela, para citar FSK,
-Bell 202, o protocolo industrial HART e a transmissao de dados por som. NAO fundamentam o resto do
-artigo. As secoes 2 a 5 seguem a doutrina do projeto, que e sustentar cada afirmacao no que foi
-medido em resultados/, e nao em literatura. Os grupos G5 a G8 abaixo ficam levantados para o caso de
-o autor querer citacao de livro-texto mais adiante, e nenhum foi usado.
+ESCOPO (decisao do autor, 2026-09-07, revista no mesmo dia): a decisao inicial restringia estas fontes
+a INTRODUCAO e so a ela. O autor a ampliou ao pedir a secao 2.1, que passa a dialogar com a literatura
+lida. Vale hoje: a introducao cita FSK, Bell 202, HART e a transmissao de dados por som; a 2.1 cita o
+meio acustico. As secoes 2.2 em diante seguem a doutrina do projeto, que e sustentar cada afirmacao no
+que foi medido em resultados/, e nao em literatura, ate que o autor peca o contrario.
+Os grupos G5 a G8 abaixo ficam levantados para o caso de o autor querer citacao de livro-texto mais
+adiante, e nenhum foi usado.
+ONDE CADA UMA E CITADA HOJE: FINNEGAN e BENSON (2014) na introducao P1; WU (2023) na introducao P2;
+LOPES e AGUIAR (2001) na introducao P3 e na 2.1, no pente; PUTZ et al. (2026) na introducao P4 e na
+2.1, tres vezes, na banda, no eco e no estouro.
 Quatro fontes foram LIDAS no PDF, nao no resumo, e cada uma deu uma frase a um paragrafo da
 introducao: FINNEGAN e BENSON (2014), WU (2023), LOPES e AGUIAR (2001), PUTZ et al. (2026). As demais
 continuam so com dado bibliografico conferido.

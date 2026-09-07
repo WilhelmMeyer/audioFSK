@@ -147,68 +147,131 @@ entre 4,1 e 4,4 kHz. O que cai com a frequencia e o NIVEL, nao a SNR, porque o p
 As duas varreduras discordam (A->B: 76 de 76 bins positivos; B->A: 74 de 76 negativos) e o proprio HEADER
 do B->A explica: 4,0 s contra 6,0 s, pouca energia por Hz. Pela doutrina do projeto (medir uma frequencia
 mandando aquela frequencia) nenhuma varredura decide SNR, e so o tom pisado decide, em 1700 Hz.
-O argumento do ultrassom foi refundado no nivel e na regiao nao exercitada, que e o que os dados sustentam.
 Numeros do pente recalculados a 50 Hz sobre a varredura A->B: degrau entre vizinhos com mediana 2,5 dB,
 p90 6,5 dB, maximo 13,0 dB; excursao de 27,6 dB dentro de 550-3500 Hz; os 16 tons caem entre -5,7 e
--27,8 dB. O "13 a 18 dB" anterior valia como maximo e exagerava cinco vezes como faixa tipica. -->
+-27,8 dB. O "13 a 18 dB" anterior valia como maximo e exagerava cinco vezes como faixa tipica.
 
-Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Colocamos os tons entre 550 e 3500 Hz, e nessa faixa a resposta medida varia 28 dB entre o melhor e o pior ponto. Acima de 3500 Hz o nível fica de 12 a 20 dB abaixo dela.
+AMPLIADA e depois ENCURTADA DUAS VEZES em 2026-09-07, a pedido do autor: 822 palavras, depois 649, agora
+cerca de 495, contra 596 antes da ampliacao. Criterio: fica o que o leitor precisa para entender o canal,
+sai o que so defende a metodologia, recapitula o que ja foi dito ou responde pergunta que ninguem fez.
+O QUE FOI CORTADO, para nao ser reescrito por engano:
+  - o paragrafo do ultrassom, com a banda de 22 kHz e os 4 kHz do modo inaudivel. Sobrou uma oracao, no
+    paragrafo da SNR, porque a regra de estilo exige dizer o que ficou fora e com que razao. Com ele saiu
+    a citacao de PUTZ et al. 7.3.3, sobre seletividade na banda quase-ultrassonica.
+  - a discordancia entre as duas varreduras. E defesa de metodo, nao entendimento do meio; fica no
+    comentario acima, que e onde ela importa.
+  - os 30 dB SPL de dispersao entre modelos, de PUTZ et al. 7.3.2, de proposito: os demais decibeis desta
+    secao sao amplitude de amostra em gravacao, medida relativa, e os 30 dB deles sao nivel de pressao
+    sonora. Duas reguas na mesma unidade e no mesmo paragrafo confundiriam.
+  - a condicao exata da interferencia ("o periodo cabe um numero inteiro de vezes na diferenca de
+    percurso"). O leitor precisa saber que somam ou se cancelam conforme a frequencia; a condicao exata
+    e verdadeira e nao muda nenhuma decisao do projeto.
+  - as oracoes "porque..." das tres exigencias, que repetiam o que os paragrafos anteriores acabaram de
+    dizer. A regra do autor manda cortar recapitulacao.
+  - "cada uma das tres faltas cobra um preco diferente", da abertura, que e meta-discurso.
+  - a FIGURA 1 INTEIRA, por decisao do autor em 2026-09-07: nada de imagem nesta secao. O numero que ela
+    carregava sobreviveu na prosa, que e a excursao de 22 dB entre o tom mais forte e o mais fraco. Saiu
+    com ela a unica imagem existente no artigo; as Figuras 2 a 5 nunca existiram como arquivo, e seguem
+    citadas na prosa das secoes 2.2, 3 e 4, que nao foram alteradas aqui.
+    O arquivo figuras/resposta-canal.png e o figura_canal.py que o gera ficaram sem uso. NAO foram
+    apagados: a decisao de remove-los do repositorio e do autor, e o script ainda documenta como a
+    varredura foi repontuada.
+Tres citacoes sobreviveram, todas de PDF lido: LOPES e AGUIAR (2001) no pente, PUTZ et al. (2026) no eco
+e no estouro. As frases exatas de origem estao em referencias.md.
+O eco continua entrando como PROPRIEDADE DO MEIO e o paragrafo fecha pela negativa, dizendo que esta sala
+nao tem cauda mensuravel. Nao virou dificuldade vencida, que os resultados desmentiriam. -->
 
-Medimos a relação sinal-ruído mandando o próprio tom, e só em 1700 Hz, onde ela é de 57,3 dB no sentido B→A e 51,6 dB no sentido A→B. Acima de 4 kHz não há medida por tom pisado, e as duas varreduras de que dispomos discordam entre si nessa região, de modo que a faixa não foi exercitada. O ultrassom fica fora do escopo deste trabalho por essa razão e pela queda de nível dos transdutores, não por uma medida de ruído que o sustente. Sobra a banda audível, dividida com tudo o que soa na sala.
+Transmitir pelo ar é converter a sequência de amostras em variação de pressão, deixá-la atravessar a sala a 343 m/s e reconvertê-la em amostras do outro lado. Entre um conversor e outro estão o amplificador, o alto-falante, o ar, as superfícies que refletem e o microfone. Esse canal não é plano, não é linear e não é silencioso.
 
-Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo seu percurso. Cópias atrasadas somam em fase nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso e se opõem nas intermediárias, de modo que a resposta em frequência é um pente, com máximos e nulos alternados ao longo da banda. Aqui o degrau entre vizinhos a 50 Hz de resolução tem mediana de 2,5 dB e chega a 13 dB, e a posição dos nulos depende da geometria e muda quando alguém se move.
+Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Colocamos os tons entre 550 e 3500 Hz, onde a resposta medida varia 28 dB entre o melhor e o pior ponto. Acima disso o nível cai de 12 a 20 dB.
 
-A Figura 1 mostra a resposta medida com os dezesseis tons da 16-FSK marcados sobre o pente. Os tons caem em pontos distintos dele, de 5,7 a 27,8 dB abaixo do melhor ponto da varredura, e essa excursão de 22 dB entre o tom mais forte e o mais fraco é a razão de a decisão do receptor não poder depender da amplitude absoluta de nenhum deles.
+O ultrassom atrai porque a sala fica silenciosa acima da banda da fala e a transmissão não incomoda quem está por perto. A amostragem usual de 44,1 ou 48 kHz fecha a banda abaixo de 22 kHz, exigir inaudibilidade a reduz a menos de 4 kHz, e nessa faixa o hardware de áudio é fortemente seletivo (PUTZ *et al.*, 2026). A absorção do ar cresce com a frequência e encurta o alcance, e por isso o ultrassom fica fora deste trabalho.
 
-![Figura 1 - Resposta em frequência medida por varredura de 300 a 6000 Hz no sentido A→B, em bins de 50 Hz, com os dezesseis tons da 16-FSK marcados. A faixa clara é a região de 550 a 3500 Hz onde os tons foram colocados. A distância entre um máximo e o nulo vizinho é pequena diante da largura da faixa útil, e os tons caem em pontos distintos do pente.](figuras/resposta-canal.png "0.85")
+Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo percurso que fez. Uma cópia atrasada reforça o som direto nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso, e o cancela naquelas em que essa diferença vale meio período. Como a condição depende da frequência, a resposta do canal é um pente de máximos e nulos alternados, e a geometria da sala fixa o espaçamento entre eles.
 
-As reflexões tardias prolongam o som depois que a fonte cala, e enquanto essa cauda dura a energia do símbolo anterior ainda está no microfone quando o seguinte começa. Nesta bancada a cauda não é mensurável, o sinal para no piso de ruído, mas o projeto a antecipa porque outra sala pode tê-la.
+O degrau entre vizinhos a 50 Hz de resolução tem mediana de 2,5 dB e chega a 13 dB, e a posição dos nulos muda quando alguém se move. Lopes e Aguiar (2001) já apontavam essas reflexões como a razão de não se confiar em muitos níveis de amplitude no ar.
 
-A cadeia analógica não é linear em toda a excursão. O alto-falante limita os picos e o microfone comprime quando o nível cresce, e a energia retirada do sinal reaparece como harmônicos e produtos de intermodulação dentro da mesma banda, indistinguíveis de sinal transmitido. Além desse ponto, aumentar o nível de transmissão piora a recepção. As duas máquinas amostram com osciladores próprios, de modo que o intervalo de símbolo recebido difere do transmitido por uma fração de amostra que se acumula ao longo de um bloco.
+As mesmas reflexões, vistas no tempo, são a reverberação. Depois que a fonte cala o som persiste enquanto as ondas ainda percorrem a sala perdendo energia a cada superfície, e enquanto essa cauda dura a energia de um símbolo invade o seguinte. Em ambiente fechado o espalhamento chega a dezenas de milissegundos, absorvido por intervalo de guarda (PUTZ *et al.*, 2026). Nesta bancada a cauda não é mensurável, mas o projeto a antecipa porque outra sala pode tê-la.
 
-Disso decorrem três exigências. Um tom pode cair num nulo, então a decisão do receptor não pode depender da amplitude absoluta de nenhum tom. A amplitude que chega não é proporcional à que saiu, então o nível de operação tem de ser encontrado por medição. E o relógio de símbolo tem de ser recuperado do próprio sinal, não apenas o início da transmissão.
+A cadeia analógica também não é linear. O cone do alto-falante tem excursão limitada e o amplificador, tensão limitada, então os picos são achatados quando o nível cresce, e o microfone comprime do mesmo modo na outra ponta. A energia retirada dos picos reaparece como harmônicos e intermodulação, parte deles dentro da própria banda de trabalho, onde nenhum filtro os separa do sinal. Passado esse ponto, subir o nível piora a recepção.
 
-### 2.2 Modulação
+O estouro não é particularidade desta bancada. Putz *et al.* (2026) mediram distorção não linear na maioria dos aparelhos acima de cerca de 75% do volume máximo, num enlace de mão única, sem realimentação que corrija o ganho.
+
+Disso decorrem duas exigências. A decisão do receptor não pode depender da amplitude absoluta de nenhum tom, e o nível de operação tem de ser encontrado por medição.
+
+### 2.2 As quatro formas de transmissão
+
+<!--
+REESCRITA 2026-09-07, a pedido do autor: descrever melhor o nosso trabalho, como modulamos e como
+detectamos cada uma das quatro formas. Titulo novo; era "Modulacao", que nao dizia que a secao e sobre
+as quatro formas que construimos. O termo "quatro formas de transmissao" e o vocabulario ja fixado no
+CLAUDE.md desta pasta.
+A 2.3, "Sincronismo e correcao de erros", foi RETIRADA por decisao do autor em 2026-09-07, "por
+enquanto". O texto dela esta preservado no fim deste comentario, para voltar sem ser reescrito.
+
+NUMEROS CONFERIDOS NO CODIGO EM 2026-09-07, nao no CLAUDE.md:
+  2-FSK: MARK 1200 Hz, SPACE 2200 Hz, 1200 baud, 8N1; deteccao por atraso e produto, atraso de um
+    quarto de periodo em 1700 Hz; fase continua entre simbolos.
+  5x2-FSK: MFSK_PAIRS = (700,900) (1320,1120) (1540,1740) (2160,1960) (2380,2580), 200 Hz dentro de
+    cada par, 100 baud. Polaridade alternada conferida par a par: nos pares 0, 2 e 4 o tom grave e o
+    bit 0; nos pares 1 e 3 e o bit 1. Media dos acordes recalculada aqui: 8100/5 = 1620 Hz para o
+    acorde do bit 0 e 8300/5 = 1660 Hz para o do bit 1, o que confirma o CLAUDE.md.
+    MFSK_PRESENCE_MIN = 1.3.
+  16-FSK: MARY_TONES, dezesseis tons de 888 a 3325 Hz; espacamento conferido, 162 Hz constante
+    (1050-888 = 162, 3325-3162 = 163 por arredondamento). MARY_BITS = 4, codigo Gray, 100 baud.
+
+CORRECAO, e ela vale para o CLAUDE.md da raiz tambem: O INTERVALO DE GUARDA E 15%, NAO 35%.
+  O padrao entregue e guard=0.15 em MFSKDemodulator (linha 397) e MaryDemodulator (linha 796), e o
+  descarte e no INICIO do simbolo, np.arange(self.guard, samples_per_symbol).
+  Os 35% aparecem em dois lugares e nenhum e o caminho vivo: loopback_test.py linha 119, num caso
+  deliberadamente ajustado para reverberacao ((0.35, 0.15, True)), e console.py linha 605, numa
+  varredura de diagnostico que repontua audio guardado. O CLAUDE.md da raiz descreve o caso de teste
+  como se fosse o comportamento entregue, e a versao anterior desta secao repetia o erro.
+
+O marcador "(CITAR: modulacao M-FSK, deteccao nao coerente)" foi retirado: pela decisao de escopo do
+autor, a literatura serve a introducao e a 2.1, e daqui para a frente o texto se sustenta no que
+construimos e medimos. PROAKIS e SALEHI (2008) continua levantado em referencias.md, grupo G5, se o
+autor quiser citar livro-texto para o principio M-ario.
+A remissao "A Figura 2 mostra o espectro de cada uma" tambem saiu, porque nao ha figura no artigo.
+
+TEXTO DA 2.3 RETIRADA, para restaurar quando o autor pedir:
+  "O bloco e localizado por uma palavra de referencia de 31 bits, correlacionada sobre as LLR
+  recebidas, nunca por contagem de simbolos, pois o gate consome numeros diferentes de amostras por
+  simbolo enquanto ajusta. E a mesma correlacao que resolve o alinhamento de nibble da 16-FSK, em que
+  um simbolo a mais antes do bloco troca os nibbles de todos os bytes. Acima do bloco, o arquivo vai
+  em pacotes com numero de sequencia, comprimento e CRC-16, reenvio pare-e-espere dirigido pelo
+  receptor, transmissor sem estado. A aplicacao ve uma porta serial virtual."
+-->
 
 Chamamos M-ária a modulação de ordem $M$, em que cada símbolo é um tom escolhido entre $M$ frequências e carrega $\log_2 M$ bits, e a taxa de bits é o produto de (1).
 
 $$R_b = R_s \log_2 M \tag{1}$$
 
-Nela, $R_b$ é a taxa de bits, $R_s$ é a taxa de símbolos em bauds e $M$ é o número de frequências do alfabeto. Com a taxa de símbolos presa pela banda e pelas reflexões, subir $M$ é o caminho para subir $R_b$. Em todas as quatro formas a informação está em qual frequência soou, e o que muda entre elas é quanto a decisão depende de quão forte ela chegou. A Figura 2 mostra o espectro de cada uma. (CITAR: modulação M-FSK, detecção não coerente)
+Nela, $R_b$ é a taxa de bits, $R_s$ é a taxa de símbolos em bauds e $M$ é o número de frequências do alfabeto. Com a taxa de símbolos presa pela banda e pelas reflexões, subir $M$ é o caminho para subir $R_b$. Construímos quatro formas, e o que muda entre elas é quanto a decisão depende de quão forte o tom chegou.
 
-<!-- FIGURA 2, aqui: quatro paineis de espectro, sinteticos, um por forma: dois tons; cinco pares com o
-mesmo bit; cinco pares com bits distintos; dezesseis tons com um so soando. E figura de METODO, a legenda
-tem de dize-lo para nao ser lida como medicao. -->
+A 2-FSK usa os dois tons do padrão Bell 202, 1200 e 2200 Hz, a 1200 símbolos por segundo, com os bytes enquadrados em 8N1. O modulador mantém a fase contínua na troca de tom, porque reiniciá-la a cada símbolo produz um degrau que espalha energia fora da banda.
 
-A 2-FSK usa os tons do padrão Bell 202, 1200 e 2200 Hz a 1200 símbolos por segundo, bytes em 8N1. O demodulador multiplica o sinal filtrado por uma cópia atrasada de um quarto de período em 1700 Hz e filtra o produto, cuja média tem um sinal para cada tom, e o bit é esse sinal. O limite é o limiar, pois um canal que atenue um tom mais do que o outro desloca a média e enviesa toda decisão no mesmo sentido.
+O demodulador filtra a banda, multiplica o sinal por uma cópia dele atrasada de um quarto de período em 1700 Hz e filtra o produto. A média do produto muda de sinal conforme o tom presente, e o bit é esse sinal, sem que haja recuperação de portadora. O limite é o limiar, pois um canal que atenue um tom mais do que o outro desloca a média e enviesa toda decisão no mesmo sentido.
 
-A 5×2-FSK votada troca o limiar por comparação. Cinco pares de tons, 200 Hz dentro de cada par, carregam o mesmo bit a 100 símbolos por segundo, e cada par vota no tom mais forte e a maioria decide, de modo que o ganho cancela e um tom forte pelo motivo errado vale um voto só. A polaridade alterna ao longo da banda para que os dois símbolos tenham a mesma frequência média, e um limiar de presença sobre a razão vencedor/perdedor separa símbolo de sala vazia, porque cinco tons de ruído também elegem um bit. Custa ser doze vezes mais lenta.
+A 5×2-FSK votada troca o limiar por comparação. Cinco pares de tons carregam o mesmo bit a 100 símbolos por segundo, com 200 Hz dentro de cada par, distância curta o bastante para o canal tratar os dois membros de modo parecido. Cada par vota no tom que chegou mais forte, e a maioria decide o bit.
 
-A 5×2-FSK multicanal usa os mesmos pares com um bit distinto em cada, cinco bits por símbolo. O limite das duas formas de cinco pares é potência, pois o pico que o alto-falante aceita é fixo e cinco tons simultâneos recebem um quinto dele cada um, 14 dB a menos por tom.
+O voto é uma razão entre dois tons vizinhos, então multiplicar o sinal inteiro por qualquer fator não muda o resultado, e um tom forte pelo motivo errado vale um voto só entre cinco.
 
-A 16-FSK devolve essa potência. Um só tom soa por vez entre dezesseis, quatro bits por símbolo, vizinhos em código Gray para que a confusão mais provável custe um bit. O receptor mede a energia de cada tom, divide pelo piso corrente daquele tom e elege o maior, conforme (2).
+A polaridade alterna ao longo da banda, e nos pares 0, 2 e 4 o tom grave significa 0 enquanto nos pares 1 e 3 significa 1. Assim os dois acordes ficam com frequência média quase igual, 1620 e 1660 Hz, e um canal inclinado não favorece nenhum dos dois bits.
+
+Uma razão, porém, elege um bit também em sala vazia, e cinco tons de ruído decodificariam para sempre. O segundo critério é a presença, pois o tom perdedor de cada par é uma frequência que ninguém transmitiu, e a mediana da razão entre vencedor e perdedor separa símbolo de sala. Exigimos 1,3. A forma custa doze vezes o tempo da 2-FSK.
+
+A 5×2-FSK multicanal usa os mesmos dez tons com um bit distinto em cada par, cinco bits por símbolo, e a mesma decisão por comparação dentro do par. O limite das duas formas de cinco pares é potência, pois o pico que o alto-falante aceita é fixo, cinco tons simultâneos recebem um quinto dele cada um, e cada tom sai 14 dB abaixo do que sairia sozinho.
+
+A 16-FSK devolve essa potência. São dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, e exatamente um soa por vez, quatro bits por símbolo. Os vizinhos recebem código Gray, de modo que confundir um tom com o do lado, que é a confusão que o canal de fato faz, custa um bit e não quatro.
+
+O receptor mede a energia de cada tom dentro do símbolo, divide pelo piso corrente daquele tom e elege o maior, conforme (2).
 
 $$\hat{s} = \arg\max_k \frac{E_k}{P_k} \tag{2}$$
 
-Nela, $E_k$ é a energia no tom $k$ dentro do símbolo e $P_k$ é a média corrente dessa energia. Como cada tom fica em silêncio quinze símbolos em dezesseis, essa média é o piso de ruído naquela frequência, e um tom num nulo do pente é comparado com o próprio nulo. Os primeiros 35% de cada símbolo são descartados como guarda. A transmissão abre com um preâmbulo alternado, que dá ao relógio de símbolo transições para travar, e fecha com uma cauda ociosa, sem a qual o último byte fica preso no demodulador.
+Nela, $E_k$ é a energia no tom $k$ dentro do símbolo e $P_k$ é a média corrente dessa energia. Como cada tom fica em silêncio quinze símbolos em dezesseis, essa média é o piso de ruído naquela frequência, e um tom caído num nulo do pente passa a ser comparado com o próprio nulo em vez de com os outros quinze.
 
-### 2.3 Sincronismo e correção de erros
-
-<!-- Fonte: fec.py, xfer.py, recvfile.py, modem.chirp. Tabela 2 vem da simulacao contra erros de bit. -->
-
-O relógio de símbolo vem de um gate antecipado/atrasado guiado pelo contraste da decisão, ou de duas varreduras de 80 ms que emolduram o quadro, recuperadas por filtro casado. A primeira varredura dá o início do quadro como índice absoluto e o intervalo entre as duas dá o período medido de (3).
-
-$$T = \frac{n_2 - n_1}{N} \tag{3}$$
-
-Nela, $n_1$ e $n_2$ são os índices dos dois picos e $N$ é o número de símbolos do quadro, conhecido das duas pontas. Os picos são ordenados por posição e não por altura, porque as varreduras são idênticas e o canal decide qual chega mais forte. No caminho codificado o demodulador entrega, em vez do bit, a verossimilhança logarítmica de cada bit, do inglês *log-likelihood ratio* (LLR), cujo sinal é o bit e cujo módulo é a confiança, quatro por símbolo na 16-FSK.
-
-Num canal assim uma fração de 10 a 25% dos bits chega errada, e nessa faixa detectar não basta. A verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC), diz que o bloco falhou, e a retransmissão automática, do inglês *automatic repeat request* (ARQ), só converge enquanto a chance de um bloco chegar inteiro não for pequena. O bit tem de ser reparado onde cai. Usamos correção antecipada de erros, do inglês *forward error correction* (FEC), com código convolucional de comprimento de restrição $K = 7$ a taxa 1/3 e decodificação de Viterbi com decisão suave sobre as LLR, mais entrelaçamento e uma repetição $r$ combinada entre as pontas. Dentro do bloco não há 8N1, pois o bloco tem comprimento fixo e nada nele desliza, ao contrário do fluxo de bytes, em que um bit de partida errado desloca todo o resto. A Tabela 2 dá a fração de bits errados que cada variante tolera, medida em simulação e não no ar. (CITAR: códigos convolucionais, Viterbi, decisão suave)
-
-<!-- TABELA 2, aqui. Linhas: taxa 1/2 abrupta | taxa 1/2 suave | taxa 1/3 suave | taxa 1/3 suave, r = 2.
-Coluna: fracao de bits errados ate a qual o bloco de 64 bytes chega inteiro (8%, 8%, 13%, 25%). Legenda
-ACIMA, dizendo que e simulacao. -->
-
-O bloco é localizado por uma palavra de referência de 31 bits, correlacionada sobre as LLR recebidas, nunca por contagem de símbolos, pois o gate consome números diferentes de amostras por símbolo enquanto ajusta. É a mesma correlação que resolve o alinhamento de nibble da 16-FSK, em que um símbolo a mais antes do bloco troca os nibbles de todos os bytes. Acima do bloco, o arquivo vai em pacotes com número de sequência, comprimento e CRC-16, reenvio pare-e-espere dirigido pelo receptor, transmissor sem estado. A aplicação vê uma porta serial virtual.
+As três formas de 100 bauds compartilham o mesmo relógio de símbolo, ajustado por um gate de adiantamento e atraso guiado pelo contraste da decisão, e descartam os primeiros 15% de cada símbolo como intervalo de guarda. A transmissão abre com um preâmbulo alternado, que dá ao gate as transições de que ele precisa para travar, e fecha com uma cauda ociosa, sem a qual o último byte fica preso no demodulador.
 
 ## 3 MÉTODO DE MEDIÇÃO
 
