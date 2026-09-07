@@ -43,8 +43,10 @@ NOMENCLATURA (decisao do autor, 2026-09-05; fixa, nao muda mais):
   Forma de toda sigla estrangeira: nome em portugues, "do ingles", termo em italico, sigla entre
     parenteses depois do termo.
 
-ESTADO DO TEXTO: resumo aprovado 2026-09-05. Secoes 1 e 2 redigidas 2026-09-06 na estrutura acima, por
-  revisar. Secoes 3, 4 e 5 sao esqueleto.
+ESTADO DO TEXTO (2026-09-07): so o RESUMO se salva do rascunho anterior. As secoes 1, 2 e 3 que existiam
+  foram descartadas por decisao do autor: foram escritas as pressas e nao servem de base. O artigo esta sendo
+  montado de tras para frente, comecando pelos RESULTADOS, com o que existe em ../resultados/. Cada figura
+  mora na pasta da campanha que a gerou; artigo/figuras/ recebe copia para a montagem.
 -->
 
 # Transmissão de dados por som audível entre dois computadores: o canal acústico medido e um modem para ele
@@ -82,179 +84,56 @@ Este artigo apresenta a transmissão de dados por som audível entre dois comput
 
 ## 1 INTRODUÇÃO
 
-<!--
-Redigida 2026-09-06, condensando a introducao e a fundamentacao de 2026-09-05 em uma lauda. Quatro
-paragrafos: os meios; o fio e o ar; o caso e o que exige; o que apresentamos. Numeros so na secao 2 e na 4.
--->
-
-Levar bytes de uma máquina a outra tem vários meios, e cada um cobra a sua instalação. O cabo entrega megabytes por segundo e exige um conector livre em cada ponta. O rádio, no Wi-Fi ou no Bluetooth, exige um transceptor, um pareamento e a permissão de operar, que nem todo ambiente concede. O infravermelho exige linha de visada. O som audível não exige nenhuma das três coisas, pois o alto-falante e o microfone já vêm em qualquer computador ou telefone, e o que ele cobra é a taxa. A Tabela 1 põe os quatro meios lado a lado. (CITAR: comunicação acústica entre dispositivos, transferência de dados por áudio)
-
-<!-- TABELA 1, aqui. Colunas: meio | hardware exigido | taxa tipica | alcance | onde cabe. Linhas: cabo,
-radio, infravermelho, som audivel, esta por ultimo e julgada pela mesma regua. Legenda ACIMA da tabela. -->
-
-A resposta clássica para pôr dados num canal de voz é a modulação por chaveamento na frequência, do inglês *frequency shift keying* (FSK), em que a portadora comuta entre duas frequências e cada uma vale um valor do bit. O padrão Bell 202 fixa 1200 e 2200 Hz a 1200 símbolos por segundo, com os bytes enquadrados em 8N1, e o receptor decide o bit pelo sinal de um discriminador de frequência. No par de fios telefônico as duas frequências chegam no mesmo nível. No ar, o canal não é um fio. O som chega pelo caminho direto e pelas reflexões da sala, que se somam com fases dependentes da frequência, e a resposta vira um pente, com mais de dez decibéis entre frequências vizinhas. O alto-falante limita os picos e o microfone comprime, os dois relógios de amostragem são independentes, e a banda é a da fala, dividida com qualquer conversa. (CITAR: Bell 202, canal acústico em ambiente fechado, resposta em pente)
-
-O caso deste artigo é o de duas máquinas comuns numa sala, sem nada a instalar, que precisam trocar poucos bytes com confiança. Ele exige três coisas. A decisão do receptor não pode depender da amplitude, pois num pente a amplitude de cada frequência é acidente da geometria da sala. O erro precisa ser reparável onde cai, pois uma fração grande dos bits chega errada e pedir de novo não converge quando quase todo bloco vem danificado. E a medição precisa comparar variantes sem que a sala entre na conta, pois duas execuções do mesmo código na mesma sala discordam. As ferramentas do campo contra esse canal são a multiplexação por divisão ortogonal de frequência, do inglês *orthogonal frequency division multiplexing* (OFDM), as varreduras de frequência e o chaveamento em múltiplas frequências, e adotamos as mais simples delas. (CITAR: OFDM acústico, chirp acústico, MFSK acústico)
-
-Apresentamos um modem acústico que atende a esse caso e se expõe à aplicação como uma porta serial. As contribuições são o canal medido com os próprios tons do sistema, duas camadas sobre ele, a física com quatro formas de transmissão experimentadas no mesmo enlace e a de enlace com correção antecipada de erros e sincronismo de bloco por correlação, e o método de medição por gravação, que congela o canal e permite pontuar variantes sobre os mesmos segundos de ar. As quatro formas entraram na ordem em que o enlace as exigiu, da 2-FSK herdada da telefonia à 16-FSK com um tom por vez entre dezesseis, e essa ordem é o fio da seção Princípio de funcionamento. Verificamos o conjunto entre duas máquinas na mesma sala, com a transferência de um arquivo inteiro pelo ar.
+<!-- A redigir depois dos resultados. -->
 
 ## 2 PRINCÍPIO DE FUNCIONAMENTO
 
-<!--
-Redigida 2026-09-06. Mecanismo em palavras antes de qualquer equacao; a teoria minima de cada mecanismo
-entra onde ele e usado. O canal primeiro, porque tudo o que segue e resposta a ele. Fronteira da fisica:
-entrega simbolos e a verossimilhanca de cada bit; o enlace opera em bits, nunca em amostras.
--->
-
-### 2.1 O meio acústico
-
-<!-- Fonte: resultados/02-LVL-TONE, 03-CH-CHIRP (as duas direcoes), 12-13-SYNC. -->
-
-Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Medida tom a tom entre as duas máquinas, com a mediana de três repetições por frequência, a banda útil vai de 550 a 3500 Hz. Acima de 4 kHz a relação sinal-ruído cai, 12 dB a 4000 Hz, 8 dB a 4500 Hz e cerca de zero a 5000 Hz, e acima de 6 kHz é negativa. O ultrassom, atraente por ser uma faixa silenciosa, fica portanto fora do alcance destes transdutores, e sobra a banda audível, dividida com tudo o que soa na sala.
-
-Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo seu percurso. Cópias atrasadas somam em fase nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso e se opõem nas intermediárias, de modo que a resposta em frequência é um pente, com máximos e nulos alternados ao longo da banda. Aqui a diferença entre vizinhos a 50 Hz de resolução chega a 13 a 18 dB, e a posição dos nulos depende da geometria e muda quando alguém se move. A Figura 1 mostra a resposta medida com os dezesseis tons da 16-FSK marcados sobre o pente. As reflexões tardias prolongam o som depois que a fonte cala, e enquanto essa cauda dura a energia do símbolo anterior ainda está no microfone quando o seguinte começa. Nesta bancada a cauda não é mensurável, o sinal para no piso de ruído, mas o projeto a antecipa porque outra sala pode tê-la.
-
-<!-- FIGURA 1, aqui: resposta em frequencia medida, tom a tom, com os 16 tons marcados sobre o pente.
-Legenda ABAIXO: o que se ve, a direcao do enlace, e o que notar (a distancia entre um maximo e o nulo
-vizinho e pequena diante da banda util). -->
-
-A cadeia analógica não é linear em toda a excursão. O alto-falante limita os picos e o microfone comprime quando o nível cresce, e a energia retirada do sinal reaparece como harmônicos e produtos de intermodulação dentro da mesma banda, indistinguíveis de sinal transmitido. Além desse ponto, aumentar o nível de transmissão piora a recepção. As duas máquinas amostram com osciladores próprios, de modo que o intervalo de símbolo recebido difere do transmitido por uma fração de amostra que se acumula ao longo de um bloco.
-
-Disso decorrem três exigências. Um tom pode cair num nulo, então a decisão do receptor não pode depender da amplitude absoluta de nenhum tom. A amplitude que chega não é proporcional à que saiu, então o nível de operação tem de ser encontrado por medição. E o relógio de símbolo tem de ser recuperado do próprio sinal, não apenas o início da transmissão.
-
-### 2.2 Modulação
-
-Chamamos M-ária a modulação de ordem $M$, em que cada símbolo é um tom escolhido entre $M$ frequências e carrega $\log_2 M$ bits, e a taxa de bits é o produto de (1).
-
-$$R_b = R_s \log_2 M \tag{1}$$
-
-Nela, $R_b$ é a taxa de bits, $R_s$ é a taxa de símbolos em bauds e $M$ é o número de frequências do alfabeto. Com a taxa de símbolos presa pela banda e pelas reflexões, subir $M$ é o caminho para subir $R_b$. Em todas as quatro formas a informação está em qual frequência soou, e o que muda entre elas é quanto a decisão depende de quão forte ela chegou. A Figura 2 mostra o espectro de cada uma. (CITAR: modulação M-FSK, detecção não coerente)
-
-<!-- FIGURA 2, aqui: quatro paineis de espectro, sinteticos, um por forma: dois tons; cinco pares com o
-mesmo bit; cinco pares com bits distintos; dezesseis tons com um so soando. E figura de METODO, a legenda
-tem de dize-lo para nao ser lida como medicao. -->
-
-A 2-FSK usa os tons do padrão Bell 202, 1200 e 2200 Hz a 1200 símbolos por segundo, bytes em 8N1. O demodulador multiplica o sinal filtrado por uma cópia atrasada de um quarto de período em 1700 Hz e filtra o produto, cuja média tem um sinal para cada tom, e o bit é esse sinal. O limite é o limiar, pois um canal que atenue um tom mais do que o outro desloca a média e enviesa toda decisão no mesmo sentido.
-
-A 5×2-FSK votada troca o limiar por comparação. Cinco pares de tons, 200 Hz dentro de cada par, carregam o mesmo bit a 100 símbolos por segundo, e cada par vota no tom mais forte e a maioria decide, de modo que o ganho cancela e um tom forte pelo motivo errado vale um voto só. A polaridade alterna ao longo da banda para que os dois símbolos tenham a mesma frequência média, e um limiar de presença sobre a razão vencedor/perdedor separa símbolo de sala vazia, porque cinco tons de ruído também elegem um bit. Custa ser doze vezes mais lenta.
-
-A 5×2-FSK multicanal usa os mesmos pares com um bit distinto em cada, cinco bits por símbolo. O limite das duas formas de cinco pares é potência, pois o pico que o alto-falante aceita é fixo e cinco tons simultâneos recebem um quinto dele cada um, 14 dB a menos por tom.
-
-A 16-FSK devolve essa potência. Um só tom soa por vez entre dezesseis, quatro bits por símbolo, vizinhos em código Gray para que a confusão mais provável custe um bit. O receptor mede a energia de cada tom, divide pelo piso corrente daquele tom e elege o maior, conforme (2).
-
-$$\hat{s} = \arg\max_k \frac{E_k}{P_k} \tag{2}$$
-
-Nela, $E_k$ é a energia no tom $k$ dentro do símbolo e $P_k$ é a média corrente dessa energia. Como cada tom fica em silêncio quinze símbolos em dezesseis, essa média é o piso de ruído naquela frequência, e um tom num nulo do pente é comparado com o próprio nulo. Os primeiros 35% de cada símbolo são descartados como guarda. A transmissão abre com um preâmbulo alternado, que dá ao relógio de símbolo transições para travar, e fecha com uma cauda ociosa, sem a qual o último byte fica preso no demodulador.
-
-### 2.3 Sincronismo e correção de erros
-
-<!-- Fonte: fec.py, xfer.py, recvfile.py, modem.chirp. Tabela 2 vem da simulacao contra erros de bit. -->
-
-O relógio de símbolo vem de um gate antecipado/atrasado guiado pelo contraste da decisão, ou de duas varreduras de 80 ms que emolduram o quadro, recuperadas por filtro casado. A primeira varredura dá o início do quadro como índice absoluto e o intervalo entre as duas dá o período medido de (3).
-
-$$T = \frac{n_2 - n_1}{N} \tag{3}$$
-
-Nela, $n_1$ e $n_2$ são os índices dos dois picos e $N$ é o número de símbolos do quadro, conhecido das duas pontas. Os picos são ordenados por posição e não por altura, porque as varreduras são idênticas e o canal decide qual chega mais forte. No caminho codificado o demodulador entrega, em vez do bit, a verossimilhança logarítmica de cada bit, do inglês *log-likelihood ratio* (LLR), cujo sinal é o bit e cujo módulo é a confiança, quatro por símbolo na 16-FSK.
-
-Num canal assim uma fração de 10 a 25% dos bits chega errada, e nessa faixa detectar não basta. A verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC), diz que o bloco falhou, e a retransmissão automática, do inglês *automatic repeat request* (ARQ), só converge enquanto a chance de um bloco chegar inteiro não for pequena. O bit tem de ser reparado onde cai. Usamos correção antecipada de erros, do inglês *forward error correction* (FEC), com código convolucional de comprimento de restrição $K = 7$ a taxa 1/3 e decodificação de Viterbi com decisão suave sobre as LLR, mais entrelaçamento e uma repetição $r$ combinada entre as pontas. Dentro do bloco não há 8N1, pois o bloco tem comprimento fixo e nada nele desliza, ao contrário do fluxo de bytes, em que um bit de partida errado desloca todo o resto. A Tabela 2 dá a fração de bits errados que cada variante tolera, medida em simulação e não no ar. (CITAR: códigos convolucionais, Viterbi, decisão suave)
-
-<!-- TABELA 2, aqui. Linhas: taxa 1/2 abrupta | taxa 1/2 suave | taxa 1/3 suave | taxa 1/3 suave, r = 2.
-Coluna: fracao de bits errados ate a qual o bloco de 64 bytes chega inteiro (8%, 8%, 13%, 25%). Legenda
-ACIMA, dizendo que e simulacao. -->
-
-O bloco é localizado por uma palavra de referência de 31 bits, correlacionada sobre as LLR recebidas, nunca por contagem de símbolos, pois o gate consome números diferentes de amostras por símbolo enquanto ajusta. É a mesma correlação que resolve o alinhamento de nibble da 16-FSK, em que um símbolo a mais antes do bloco troca os nibbles de todos os bytes. Acima do bloco, o arquivo vai em pacotes com número de sequência, comprimento e CRC-16, reenvio pare-e-espere dirigido pelo receptor, transmissor sem estado. A aplicação vê uma porta serial virtual.
+<!-- A redigir depois dos resultados. Mecanismo, sem numero desta bancada. -->
 
 ## 3 MÉTODO DE MEDIÇÃO
 
-<!--
-Redigida 2026-09-07. Fonte: resultados/12-13-SYNC (comparacao pareada), resultados/14-FEC-REP (formato de
-campanha), ../CLAUDE.md (calibracao na rajada, pontuacao com alinhamento tolerante, regua unica).
-Decisoes do autor, 2026-09-07: a auto-captura de uma maquina so fica FORA do artigo; o hardware e descrito
-como dois notebooks e uma caixa de som de teste, sem modelo; a figura da bancada e simples, a fazer.
-Cabo serial: uma mencao so, no paragrafo da carga, como auxilio do ensaio. Nunca como recurso do enlace.
--->
-
-Uma variante julgada pela transmissão é medida junto com a sala, e a sala não se repete, pois duas execuções do mesmo código no mesmo cômodo discordam. Gravamos a máquina remota transmitindo uma carga conhecida e pontuamos a gravação depois. Um canal congelado em disco deixa comparar variantes sobre os mesmos segundos de ar, e a diferença entre duas leituras passa a ser do receptor.
-
-A bancada é de dois notebooks numa sala comum, com uma caixa de som de teste ligada à máquina que transmite e o microfone interno da que recebe, ambas amostrando a 48 kHz. A Figura 3 mostra o arranjo e a Tabela 3 reúne os parâmetros do enlace.
-
-<!-- FIGURA 3, aqui: bancada, desenho simples. Os dois notebooks, a caixa ligada ao que transmite, o
-microfone interno do que grava, e o cabo serial tracejado, rotulado como controle. Legenda ABAIXO.
-TABELA 3, antes da figura: parametros do enlace. Amostragem, taxa de simbolos por forma, tons, guarda,
-comprimento de restricao, taxa do codigo, repeticao, tamanho de bloco, ganho. Legenda ACIMA. -->
-
-O programa é escrito em Python, com o processamento de sinal separado de toda entrada e saída de áudio. O mesmo código demodula o fluxo ao vivo e a gravação, de modo que a variante pontuada em disco é a que opera no enlace.
-
-A carga é uma sequência aleatória de comprimento fixo, gerada nas duas máquinas a partir de uma semente combinada por um cabo serial, que também sincroniza o início da transmissão. Os bytes pontuados trafegaram apenas pelo ar.
-
-A pontuação alinha o recebido ao transmitido antes de comparar. O enlace perde bytes inteiros, e um byte perdido desloca todos os seguintes, de modo que a comparação posição a posição pontua em torno de metade um enlace quase perfeito. Reportamos a fração de bits certos no melhor deslocamento, a mesma régua em todas as condições, e os blocos recuperados inteiros como número separado.
-
-Variantes que diferem apenas no receptor são pontuadas sobre a mesma gravação, e não por duas médias. Com a sala e o instante iguais nas duas colunas, poucas repetições bastam para distinguir uma da outra.
-
-O nível de transmissão é calibrado sobre uma rajada de dados e não sobre um tom contínuo. A troca de tom a cada símbolo produz transientes de cerca de 2,5 vezes o pico de um tom parado, e uma cadeia calibrada por tom satura na transmissão real sem que nenhum medidor acuse. O volume analógico e o ganho digital chegam ao alto-falante por caminhos distintos, e variar um com o outro fixo separa a saturação da falta de nível.
-
-Cada campanha varre um eixo por vez, com três a doze gravações por ponto, e guarda o áudio, a tabela de resultados e a versão do código que os produziu. Uma fração de bits certos é afirmação sobre o receptor tanto quanto sobre o canal, e o receptor mudou ao longo do trabalho.
-
-Não variamos a distância entre a caixa e o microfone nem o cômodo, e a dependência da geometria não foi levantada. Cada número da seção Resultados experimentais diz a direção em que o enlace operou, e traz ao lado a condição degradada de propósito, quando houve.
+<!-- A redigir depois dos resultados. -->
 
 ## 4 RESULTADOS EXPERIMENTAIS
+
 <!--
-Ordem: primeiro o que o meio e (identificacao), depois a operacao das camadas, na ordem em que a 2 as
-introduziu. Cada paragrafo com a celula do estilo: Figura N mostra + condicao + numero com incerteza ou
-repeticao + previsto contra medido + causa + o que aquele numero passou a alimentar. Cada numero diz de
-qual direcao veio (B->A ou A->B).
-
-4.a O meio ja esta em 2.1. Aqui so o que fecha ganchos: sem cauda de reverberacao mensuravel, a guarda de
-    35% foi projetada contra uma cauda que esta bancada nao tem; o voto elege um bit do silencio (485 bytes
-    decodificados de sala vazia); o microfone comprime ~3,5 dB ao longo da rajada; periodo de simbolo
-    medido 479,96 +- 0,07 amostras onde o nominal e 480. resultados/02, 03, 12-13-SYNC.
-
-4.b Nivel e saturacao. Ganho digital MENOR ganha. A->B a ganho 0,5 fixo, alto-falante 1,00 / 0,45 / 0,20 /
-    0,10: 82,3% / 85,1% / 88,0% / 82,2% de bits, blocos 0/3, 0/3, 3/3, 1/3. U invertido com joelho em
-    0,20. A inversao do ganho digital em 0,45 (81,4% a 1,0 contra 89,1% a 0,25, picos recebidos so
-    0,10-0,19) some em 0,20. Levou A->B de 0 de 12 a 8 de 9. resultados/17-SPK-LEVEL-A2B, 16-SPK-A2B.
-    FIGURA: bits certos e blocos inteiros contra nivel do alto-falante.
-
-4.c As quatro formas no mesmo enlace. Tabela: forma | bits por simbolo | taxa | medido no ar. 2-FSK nunca
-    entregou uma mensagem; 5x2-FSK votada 1,8 B/s 4/4; 5x2-FSK multicanal 5,9 B/s 5/9; 16-FSK repeticao 2
-    e ganho 0,5 9,4 B/s 9/11; 16-FSK repeticao 1 em cadeia linear 11,3 B/s 12/12. A 16-FSK recebe 0,14 rms
-    onde os cinco canais simultaneos recebiam 0,07-0,09, que e a troca de potencia de 2.2 medida. resultados/04 a 08,
-    11, 14.
-
-4.d Redundancia. Cadeia saturada: repeticao 1 0/6 e 1/6, repeticao 2 2/6 e 5/6, repeticao 4 4/7. Cadeia
-    corrigida, 48 bytes, quatro gravacoes por ponto: repeticao 1, 2 e 4 todas 4 de 4, a 11,3 / 6,7 /
-    3,7 B/s. Redundancia compra a cauda e nao a media (uma gravacao a repeticao 4 leu 64% dos bits e ainda
-    entregou o bloco). resultados/14-FEC-REP.
-
-4.e Relogio de simbolo. Oito gravacoes: gate 87,7% e 5/8; melhor deslocamento (oraculo) 89,3% e 7/8;
-    varredura da frente 88,4% e 8/8; duas varreduras com periodo medido 89,0% e 8/8. O gate nao e ruim na
-    media, ele colapsa (49,0% onde o relogio congelado leu 84,9%). Pareado: as varreduras leem mais bits
-    em 59 de 60. Parte na auto-captura Bluetooth, canal diferente, dizer. resultados/12-13-SYNC.
-
-4.f Arquivo inteiro. testcard.bmp, 1334 bytes, 21 de 21 pacotes de 64 bytes sem retransmissao a 6,8 B/s;
-    11 de 11 a 7,2 B/s com 128 bytes (3 retransmissoes). Pacote maior amortiza o preambulo e falha mais;
-    quase empata. Antes entregava 1 de 21, e nada na subdivisao ou no reenvio mudou: foi a correcao
-    analogica. Zero retransmissoes em 21 e resultado forte mas nao mede a taxa de falha por pacote com
-    precisao. resultados/15-PKT-ARQ.
-
-4.g O que nao ajudou e o que ficou fora: silencio entre simbolos, banda de integracao e acorde por nibble
-    (custam ou nao medem nada); piloto por tom medido e morto; a correcao do estimador de piso, boa na
-    cadeia distorcida e pior na linear (0 de 3 contra 2 de 3), ainda nao no ar. Curto, cada um com o
-    numero e a pasta. resultados/09, 10, 11, INVESTIGACAO-A2B.md.
+Redigido a partir de 2026-09-07, do fim para o comeco. Campanhas escolhidas com o autor: 01, 02 e 03 para o
+canal; 04, 05, 06 e 07 para as quatro formas; 07 para linearidade; 08 para ganho; 11 para potencia; 12-13
+para deriva de relogio e quadro longo; 14 para redundancia; 15 para arquivo; 08-A2B, 16 e 17 para as duas
+direcoes. Prosa propositalmente longa nesta fase; sintetizar depois.
+Nenhum numero entra sem pasta. Ficaram de fora, por falta de lastro: banda util 550-3500 Hz, colapso acima
+de 4 kHz e o descarte do ultrassom, todos herdados de uma medicao tom a tom que nunca virou pasta.
 -->
+
+### 4.1 O canal medido
+
+O primeiro dado do meio é o ruído que já está na sala antes de qualquer transmissão. Medimos com o enlace inteiramente parado, quatro gravações de oito segundos pelo microfone da máquina receptora, e a Figura 1 mostra a média delas em janelas de 50 Hz. O ruído não é plano. Ele se concentra abaixo de 2 kHz, com máximos em torno de 1300 e 1500 Hz, e cai cerca de 25 dB entre 2000 e 2900 Hz.
+
+![](figuras/piso-ruido.png "0.95")
+Figura 1 - Piso de ruído do microfone receptor com o enlace parado, média de quatro gravações de 8 s em janelas de 50 Hz; a faixa cinza são os extremos entre as gravações e as marcas no rodapé são os dezesseis tons da 16-FSK. Notar que o ruído cai cerca de 25 dB entre 2000 e 2900 Hz, de modo que os tons da metade inferior da banda trabalham contra um fundo bem mais alto.
+
+Na banda inteira esse piso fica em −52,3 dBFS e, sob os dezesseis tons, ele vai de −67,6 a −94,8 dBFS. Os tons não recebem portanto o mesmo tratamento, e a diferença é da sala e não do sistema. Um projeto que escolhesse frequências apenas pela resposta dos transdutores estaria decidindo metade da questão.
+
+O sinal transmitido se destaca desse fundo com folga. A Figura 2 mostra o que o detector mede enquanto a máquina transmissora emite um tom de 1700 Hz, com três curvas na mesma janela e na mesma escala: as dezesseis sondas do detector durante o tom, as mesmas sondas com a sala parada, e um seno sintético de 1700 Hz analisado do mesmo jeito. O tom chega 47,4 dB acima das sondas que não receberam nada e 13,0 dB acima da segunda sonda mais alta, onde a decisão do receptor precisa de apenas 1,3 dB.
+
+![](figuras/deteccao-tom.png "0.95")
+Figura 2 - Nível nas dezesseis sondas do detector com um tom de 1700 Hz transmitido, comparado com a sala parada e com um seno sintético analisado na mesma janela. A curva sintética não passou por transdutor nem por sala, e serve de régua: o alargamento em torno do pico é da janela de análise, não do canal.
+
+A curva do seno sintético quase se sobrepõe à medida, e isso responde uma pergunta que a figura levantaria sozinha. O pico não é infinitamente estreito, e a razão é a janela de análise, não o canal: uma janela finita espalha energia de qualquer tom pelas sondas vizinhas, e o seno sintético, que não passou por sala nenhuma, espalha do mesmo jeito. O que sobra de diferença entre as duas curvas é o que a cadeia e a sala de fato acrescentaram, e é pouco.
+
+O comportamento ao longo da banda inteira se lê melhor com uma varredura, um tom que sobe de 300 a 6000 Hz em seis segundos, e a Figura 3 mostra a gravação dela. Três coisas aparecem ali. A primeira são as diagonais mais claras acima da varredura principal, que são o segundo e o terceiro harmônico, 30,5 e 42,2 dB abaixo da fundamental: são frequências que ninguém transmitiu e que a própria cadeia fabricou, e dentro da banda de trabalho elas são indistinguíveis de sinal. A segunda é o que acontece depois que a varredura acaba, à direita da figura, onde o nível não cai de uma vez e sim cerca de 50 dB ao longo de meio segundo. A terceira são os riscos verticais em 3,6 s e entre 4,2 e 4,4 s, que atravessam várias frequências no mesmo instante e por isso não podem ser a varredura: são sons da sala durante a gravação.
+
+![](figuras/varredura.png "0.95")
+Figura 3 - Espectrograma de uma varredura de 300 a 6000 Hz gravada pelo microfone receptor, com janela de 4096 amostras (11,7 Hz por bin). As diagonais tracejadas marcam o segundo e o terceiro harmônico gerados pela cadeia; o recorte mostra a crista contra a separação de 162 Hz entre tons vizinhos da 16-FSK; os riscos verticais em 3,6 e 4,2 s são ruído da sala, não sinal.
+
+A cauda de meio segundo merece cuidado. O desligamento do transmissor leva 10 ms, então ela não vem dele, e uma única gravação não separa a reverberação da sala do comportamento do alto-falante sem fio e do seu codec. Registramos o que foi medido no receptor, sem atribuir a origem. Ela importa porque o intervalo de guarda descartado no início de cada símbolo existe justamente para que o final de um símbolo não seja lido junto com o começo do seguinte.
+
+O nível ao longo da banda também não é uniforme. Na faixa ocupada pelos dezesseis tons, medida pela mesma varredura em passos de 74 Hz, o nível varia 23,7 dB entre o melhor e o pior ponto, com diferenças de até 9,4 dB entre pontos vizinhos. O som chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo seu percurso, e cópias atrasadas somam em fase em algumas frequências e se opõem em outras. A resposta resultante alterna máximos e nulos ao longo da banda, e a posição deles depende da geometria e muda quando alguém se move.
 
 ## 5 CONSIDERAÇÕES FINAIS
 
-<!--
-Tres paragrafos, no passado, sem numero novo, os mesmos do resumo.
-1. O que se apresentou: o meio e as duas camadas construidas sobre ele, com o mecanismo de cada uma.
-2. O que a estrutura fez: 11,3 B/s a 12 de 12; arquivo inteiro 21 de 21; e a observacao de que a
-   linearidade da cadeia pesou mais que qualquer mudanca de codigo, nas duas direcoes. Situar de volta
-   entre os meios da Tabela 1: taxa de um teclado lento, hardware de qualquer maquina, para o caso
-   descrito na introducao.
-3. Passo seguinte e fronteira: varreduras no caminho de arquivo (nao medido); estimador de piso a medir no
-   ar; ultrassom fora do escopo por transdutor e nao por argumento.
--->
+<!-- A redigir por ultimo. Inclui a frase sobre o que ficou para a versao final por prazo, entre elas
+refazer a 2-FSK na cadeia atual (ver HANDOFF.md, "O que falta medir", item 4). -->
 
 ## AGRADECIMENTOS
 
