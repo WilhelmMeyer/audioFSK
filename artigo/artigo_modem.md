@@ -167,24 +167,35 @@ O bloco é localizado por uma palavra de referência de 31 bits, correlacionada 
 ## 3 MÉTODO DE MEDIÇÃO
 
 <!--
-Por que uma secao propria: julgar uma ideia transmitindo mede a ideia e a sala ao mesmo tempo, e a sala nao
-para. Orcamento ~350 palavras.
-Hardware: as duas maquinas, placas de som, alto-falante e microfone de cada uma, taxa de amostragem 48 kHz.
-Software: Python, com o processamento de sinal separado de toda entrada e saida (o mesmo codigo roda ao
-  vivo e sobre gravacao), e a interface como porta serial virtual.
-Cabo serial entre as maquinas: UMA frase, como auxilio do ensaio (sincronizar o inicio e combinar a carga
-  conhecida gerada dos dois lados), deixando claro que os bytes pontuados viajaram so pelo ar. Nunca como
-  recurso da comunicacao. Decisao do autor, 2026-09-05.
-Metodo: gravacao do lado remoto transmitindo carga conhecida e pontuacao offline; um canal fixo permite
-  comparar variantes sobre os mesmos segundos de ar. Pontuacao com alinhamento tolerante, porque o enlace
-  derruba bytes e um byte perdido desloca o resto. Regua unica: bits no melhor deslocamento, blocos
-  inteiros como numero separado. Comparacao pareada sobre a mesma gravacao. Calibrar ganho numa rajada e
-  nao num tom, porque os transientes de troca de tom levam cerca de 2,5 vezes o pico de um tom parado.
-  O que foi degradado de proposito e dito ao lado do numero.
-Tabela candidata: parametros do enlace (fs, baud por camada, tons, K, r, tamanho de bloco, ganho, guarda),
-  com a coluna de simbolos igual a do texto.
-FIGURA CANDIDATA: foto ou diagrama da bancada.
+Redigida 2026-09-07. Fonte: resultados/12-13-SYNC (comparacao pareada), resultados/14-FEC-REP (formato de
+campanha), ../CLAUDE.md (calibracao na rajada, pontuacao com alinhamento tolerante, regua unica).
+Decisoes do autor, 2026-09-07: a auto-captura de uma maquina so fica FORA do artigo; o hardware e descrito
+como dois notebooks e uma caixa de som de teste, sem modelo; a figura da bancada e simples, a fazer.
+Cabo serial: uma mencao so, no paragrafo da carga, como auxilio do ensaio. Nunca como recurso do enlace.
 -->
+
+Uma variante julgada pela transmissão é medida junto com a sala, e a sala não se repete, pois duas execuções do mesmo código no mesmo cômodo discordam. Gravamos a máquina remota transmitindo uma carga conhecida e pontuamos a gravação depois. Um canal congelado em disco deixa comparar variantes sobre os mesmos segundos de ar, e a diferença entre duas leituras passa a ser do receptor.
+
+A bancada é de dois notebooks numa sala comum, com uma caixa de som de teste ligada à máquina que transmite e o microfone interno da que recebe, ambas amostrando a 48 kHz. A Figura 3 mostra o arranjo e a Tabela 3 reúne os parâmetros do enlace.
+
+<!-- FIGURA 3, aqui: bancada, desenho simples. Os dois notebooks, a caixa ligada ao que transmite, o
+microfone interno do que grava, e o cabo serial tracejado, rotulado como controle. Legenda ABAIXO.
+TABELA 3, antes da figura: parametros do enlace. Amostragem, taxa de simbolos por forma, tons, guarda,
+comprimento de restricao, taxa do codigo, repeticao, tamanho de bloco, ganho. Legenda ACIMA. -->
+
+O programa é escrito em Python, com o processamento de sinal separado de toda entrada e saída de áudio. O mesmo código demodula o fluxo ao vivo e a gravação, de modo que a variante pontuada em disco é a que opera no enlace.
+
+A carga é uma sequência aleatória de comprimento fixo, gerada nas duas máquinas a partir de uma semente combinada por um cabo serial, que também sincroniza o início da transmissão. Os bytes pontuados trafegaram apenas pelo ar.
+
+A pontuação alinha o recebido ao transmitido antes de comparar. O enlace perde bytes inteiros, e um byte perdido desloca todos os seguintes, de modo que a comparação posição a posição pontua em torno de metade um enlace quase perfeito. Reportamos a fração de bits certos no melhor deslocamento, a mesma régua em todas as condições, e os blocos recuperados inteiros como número separado.
+
+Variantes que diferem apenas no receptor são pontuadas sobre a mesma gravação, e não por duas médias. Com a sala e o instante iguais nas duas colunas, poucas repetições bastam para distinguir uma da outra.
+
+O nível de transmissão é calibrado sobre uma rajada de dados e não sobre um tom contínuo. A troca de tom a cada símbolo produz transientes de cerca de 2,5 vezes o pico de um tom parado, e uma cadeia calibrada por tom satura na transmissão real sem que nenhum medidor acuse. O volume analógico e o ganho digital chegam ao alto-falante por caminhos distintos, e variar um com o outro fixo separa a saturação da falta de nível.
+
+Cada campanha varre um eixo por vez, com três a doze gravações por ponto, e guarda o áudio, a tabela de resultados e a versão do código que os produziu. Uma fração de bits certos é afirmação sobre o receptor tanto quanto sobre o canal, e o receptor mudou ao longo do trabalho.
+
+Não variamos a distância entre a caixa e o microfone nem o cômodo, e a dependência da geometria não foi levantada. Cada número da seção Resultados experimentais diz a direção em que o enlace operou, e traz ao lado a condição degradada de propósito, quando houve.
 
 ## 4 RESULTADOS EXPERIMENTAIS
 <!--
