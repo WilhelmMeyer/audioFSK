@@ -1,6 +1,6 @@
 """Figuras do artigo, geradas a partir dos dados medidos na bancada.
 
-Duas figuras, PNG 300 dpi, largura de uma coluna de A4 (~16 cm), seguras em
+Tres figuras, PNG 300 dpi, largura de uma coluna de A4 (~16 cm), seguras em
 escala de cinza: nada e codificado so por cor, sempre por marcador e traco.
 Sem titulo dentro da figura -- a legenda vai embaixo, no texto.
 
@@ -18,6 +18,13 @@ B) artigo/figuras/nivel-alto-falante.png
    Acuracia de bits e blocos inteiros contra o volume do alto-falante da
    maquina transmissora (A->B, ganho digital fixo em 0,5, 3 gravacoes por
    ponto). Valores de `resultados/17-SPK-LEVEL-A2B/`, transcritos aqui.
+
+C) artigo/figuras/bancada.png
+   Esquema da bancada: as duas maquinas, o alto-falante de ensaio ligado a
+   que transmite, o microfone interno da que recebe, o caminho acustico
+   entre eles e o cabo serial. Nao ha dado medido nesta figura, so o
+   arranjo. O cabo serial e tracejado de proposito: ele so sincroniza o
+   ensaio, e os bytes pontuados viajam apenas pelo ar.
 """
 
 import os
@@ -27,7 +34,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
+from matplotlib.patches import (Arc, Circle, FancyArrowPatch, Patch, Polygon,
+                                Rectangle)
 from matplotlib.ticker import FuncFormatter, MultipleLocator
 import numpy as np
 
@@ -209,10 +217,126 @@ def figura_b():
               f"{BLOCOS[v]} de {TOTAL_BLOCOS} blocos")
 
 
+# Bancada: A transmite, B recebe. O sentido segue a figura B e as campanhas
+# *-A2B, e trocar o sentido aqui poria as duas figuras em contradicao.
+BANCADA = {
+    'altura': 3.1,               # polegadas; aspecto igual, 1 unidade = 1 pol
+    'tela': (1.30, 1.20),        # largura e altura da tela de cada notebook
+    'base': (1.54, 0.16),        # a parte de baixo, mais larga que a tela
+    'x_a': 1.05,                 # centro do notebook esquerdo
+    'x_b': 5.25,                 # centro do notebook direito
+    'y_base': 0.75,              # onde a base apoia
+    'y_ar': 1.45,                # altura do caminho acustico
+}
+
+
+def notebook(ax, xc, y_base, rotulo):
+    """Um notebook de bloco: base larga, tela em cima, area util dentro dela.
+
+    Devolve os limites da tela, porque o marcador do microfone e o rotulo
+    da maquina se posicionam a partir dela, nunca por numero solto.
+    """
+    lt, ht = BANCADA['tela']
+    lb, hb = BANCADA['base']
+    ax.add_patch(Rectangle((xc - lb / 2, y_base), lb, hb,
+                           facecolor='0.90', edgecolor='black', linewidth=1.0))
+    x0, y0 = xc - lt / 2, y_base + hb
+    ax.add_patch(Rectangle((x0, y0), lt, ht,
+                           facecolor='white', edgecolor='black',
+                           linewidth=1.0))
+    ax.add_patch(Rectangle((x0 + 0.10, y0 + 0.10), lt - 0.20, ht - 0.20,
+                           facecolor='0.94', edgecolor='0.55', linewidth=0.6))
+    ax.text(xc, y0 + ht + 0.30, rotulo, ha='center', va='center',
+            fontsize=10, fontweight='bold')
+    return x0, y0, lt, ht
+
+
+def alto_falante(ax, x0, yc):
+    """Caixa mais cone, apontando para a direita. Devolve a boca do cone."""
+    corpo_l, corpo_h, cone_l = 0.22, 0.40, 0.26
+    ax.add_patch(Rectangle((x0, yc - corpo_h / 2), corpo_l, corpo_h,
+                           facecolor='0.90', edgecolor='black', linewidth=1.0))
+    boca = x0 + corpo_l + cone_l
+    ax.add_patch(Polygon([(x0 + corpo_l, yc - corpo_h / 2),
+                          (x0 + corpo_l, yc + corpo_h / 2),
+                          (boca, yc + 0.37),
+                          (boca, yc - 0.37)],
+                         closed=True, facecolor='0.96', edgecolor='black',
+                         linewidth=1.0))
+    return boca
+
+
+def figura_c():
+    h = BANCADA['altura']
+    y_base, y_ar = BANCADA['y_base'], BANCADA['y_ar']
+
+    fig, ax = plt.subplots(figsize=(LARGURA, h))
+    fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+    ax.set_xlim(0, LARGURA)
+    ax.set_ylim(0, h)
+    ax.set_aspect('equal')
+    ax.set_axis_off()
+
+    xa, xb = BANCADA['x_a'], BANCADA['x_b']
+    _, _, lt, ht = notebook(ax, xa, y_base, 'Máquina A')
+    xb0, yb0, _, _ = notebook(ax, xb, y_base, 'Máquina B')
+
+    # Alto-falante de ensaio, ligado a maquina que transmite por um cabo curto.
+    boca = alto_falante(ax, 2.10, y_ar)
+    ax.add_patch(FancyArrowPatch((xa + BANCADA['base'][0] / 2, y_base + 0.08),
+                                 (2.10, y_ar - 0.10), arrowstyle='-',
+                                 connectionstyle='arc3,rad=-0.35',
+                                 linewidth=1.0, color='black'))
+    ax.text(2.48, y_ar + 0.62, 'alto-falante de ensaio', ha='center',
+            va='center', fontsize=8.5)
+
+    # O ar: frentes de onda saindo da boca do cone e uma seta ate o microfone.
+    for r in (0.40, 0.60, 0.80):
+        ax.add_patch(Arc((boca, y_ar), 2 * r, 2 * r, theta1=-32, theta2=32,
+                         linewidth=0.9, color='black'))
+    x_mic, y_mic = xb0 + 0.16, yb0 + ht - 0.05
+    ax.annotate('', xy=(x_mic - 0.02, y_mic - 0.11), xytext=(3.45, y_ar),
+                arrowprops=dict(arrowstyle='-|>', linewidth=1.0, color='black',
+                                shrinkA=0, shrinkB=2, mutation_scale=11))
+    ax.text(3.40, y_ar - 0.50, 'caminho acústico (ar)', ha='center',
+            va='center', fontsize=8.5)
+    ax.text(3.40, y_ar - 0.67, '(bytes pontuados)', ha='center', va='center',
+            fontsize=8.5)
+
+    # Microfone interno: um marcador pequeno na moldura da tela receptora.
+    ax.add_patch(Circle((x_mic, y_mic), 0.045, facecolor='black',
+                        edgecolor='black', linewidth=0.8))
+    ax.annotate('microfone interno', xy=(x_mic + 0.02, y_mic + 0.06),
+                xytext=(4.45, y_mic + 0.26), ha='right', va='center',
+                fontsize=8.5,
+                arrowprops=dict(arrowstyle='-', linewidth=0.7, color='black',
+                                shrinkA=2, shrinkB=1))
+
+    # Cabo serial: tracejado, e a legenda diz que nao carrega dados.
+    y_cabo = 0.42
+    ax.plot([xa, xa, xb, xb], [y_base, y_cabo, y_cabo, y_base],
+            linestyle=(0, (4, 3)), linewidth=1.1, color='black',
+            solid_capstyle='butt')
+    ax.text((xa + xb) / 2, y_cabo - 0.22, 'cabo serial (só controle)',
+            ha='center', va='center', fontsize=8.5)
+
+    ax.text(LARGURA / 2, h - 0.25, 'Ambas as máquinas amostram a 48 kHz',
+            ha='center', va='center', fontsize=9)
+
+    destino = os.path.join(SAIDA, 'bancada.png')
+    fig.savefig(destino)
+    plt.close(fig)
+    print(f"[C] {destino}")
+    print(f"    esquema {LARGURA * 2.54:.1f} x {h * 2.54:.1f} cm, "
+          f"A transmite pelo alto-falante e B recebe pelo microfone interno")
+    print(f"    caminho pontuado: so o ar; cabo serial tracejado, so controle")
+
+
 def main():
     os.makedirs(SAIDA, exist_ok=True)
     figura_a()
     figura_b()
+    figura_c()
 
 
 if __name__ == '__main__':
