@@ -267,7 +267,11 @@ def score_one(json_path, run):
     samples = np.asarray(samples, dtype=np.float64)
     stem = Path(json_path).name[:-len('.json')]
 
-    for suffix in ('.json', '.wav'):
+    # `.flac` as well as `.wav`: a clone carries only the archived format, and
+    # a campaign assembled there must still end up holding its own audio.
+    # Copying neither would leave a folder whose numbers cannot be rechecked,
+    # which is the one thing `resultados/` exists to prevent.
+    for suffix in ('.json', '.wav', '.flac'):
         src = Path(json_path).with_name(stem + suffix)
         if src.exists():
             shutil.copy2(src, run / 'gravacao' / src.name)

@@ -6,10 +6,35 @@ what conditions. The pair is the point -- audio without the payload it was
 supposed to carry cannot score anything, and a score without the audio cannot
 be re-examined when the next idea comes along.
 
-Samples are stored as 32-bit float, the same dtype the demodulators consume,
-so a capture goes back into the DSP bit-identical to what the live path saw.
-16-bit would be inaudibly different and still a lie: the whole purpose here is
-that the recording *is* the measurement.
+Samples are *written* as 32-bit float, the same dtype the demodulators
+consume, so a capture goes back into the DSP bit-identical to what the live
+path saw. Recording never depends on a codec: a capture that fails to save is
+a lost measurement, and `_wav_bytes` is three lines of `struct` that cannot
+fail for want of a library.
+
+For the archive there is a second format, and which one is safe was measured
+rather than assumed -- because the recording *is* the measurement, and a
+storage format that changes it is not a smaller file but a different
+experiment. Round-tripping the whole `resultados/` corpus (120 recordings
+with a payload to score) through each:
+
+    FLAC 24 bit   error <= 1 ULP of float32   0 blocks changed, bit accuracy
+                                              identical in 113 of 120, and
+                                              off by at most 0.55 pp in 2
+    FLAC 16 bit   error ~ 1.5e-05             *loses a block* -- 08-MARY-GAIN
+                                              goes from 11 of 12 to 10 of 12,
+                                              8 of 12 decode different bits
+
+So 24 bit is the archive format and 16 bit is not, and the reason 16 bit
+fails is worth keeping: the SNR arithmetic says its quantisation sits 47 dB
+below the quietest recording and is therefore harmless, and that argument is
+wrong. A soft Viterbi at the edge of the rate-1/3 cliff needs only half a
+quantisation step to send a block the other way. Re-measure before changing
+this; do not reason about it.
+
+`read` takes either format, preferring the `.wav` when both are present since
+that one is exact. Writing FLAC needs `soundfile`; reading a `.wav` does not,
+so a machine with neither codec nor library still scores a fresh capture.
 
 No audio device and no serial port. This module is disk only, so the offline
 bench runs on a machine with neither.
@@ -46,6 +71,46 @@ def read_wav(path):
 # The name it had while this module was private. Kept because `channel.py`
 # and the campaign scripts import it.
 _read_wav = read_wav
+
+
+def read_flac(path):
+    """A FLAC capture back as float64, in the same scale `read_wav` returns."""
+    import soundfile                      # optional: only the archive needs it
+    samples, _ = soundfile.read(str(path), dtype='float64', always_2d=False)
+    return np.asarray(samples, dtype=np.float64)
+
+
+def write_flac(path, samples, fs=FS):
+    """Archive a capture as 24-bit FLAC. See the module docstring for why 24."""
+    import soundfile
+    soundfile.write(str(path), np.asarray(samples, dtype=np.float64), fs,
+                    format='FLAC', subtype='PCM_24')
+    return Path(path)
+
+
+def audio_path(stem):
+    """The audio file belonging to `stem`, whichever format it is stored in.
+
+    A clone of this repository carries the FLAC and not the WAV -- the WAV is
+    233 MB against 107 MB and is `.gitignore`d -- while the machine that made
+    the recording has both. Preferring the WAV means the bench reads the exact
+    samples the microphone delivered whenever they are still on disk, and the
+    archive otherwise. The two were measured to score the same (module
+    docstring), which is what makes the fallback safe rather than a second
+    ruler.
+    """
+    stem = Path(stem)
+    for suffix in ('.wav', '.flac'):
+        candidate = stem.with_name(stem.name + suffix)
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(f"{stem}: no .wav and no .flac")
+
+
+def read(path):
+    """One capture's audio, from a `.wav` or a `.flac`."""
+    path = Path(path)
+    return read_flac(path) if path.suffix == '.flac' else read_wav(path)
 
 
 def save(directory, samples, payload, **meta):
@@ -112,8 +177,8 @@ def load(json_path):
     json_path = Path(json_path)
     meta = json.loads(json_path.read_text())
     payload = bytes.fromhex(meta['payload_hex'])
-    wav = json_path.with_name(json_path.name[:-len('.json')] + '.wav')
-    return read_wav(wav), payload, meta
+    stem = json_path.with_name(json_path.name[:-len('.json')])
+    return read(audio_path(stem)), payload, meta
 
 
 def load_all(directory):
