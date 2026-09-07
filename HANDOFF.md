@@ -328,6 +328,20 @@ de cada campanha, porque ele volta ao maximo quando a caixa reconecta.
    medem o link, medem a compressao, e agora existe corpus melhor.
 3. Depois: **04, 05, 06, 07, 09, 10, 11 e 12-13** neste sentido, por
    `run_a2b_rest.sh <ganho>`.
+4. **Refazer 04 `FSK-BASE` na cadeia atual, no sentido B -> A.** As tres
+   unicas gravacoes de 2-FSK deste projeto sao de 2026-09-03 15:53, com a
+   caixa ANTIGA em P2 de B, a mesma da 05, ou seja na cadeia distorcida. A
+   correcao (caixa fora do volume maximo, ganho de captura 10 dB abaixo) veio
+   depois, entre a 06 e a 07. Enquanto nao for refeito, "2-FSK falha e 16-FSK
+   entrega" compara cadeias diferentes, e essa comparacao e o contraste
+   central do artigo. Tres gravacoes de 48 bytes respondem. Vale junto o
+   diagnostico offline, que nao custa sala: demodular as gravacoes que ja
+   existem com o relogio congelado separa enquadramento 8N1 de recuperacao de
+   tempo, as duas suspeitas que o HEADER da 04 deixou em aberto.
+   Levantado em 2026-09-07: nao ha registro em lugar nenhum de 2-FSK ter
+   entregue mensagem pelo ar. Conferidos o historico inteiro do git, os
+   arquivos apagados, `captures*/`, `old/` e `resultados/`. Existem tres
+   gravacoes de 2-FSK no disco, as da 04, e mais nenhuma.
 
 **A decisao que estava aberta caducou.** Era "se nem `fecrep 4` entregar bloco,
 a tabela e uma coluna de zeros -- vale medir assim ou atacar a causa antes?" A
