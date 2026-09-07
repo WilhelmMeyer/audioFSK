@@ -5,7 +5,7 @@ __pycache__/
 .DS_Store
 received*.bmp
 captures/
-figuras/
+/figuras/
 captures-*/
 old/
 got-*.bmp

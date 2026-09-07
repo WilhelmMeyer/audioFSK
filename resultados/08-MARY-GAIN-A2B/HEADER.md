@@ -88,9 +88,11 @@ pelo relogio travado. As duas cadeias nao se deduzem uma da outra -- ate
 aqui so havia essa suspeita por `02-LVL-TONE`; agora ha o numero em bits.
 
 **4. Por que zero blocos:** 18-25% de bits errados pelo gate (16-20% pelo
-relogio travado) esta acima do que a taxa 1/3 sozinha aguenta -- o
-`CLAUDE.md` registra rate 1/3 soft inteira ate 13% e 90% em 16% de erro de
-bit. Nao e falha de sincronismo: o relogio travado no melhor offset so ganha
+relogio travado) esta acima do que a taxa 1/3 sozinha aguenta. Quando
+esta pasta foi escrita a referencia era o `CLAUDE.md`, que registrava 13% e
+90% em 16%; hoje ha medida com modelo de canal declarado em `18-FEC-SIM`, que
+da 10% para todos os blocos inteiros e 14% para 90% deles. A leitura nao muda,
+so fica mais folgada: 16-20% de erro esta acima dos dois limiares. Nao e falha de sincronismo: o relogio travado no melhor offset so ganha
 3,5 pontos sobre o gate (79,1% -> 82,6%), a mesma ordem de grandeza vista
 onde o sincronismo *nao* era o problema em outras pastas -- se fosse colapso
 de sincronismo a diferenca gate/travado seria muito maior (compare com
