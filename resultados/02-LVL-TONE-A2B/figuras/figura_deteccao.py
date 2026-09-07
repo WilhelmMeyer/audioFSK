@@ -12,7 +12,8 @@ com os parametros de operacao. A 100 baud e 48 kHz o simbolo tem 480
 amostras, das quais as primeiras 15% sao guarda descartada, entao a decisao
 sai de 408 amostras, 8,5 ms, cerca de 118 Hz de resolucao. As sondas sao as
 exponenciais complexas de `MaryDemodulator.probe`, uma por tom, e a figura
-mostra exatamente o vetor de energias que o detector compara.
+mostra exatamente o vetor de energias que o detector compara, um valor por
+tom.
 
 Duas condicoes, as duas gravadas nesta bancada, sentido A->B:
 
@@ -28,7 +29,7 @@ frequencias sobem quando o tom entra: e o vazamento espectral da janela
 retangular de 408 amostras, o mesmo sinc que qualquer seno fora do centro de
 um bin produz, e nao sensibilidade do microfone nem ruido novo na sala.
 
-A leitura e a distancia entre as duas nuvens no tom transmitido, contra o
+A leitura e a distancia entre as duas curvas no tom transmitido, contra o
 1,3 dB que a regra de decisao exige (contraste 0,15 entre o vencedor e o
 segundo colocado, que e uma razao de energia de 1,35).
 """
@@ -67,6 +68,16 @@ SEM = os.path.join(RAIZ, 'resultados', '01-LVL-BASE-A2B', 'gravacao')
 TOM = 1700.0
 JANELAS = 100            # simbolos consecutivos, tomados no meio da gravacao
 LARGURA = 6.3
+
+# Paleta: teal escuro para a serie principal, azul gelo para o que e fundo ou
+# dispersao. Escolha do autor. A figura continua legivel em escala de cinza
+# porque nada e codificado so por cor: cada serie tem marcador e traco
+# proprios, e a cor apenas reforca.
+TEAL = '#0F5257'
+TEAL_MED = '#2E7D82'
+GELO = '#BFDDE4'
+GELO_CLARO = '#E8F2F5'
+
 
 # Dois destinos e uma geracao so. O PNG do artigo e o mesmo arquivo que
 # fica aqui ao lado dos dados: a pasta do artigo carrega apenas figuras, e
@@ -153,44 +164,49 @@ def main():
 
     fig, ax = plt.subplots(figsize=(LARGURA, 3.6), layout='constrained')
 
-    ax.plot(tons, com, color='black', linewidth=1.0, marker='o', markersize=5,
-            markerfacecolor='black', zorder=4)
-    ax.plot(tons, sim, color='0.45', linewidth=1.0, linestyle=(0, (1, 2)),
+    ax.plot(tons, com, color=TEAL, linewidth=1.2, marker='o', markersize=5,
+            markerfacecolor=TEAL, zorder=4)
+    ax.plot(tons, sim, color=TEAL_MED, linewidth=1.0, linestyle=(0, (1, 2)),
             marker='^', markersize=5, markerfacecolor='white',
-            markeredgecolor='0.3', zorder=5)
-    ax.plot(tons, sem, color='0.35', linewidth=1.0, linestyle=(0, (4, 3)),
-            marker='s', markersize=5, markerfacecolor='white',
-            markeredgecolor='0.2', zorder=3)
+            markeredgecolor=TEAL_MED, zorder=5)
+    ax.plot(tons, sem, color='#4C6B77', linewidth=1.0, linestyle=(0, (4, 3)),
+            marker='s', markersize=5, markerfacecolor=GELO,
+            markeredgecolor='#4C6B77', zorder=3)
 
     # A margem no tom transmitido, desenhada como a distancia que e.
     ax.annotate('', xy=(tons[i_tom], com[i_tom]), xytext=(tons[i_tom], sem[i_tom]),
-                arrowprops=dict(arrowstyle='<->', linewidth=1.0, color='black',
+                arrowprops=dict(arrowstyle='<->', linewidth=1.0, color=TEAL,
                                 shrinkA=3, shrinkB=3))
     ax.annotate(f"{virgula(margem)} dB entre\ntom e não tom",
                 xy=(tons[i_tom], (com[i_tom] + sem[i_tom]) / 2),
                 xytext=(tons[1], (com[i_tom] + sem[i_tom]) / 2 + 9),
                 ha='center', va='center', fontsize=8.5,
-                arrowprops=dict(arrowstyle='-', linewidth=0.7, color='black',
+                arrowprops=dict(arrowstyle='-', linewidth=0.7, color=TEAL,
                                 shrinkA=2, shrinkB=6),
                 bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
                           edgecolor='none', alpha=0.9))
 
-    # E a distancia que a decisao de fato usa: vencedor contra segundo.
+    # E a distancia que a decisao de fato usa: vencedor contra segundo. As
+    # duas guias horizontais existem porque a flecha, sozinha, media contra
+    # nada visivel: ela liga dois niveis que estao em tons diferentes.
+    for nivel in (com[i_tom], com[i_seg]):
+        ax.hlines(nivel, tons[i_tom], tons[i_seg] + 60, color=TEAL_MED,
+                  linewidth=0.7, linestyle=(0, (2, 2)), zorder=2)
     ax.annotate('', xy=(tons[i_seg], com[i_tom]), xytext=(tons[i_seg], com[i_seg]),
-                arrowprops=dict(arrowstyle='<->', linewidth=1.0, color='0.3',
+                arrowprops=dict(arrowstyle='<->', linewidth=1.0, color=TEAL_MED,
                                 shrinkA=2, shrinkB=2))
-    ax.annotate(f"{virgula(vantagem)} dB sobre a segunda sonda mais alta,\n"
+    ax.annotate(f"{virgula(vantagem)} dB sobre o segundo tom mais alto,\n"
                 f"contra {virgula(limiar_db)} dB exigidos pela decisão",
                 xy=(tons[i_seg], (com[i_tom] + com[i_seg]) / 2),
                 xytext=(tons[-4], com[i_tom] - 1.5),
                 ha='center', va='center', fontsize=8.5,
-                arrowprops=dict(arrowstyle='-', linewidth=0.7, color='0.3',
+                arrowprops=dict(arrowstyle='-', linewidth=0.7, color=TEAL_MED,
                                 shrinkA=2, shrinkB=6),
                 bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
                           edgecolor='none', alpha=0.9))
 
     ax.set_xlim(tons[0] - 120, tons[-1] + 120)
-    ax.set_xlabel('Frequência das sondas do detector (Hz)')
+    ax.set_xlabel('Frequência dos 16 tons da 16-FSK (Hz)')
     ax.set_ylabel('Nível na janela de decisão (dBFS)')
     ax.xaxis.set_major_locator(MultipleLocator(500))
     ax.yaxis.set_major_locator(MultipleLocator(10))
@@ -200,15 +216,15 @@ def main():
     ax.set_axisbelow(True)
 
     ax.legend(handles=[
-        Line2D([], [], color='black', linewidth=1.0, marker='o', markersize=5,
-               label=f'Com tom de {virgula(TOM, 0)} Hz'),
-        Line2D([], [], color='0.45', linewidth=1.0, linestyle=(0, (1, 2)),
+        Line2D([], [], color=TEAL, linewidth=1.2, marker='o', markersize=5,
+               markerfacecolor=TEAL, label=f'Com tom de {virgula(TOM, 0)} Hz'),
+        Line2D([], [], color=TEAL_MED, linewidth=1.0, linestyle=(0, (1, 2)),
                marker='^', markersize=5, markerfacecolor='white',
-               markeredgecolor='0.3',
+               markeredgecolor=TEAL_MED,
                label='Seno puro simulado, mesma janela'),
-        Line2D([], [], color='0.35', linewidth=1.0, linestyle=(0, (4, 3)),
-               marker='s', markersize=5, markerfacecolor='white',
-               markeredgecolor='0.2',
+        Line2D([], [], color='#4C6B77', linewidth=1.0, linestyle=(0, (4, 3)),
+               marker='s', markersize=5, markerfacecolor=GELO,
+               markeredgecolor='#4C6B77',
                label=f'Sala parada, mediana de {len(sem_cada)} gravações'),
     ], loc='lower left', framealpha=0.95, borderpad=0.5)
 
@@ -225,17 +241,17 @@ def main():
           f"sala: mediana de {len(sem_cada)} gravações")
     print(f"    tom de {virgula(tons[i_tom], 0)} Hz: com {virgula(com[i_tom])} dBFS, "
           f"sem {virgula(sem[i_tom])} dBFS, margem {virgula(margem)} dB")
-    print(f"    segunda sonda mais alta com o tom no ar: "
+    print(f"    segundo tom mais alto com o tom no ar: "
           f"{virgula(tons[i_seg], 0)} Hz a {virgula(com[i_seg])} dBFS "
           f"({virgula(vantagem)} dB abaixo do vencedor)")
-    print(f"    (a segunda sonda é a saia do próprio tom na janela retangular "
-          f"de {nwin} amostras, não outro tom transmitido)")
+    print(f"    (o segundo tom mais alto recebe a saia do próprio tom vencedor na "
+          f"janela retangular de {nwin} amostras, e não outro tom transmitido)")
     print(f"    decisão: contraste mínimo {virgula(c, 2)} = "
           f"{virgula(limiar_db)} dB entre vencedor e segundo")
     dif = np.abs(com - sim)
     fora = [i for i in range(len(tons)) if i != i_tom]
     print(f"    seno puro simulado na mesma janela: reproduz a gravação dentro "
-          f"de {virgula(float(dif[fora].max()))} dB em todas as sondas "
+          f"de {virgula(float(dif[fora].max()))} dB em todos os tons "
           f"(mediana {virgula(float(np.median(dif[fora])))} dB)")
     pior = int(np.argmax(dif))
     print(f"      maior desvio em {virgula(tons[pior], 0)} Hz: gravação "

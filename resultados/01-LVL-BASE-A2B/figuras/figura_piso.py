@@ -64,6 +64,15 @@ LARGURA_BIN = 50.0      # = 2 x os +-25 Hz com que o piso no tom e medido
 FMAX = 6000.0
 LARGURA = 6.3           # polegadas ~ 16 cm, uma coluna
 
+# Paleta: teal escuro para a serie principal, azul gelo para o que e fundo ou
+# dispersao. Escolha do autor. A figura continua legivel em escala de cinza
+# porque nada e codificado so por cor: cada serie tem marcador e traco
+# proprios, e a cor apenas reforca.
+TEAL = '#0F5257'
+TEAL_MED = '#2E7D82'
+GELO = '#BFDDE4'
+GELO_CLARO = '#E8F2F5'
+
 # Dois destinos e uma geracao so. O PNG do artigo e o mesmo arquivo que
 # fica aqui ao lado dos dados: a pasta do artigo carrega apenas figuras, e
 # o que as gera mora junto da campanha que elas medem.
@@ -155,24 +164,24 @@ def main():
     # A faixa util e o envelope sao os dois unicos preenchimentos, entao um
     # deles precisa de contorno: em cinza impresso duas manchas de tom
     # parecido lem como uma so.
-    ax.axvspan(*BANDA, facecolor='0.93', edgecolor='none', zorder=0)
+    ax.axvspan(*BANDA, facecolor=GELO_CLARO, edgecolor='none', zorder=0)
     for x in BANDA:
-        ax.axvline(x, color='0.35', linewidth=0.8, linestyle=(0, (4, 3)),
+        ax.axvline(x, color=TEAL_MED, linewidth=0.8, linestyle=(0, (4, 3)),
                    zorder=2)
     # Com uma gravacao so o envelope colapsa sobre a curva: `fill_between`
     # nao desenha nada e a legenda anunciaria uma mancha invisivel.
     if n > 1:
         ax.fill_between(centros, envelope.min(axis=0), envelope.max(axis=0),
-                        color='0.62', linewidth=0, alpha=0.55, zorder=2)
-    ax.plot(centros, curva, color='black', linewidth=1.0, zorder=3)
+                        color=GELO, linewidth=0, alpha=0.85, zorder=2)
+    ax.plot(centros, curva, color=TEAL, linewidth=1.0, zorder=3)
     ax.plot([centros[i_tom]], [curva[i_tom]], linestyle='none', marker='o',
-            markersize=6, markerfacecolor='white', markeredgecolor='black',
+            markersize=6, markerfacecolor='white', markeredgecolor=TEAL,
             markeredgewidth=1.1, zorder=5)
     ax.annotate(f"{virgula(TOM, 0)} Hz\n{virgula(curva[i_tom])} dBFS",
                 xy=(centros[i_tom], curva[i_tom]),
                 xytext=(centros[i_tom] + 430, curva[i_tom] + 7.0),
                 ha='left', va='center', fontsize=8.5,
-                arrowprops=dict(arrowstyle='-', linewidth=0.7, color='black',
+                arrowprops=dict(arrowstyle='-', linewidth=0.7, color=TEAL,
                                 shrinkA=1, shrinkB=4))
 
     ax.set_xlim(0, FMAX)
@@ -185,19 +194,16 @@ def main():
     # dizem onde o modem tem de ser ouvido, que e a metade da leitura de
     # margem que a figura sozinha nao daria.
     #
-    # E cada traco ganha a largura que o detector realmente escuta: a decisao
-    # sai de uma janela de `samples_per_tone - guard` amostras, e uma janela
-    # dessas resolve fs/N Hz. Fora dessas fatias o ruido da sala nao entra na
-    # decisao, que e o "o que o sistema filtra" da leitura de margem.
     demod = MaryDemodulator(fs=recording.FS, baud=100)
     nwin = demod.samples_per_tone - demod.guard
     resolucao = recording.FS / nwin
     base = lo + 0.06 * (hi - lo)
-    ax.vlines(MARY_TONES, lo, base, color='black', linewidth=1.1, zorder=4)
-    ax.hlines([base] * len(MARY_TONES),
-              np.array(MARY_TONES) - resolucao / 2,
-              np.array(MARY_TONES) + resolucao / 2,
-              color='black', linewidth=1.4, zorder=4)
+    ax.vlines(MARY_TONES, lo, base, color=TEAL, linewidth=1.1, zorder=4)
+
+    # O tom de referencia desce ate a base, para ser lido junto do traco do
+    # tom da 16-FSK que ele mede e nao como um ponto solto sobre a curva.
+    ax.vlines(centros[i_tom], lo, curva[i_tom], color=TEAL, linewidth=0.8,
+              linestyle=(0, (1, 2)), zorder=4)
     ax.xaxis.set_major_locator(MultipleLocator(1000))
     ax.yaxis.set_major_locator(MultipleLocator(10))
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: virgula(v, 0)))
@@ -208,23 +214,23 @@ def main():
 
     duracao = ' e '.join(virgula(s) for s in sorted(segundos))
     handles = [
-        Line2D([], [], color='black', linewidth=1.0,
+        Line2D([], [], color=TEAL, linewidth=1.0,
                label=(f'Média de {n} gravações de {duracao} s' if n > 1
                       else f'Uma gravação de {duracao} s')),
     ]
     if n > 1:
-        handles.append(Patch(facecolor='0.62', alpha=0.55, edgecolor='none',
+        handles.append(Patch(facecolor=GELO, alpha=0.85, edgecolor='none',
                              label='Extremos das gravações'))
     handles += [
         Line2D([], [], linestyle='none', marker='o', markersize=6,
-               markerfacecolor='white', markeredgecolor='black',
+               markerfacecolor='white', markeredgecolor=TEAL,
                label=f'Tom de referência de {virgula(TOM, 0)} Hz'),
-        Patch(facecolor='0.93', edgecolor='0.35', linewidth=0.8,
+        Patch(facecolor=GELO_CLARO, edgecolor=TEAL_MED, linewidth=0.8,
               linestyle=(0, (4, 3)),
               label=f'Faixa útil {BANDA[0]}–{BANDA[1]} Hz'),
-        Line2D([], [], color='black', linewidth=1.4,
-               label=(f'16 sondas do detector, {virgula(resolucao, 0)} Hz '
-                      f'cada ({virgula(1000 * nwin / recording.FS)} ms)')),
+        Line2D([], [], color=TEAL, linewidth=1.1,
+               label=(f'16 tons da 16-FSK ({virgula(min(MARY_TONES), 0)}–'
+                      f'{virgula(max(MARY_TONES), 0)} Hz)')),
     ]
     ax.legend(handles=handles, loc='upper right', framealpha=0.95,
               borderpad=0.5)
