@@ -122,9 +122,7 @@ Um alto-falante e um microfone de uso geral respondem bem na banda da fala e per
 
 Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo seu percurso. Cópias atrasadas somam em fase nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso e se opõem nas intermediárias, de modo que a resposta em frequência é um pente, com máximos e nulos alternados ao longo da banda. Aqui a diferença entre vizinhos a 50 Hz de resolução chega a 13 a 18 dB, e a posição dos nulos depende da geometria e muda quando alguém se move. A Figura 1 mostra a resposta medida com os dezesseis tons da 16-FSK marcados sobre o pente. As reflexões tardias prolongam o som depois que a fonte cala, e enquanto essa cauda dura a energia do símbolo anterior ainda está no microfone quando o seguinte começa. Nesta bancada a cauda não é mensurável, o sinal para no piso de ruído, mas o projeto a antecipa porque outra sala pode tê-la.
 
-<!-- FIGURA 1, aqui: resposta em frequencia medida, tom a tom, com os 16 tons marcados sobre o pente.
-Legenda ABAIXO: o que se ve, a direcao do enlace, e o que notar (a distancia entre um maximo e o nulo
-vizinho e pequena diante da banda util). -->
+![Figura 1 - Resposta em frequência do canal acústico, medida por varredura no sentido A→B, em 76 intervalos de 74 Hz entre 338 e 5962 Hz, em decibéis relativos ao melhor intervalo da própria varredura. As marcas na base são os dezesseis tons da 16-FSK e a faixa sombreada é a banda útil de 550 a 3500 Hz. Note que a resposta não é uma curva suave: dentro da banda útil intervalos vizinhos diferem em até 9,4 dB, e o desnível total chega a 23,8 dB, de modo que um máximo e o nulo ao lado ficam a poucas centenas de hertz um do outro. Com resolução mais fina, de 50 Hz, a diferença entre vizinhos chega a 13 a 18 dB, que é o valor citado no texto.](figuras/resposta-canal.png "1.0")
 
 A cadeia analógica não é linear em toda a excursão. O alto-falante limita os picos e o microfone comprime quando o nível cresce, e a energia retirada do sinal reaparece como harmônicos e produtos de intermodulação dentro da mesma banda, indistinguíveis de sinal transmitido. Além desse ponto, aumentar o nível de transmissão piora a recepção. As duas máquinas amostram com osciladores próprios, de modo que o intervalo de símbolo recebido difere do transmitido por uma fração de amostra que se acumula ao longo de um bloco.
 
@@ -136,11 +134,12 @@ Chamamos M-ária a modulação de ordem $M$, em que cada símbolo é um tom esco
 
 $$R_b = R_s \log_2 M \tag{1}$$
 
-Nela, $R_b$ é a taxa de bits, $R_s$ é a taxa de símbolos em bauds e $M$ é o número de frequências do alfabeto. Com a taxa de símbolos presa pela banda e pelas reflexões, subir $M$ é o caminho para subir $R_b$. Em todas as quatro formas a informação está em qual frequência soou, e o que muda entre elas é quanto a decisão depende de quão forte ela chegou. A Figura 2 mostra o espectro de cada uma. (CITAR: modulação M-FSK, detecção não coerente)
+Nela, $R_b$ é a taxa de bits, $R_s$ é a taxa de símbolos em bauds e $M$ é o número de frequências do alfabeto. Com a taxa de símbolos presa pela banda e pelas reflexões, subir $M$ é o caminho para subir $R_b$. Em todas as quatro formas a informação está em qual frequência soou, e o que muda entre elas é quanto a decisão depende de quão forte ela chegou. (CITAR: modulação M-FSK, detecção não coerente)
 
-<!-- FIGURA 2, aqui: quatro paineis de espectro, sinteticos, um por forma: dois tons; cinco pares com o
-mesmo bit; cinco pares com bits distintos; dezesseis tons com um so soando. E figura de METODO, a legenda
-tem de dize-lo para nao ser lida como medicao. -->
+<!-- FIGURA de quatro paineis de espectro sinteticos (dois tons; cinco pares com o mesmo bit; cinco pares
+com bits distintos; dezesseis tons com um so soando) fica FORA desta versao. Ela ilustra metodo, nao mede
+nada, e o texto desta subsecao ja descreve cada forma. Se entrar, entra numerada como Figura 2 e as
+seguintes sobem, e a legenda tem de dizer que e sintetica para nao ser lida como medicao. -->
 
 A 2-FSK usa os tons do padrão Bell 202, 1200 e 2200 Hz a 1200 símbolos por segundo, bytes em 8N1. O demodulador multiplica o sinal filtrado por uma cópia atrasada de um quarto de período em 1700 Hz e filtra o produto, cuja média tem um sinal para cada tom, e o bit é esse sinal. O limite é o limiar, pois um canal que atenue um tom mais do que o outro desloca a média e enviesa toda decisão no mesmo sentido.
 
@@ -164,25 +163,35 @@ $$T = \frac{n_2 - n_1}{N} \tag{3}$$
 
 Nela, $n_1$ e $n_2$ são os índices dos dois picos e $N$ é o número de símbolos do quadro, conhecido das duas pontas. Os picos são ordenados por posição e não por altura, porque as varreduras são idênticas e o canal decide qual chega mais forte. No caminho codificado o demodulador entrega, em vez do bit, a verossimilhança logarítmica de cada bit, do inglês *log-likelihood ratio* (LLR), cujo sinal é o bit e cujo módulo é a confiança, quatro por símbolo na 16-FSK.
 
-Num canal assim uma fração de 10 a 25% dos bits chega errada, e nessa faixa detectar não basta. A verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC), diz que o bloco falhou, e a retransmissão automática, do inglês *automatic repeat request* (ARQ), só converge enquanto a chance de um bloco chegar inteiro não for pequena. O bit tem de ser reparado onde cai. Usamos correção antecipada de erros, do inglês *forward error correction* (FEC), com código convolucional de comprimento de restrição $K = 7$ a taxa 1/3 e decodificação de Viterbi com decisão suave sobre as LLR, mais entrelaçamento e uma repetição $r$ combinada entre as pontas. Dentro do bloco não há 8N1, pois o bloco tem comprimento fixo e nada nele desliza, ao contrário do fluxo de bytes, em que um bit de partida errado desloca todo o resto. A Tabela 2 dá a fração de bits errados que cada variante tolera, medida em simulação e não no ar. (CITAR: códigos convolucionais, Viterbi, decisão suave)
+Num canal assim uma fração de 8 a 20% dos bits chega errada, e nessa faixa detectar não basta. A verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC), diz que o bloco falhou, e a retransmissão automática, do inglês *automatic repeat request* (ARQ), só converge enquanto a chance de um bloco chegar inteiro não for pequena. O bit tem de ser reparado onde cai. Usamos correção antecipada de erros, do inglês *forward error correction* (FEC), com código convolucional de comprimento de restrição $K = 7$ a taxa 1/3 e decodificação de Viterbi com decisão suave sobre as LLR, mais entrelaçamento e uma repetição $r$ combinada entre as pontas. Dentro do bloco não há 8N1, pois o bloco tem comprimento fixo e nada nele desliza, ao contrário do fluxo de bytes, em que um bit de partida errado desloca todo o resto. A Tabela 2 dá a fração de bits errados que cada variante tolera, medida em simulação e não no ar. (CITAR: códigos convolucionais, Viterbi, decisão suave)
 
-<!-- TABELA 2, aqui. Linhas: taxa 1/2 abrupta | taxa 1/2 suave | taxa 1/3 suave | taxa 1/3 suave, r = 2.
-Coluna: fracao de bits errados ate a qual o bloco de 64 bytes chega inteiro (8%, 8%, 13%, 25%). Legenda
-ACIMA, dizendo que e simulacao. -->
+Tabela 2 - Fração de bits errados que cada variante do código tolera, medida em simulação e não no ar, sobre um bloco de 64 bytes, com 200 tentativas independentes por ponto. O ruído é gaussiano aditivo sobre modulação antipodal, ajustado para inverter o sinal de cada bit codificado com a probabilidade da coluna. As linhas não custam o mesmo tempo de ar, pois gastam 1036, 1036, 1554 e 3108 bits de canal.
+
+| variante | até 100% dos blocos íntegros | até 90% dos blocos íntegros |
+|---|---|---|
+| taxa 1/2, decisão abrupta | abaixo de 2% | 4% |
+| taxa 1/2, decisão suave | 5% | 9% |
+| taxa 1/3, decisão suave | 10% | 14% |
+| taxa 1/3, decisão suave, repetição 2 | 19% | 23% |
+
+<!-- Fonte: resultados/18-FEC-SIM. A celula "abaixo de 2%" nao e colapso: a taxa 1/2 abrupta da 199 de 200
+no primeiro ponto varrido (2%) e 198 de 200 em 3%, e nunca chega a 200 de 200 dentro da grade. -->
 
 O bloco é localizado por uma palavra de referência de 31 bits, correlacionada sobre as LLR recebidas, nunca por contagem de símbolos, pois o gate consome números diferentes de amostras por símbolo enquanto ajusta. É a mesma correlação que resolve o alinhamento de nibble da 16-FSK, em que um símbolo a mais antes do bloco troca os nibbles de todos os bytes. Acima do bloco, o arquivo vai em pacotes com número de sequência, comprimento e CRC-16, reenvio pare-e-espere dirigido pelo receptor, transmissor sem estado. A aplicação vê uma porta serial virtual.
 
 ## 3 MÉTODO DE MEDIÇÃO
 
 <!--
-Redigida 2026-09-07. Orcamento ~350 palavras. Fonte: HEADER.md das pastas de resultados.
+Redigida 2026-09-07. Fonte: resultados/12-13-SYNC (comparacao pareada), resultados/14-FEC-REP (formato de
+campanha), ../CLAUDE.md (calibracao na rajada, pontuacao com alinhamento tolerante, regua unica).
+Decisoes do autor, 2026-09-07: a auto-captura de uma maquina so fica FORA do artigo; o hardware e descrito
+como dois notebooks e uma caixa de som de teste, sem modelo; a figura da bancada e simples, a fazer.
+Cabo serial: uma mencao so, no paragrafo da carga, como auxilio do ensaio. Nunca como recurso do enlace.
 -->
 
-A bancada são duas máquinas comuns na mesma sala, uma com Linux e outra com Windows, cada uma com a sua placa de som a 48 kHz, chamadas A e B ao longo do texto. A transmite por uma caixa Bluetooth e B grava pelo microfone interno do próprio computador, e o sentido se inverte quando o ensaio pede, o que se anota em cada número como A→B ou B→A. O programa é escrito em Python, com o processamento de sinal isolado de toda entrada e saída, de modo que o mesmo código que roda ao vivo pontua uma gravação sem alteração, e a aplicação enxerga o enlace como uma porta serial virtual. Um cabo serial liga as duas máquinas apenas como auxílio do ensaio, para sincronizar o início da transmissão e combinar a semente que gera a carga conhecida dos dois lados; os bytes pontuados viajam somente pelo ar, e o cabo nunca transporta dado do enlace.
+Uma variante julgada pela transmissão é medida junto com a sala, e a sala não se repete, pois duas execuções do mesmo código no mesmo cômodo discordam. Gravamos a máquina remota transmitindo uma carga conhecida e pontuamos a gravação depois. Um canal congelado em disco deixa comparar variantes sobre os mesmos segundos de ar, e a diferença entre duas leituras passa a ser do receptor.
 
-Julgar uma ideia transmitindo-a mede a ideia e a sala ao mesmo tempo, e a sala não fica parada: duas execuções do mesmo código discordam. Por isso o ensaio grava o lado remoto transmitindo uma carga conhecida e guarda o áudio ao lado de um registro do que foi enviado, e a pontuação é feita depois, sobre o arquivo. Uma gravação é um canal congelado, então variantes do receptor são comparadas sobre os mesmos segundos de ar, e a comparação é sempre pareada, variante contra variante na mesma gravação, e não entre duas médias.
-
-A pontuação usa duas réguas separadas e nunca as mistura. O acerto de bits é medido com o relógio travado no melhor deslocamento por força bruta, em todas as linhas, porque escolher o deslocamento pela posição que o sincronismo encontrou pontua as falhas acima dos acertos. O bloco íntegro é o número honesto ao lado dele, e passa pelo caminho completo, com sincronismo por correlação, decodificação de Viterbi e comparação dos bytes. O alinhamento tolera deslocamento, porque este enlace apaga bytes além de corrompê-los e um byte perdido desloca todos os seguintes. O ganho de transmissão é calibrado sobre uma rajada e não sobre um tom parado, pois a troca de tom a cada símbolo produz transientes com cerca de 2,5 vezes o pico de um tom contínuo, e uma calibração feita no tom deixa a rajada ceifada. Onde uma condição foi degradada de propósito, isso é dito ao lado do número. A Tabela 3 reúne os parâmetros mantidos fixos.
+A bancada é de dois notebooks numa sala comum, com uma caixa de som de teste ligada à máquina que transmite e o microfone interno da que recebe, ambas amostrando a 48 kHz. A Figura 3 mostra o arranjo e a Tabela 3 reúne os parâmetros do enlace.
 
 Tabela 3 - Parâmetros mantidos fixos ao longo dos ensaios. Onde um ensaio variou um deles, isso é dito ao lado do número.
 
@@ -193,10 +202,29 @@ Tabela 3 - Parâmetros mantidos fixos ao longo dos ensaios. Onde um ensaio vario
 | banda útil | 550 a 3500 Hz |
 | alfabeto da 16-FSK | 16 tons, um soando por vez, vizinhos em código Gray |
 | intervalo de guarda | 35% do símbolo, descartado antes da medida |
-| código corretor | convolucional, $K = 7$, taxa 1/3, Viterbi de decisão suave |
+| comprimento de restrição | $K = 7$ |
+| taxa do código | 1/3, Viterbi de decisão suave |
 | repetição | $r = 1$, salvo onde a redundância é o eixo variado |
 | palavra de referência | 31 bits, localizada por correlação |
 | bloco de ensaio | 48 bytes de carga aleatória, 192 bytes na campanha de sincronismo |
+| ganho de transmissão | 0,5 na 16-FSK, salvo onde o nível é o eixo variado |
+
+<!-- FIGURA 3, aqui: bancada, desenho simples. Os dois notebooks, a caixa ligada ao que transmite, o
+microfone interno do que grava, e o cabo serial tracejado, rotulado como controle. Legenda ABAIXO. -->
+
+O programa é escrito em Python, com o processamento de sinal separado de toda entrada e saída de áudio. O mesmo código demodula o fluxo ao vivo e a gravação, de modo que a variante pontuada em disco é a que opera no enlace.
+
+A carga é uma sequência aleatória de comprimento fixo, gerada nas duas máquinas a partir de uma semente combinada por um cabo serial, que também sincroniza o início da transmissão. Os bytes pontuados trafegaram apenas pelo ar.
+
+A pontuação alinha o recebido ao transmitido antes de comparar. O enlace perde bytes inteiros, e um byte perdido desloca todos os seguintes, de modo que a comparação posição a posição pontua em torno de metade um enlace quase perfeito. Reportamos a fração de bits certos no melhor deslocamento, a mesma régua em todas as condições, e os blocos recuperados inteiros como número separado.
+
+Variantes que diferem apenas no receptor são pontuadas sobre a mesma gravação, e não por duas médias. Com a sala e o instante iguais nas duas colunas, poucas repetições bastam para distinguir uma da outra.
+
+O nível de transmissão é calibrado sobre uma rajada de dados e não sobre um tom contínuo. A troca de tom a cada símbolo produz transientes de cerca de 2,5 vezes o pico de um tom parado, e uma cadeia calibrada por tom satura na transmissão real sem que nenhum medidor acuse. O volume analógico e o ganho digital chegam ao alto-falante por caminhos distintos, e variar um com o outro fixo separa a saturação da falta de nível.
+
+Cada campanha varre um eixo por vez, com três a doze gravações por ponto, e guarda o áudio, a tabela de resultados e a versão do código que os produziu. Uma fração de bits certos é afirmação sobre o receptor tanto quanto sobre o canal, e o receptor mudou ao longo do trabalho.
+
+Não variamos a distância entre a caixa e o microfone nem o cômodo, e a dependência da geometria não foi levantada. Cada número da seção Resultados experimentais diz a direção em que o enlace operou, e traz ao lado a condição degradada de propósito, quando houve.
 
 ## 4 RESULTADOS EXPERIMENTAIS
 
@@ -220,13 +248,11 @@ O período de símbolo recebido foi medido em 479,99 amostras onde o nominal é 
 <!-- Fonte: resultados/08-MARY-GAIN-A2B (caixa 1,00), 08B-MARY-GAIN-A2B (0,45), 16-SPK-A2B (0,45),
 17-SPK-LEVEL-A2B (0,20 e 0,10). Sentido A->B, 16-FSK, repeticao 1, 48 bytes, 3 gravacoes por ponto. -->
 
-O sentido A→B decodificava muito pior que o inverso, e a causa não estava na modulação. Com o ganho digital fixo em 0,5 e três gravações por ponto, baixando apenas o volume do alto-falante de A no sistema operacional, o acerto de bits foi de 79,9% com o alto-falante em 1,00, 83,2% em 0,45, 86,1% em 0,20 e 80,0% em 0,10, e os blocos íntegros foram 0, 0, 2 e 1 de 3. A curva é um U invertido com joelho em 0,20: acima dele a cadeia comprime, abaixo dele falta sinal. A Figura 4 mostra os quatro pontos.
+O sentido A→B decodificava muito pior que o inverso, e a causa não estava na modulação. Com o ganho digital fixo em 0,5 e três gravações por ponto, baixando apenas o volume do alto-falante de A no sistema operacional, o acerto de bits foi de 79,9% com o alto-falante em 1,00, 83,2% em 0,45, 86,1% em 0,20 e 80,0% em 0,10, e os blocos íntegros foram 0, 0, 2 e 1 de 3. A curva é um U invertido com joelho em 0,20: acima dele a cadeia comprime, abaixo dele falta sinal. A Figura 2 mostra os quatro pontos.
 
 O sinal de que a cadeia ainda comprime não é o pico recebido, e sim o ganho digital andar para trás. Com o alto-falante em 0,45, o ganho digital 1,0 leu 79,1% dos bits e nenhum bloco de três, enquanto o ganho 0,25 leu 86,0% e dois de três, com picos recebidos de apenas 0,10 a 0,38, muito abaixo de qualquer ceifamento no receptor. Com o alto-falante em 0,20 essa inversão desaparece, 86,5% em ganho 1,0 contra 86,1% em 0,5, que é o comportamento de uma cadeia linear. Corrigir o fader analógico levou o sentido A→B de nenhum bloco íntegro em doze gravações para cinco em nove, sem nenhuma alteração no processamento de sinal.
 
-<!-- FIGURA 4, aqui: acerto de bits e blocos inteiros contra o volume do alto-falante de A, ganho digital
-fixo em 0,5, tres gravacoes por ponto. Legenda ABAIXO, dizendo o sentido A->B e que os quatro pontos vem de
-quatro pastas de campanha diferentes, medidas no mesmo dia. -->
+![Figura 2 - Acerto de bits e blocos íntegros contra o volume do alto-falante da máquina transmissora, no sentido A→B, com o ganho digital fixo em 0,5 e três gravações por ponto. Os círculos são as gravações individuais, o quadrado é a média e as barras são os blocos íntegros de três, no eixo da direita. O eixo horizontal é categórico e não linear. Note o U invertido com joelho em 0,20, e que o ponto de 0,10 é o pior determinado, com 14 pontos percentuais de espalhamento entre as três gravações contra 1,9 no joelho. Os quatro pontos vêm de quatro campanhas medidas no mesmo dia, na mesma bancada.](figuras/nivel-alto-falante.png "1.0")
 
 ### 4.3 As quatro formas de transmissão
 
