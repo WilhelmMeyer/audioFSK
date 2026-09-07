@@ -105,8 +105,6 @@ Nenhum numero entra sem pasta. Ficaram de fora, por falta de lastro: banda util 
 de 4 kHz e o descarte do ultrassom, todos herdados de uma medicao tom a tom que nunca virou pasta.
 -->
 
-### 4.1 O canal medido
-
 O primeiro dado do meio é o ruído que já está na sala antes de qualquer transmissão. Medimos com o enlace inteiramente parado, quatro gravações de oito segundos pelo microfone da máquina receptora, e a Figura 1 mostra a média delas em janelas de 50 Hz. O ruído não é plano. Ele se concentra abaixo de 2 kHz, com máximos em torno de 1300 e 1500 Hz, e cai cerca de 25 dB entre 2000 e 2900 Hz.
 
 ![](figuras/piso-ruido.png "0.95")
