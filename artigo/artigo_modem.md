@@ -215,6 +215,8 @@ sobreviver como esta, vale uma frase dizendo que o ruido tambem tem forma. -->
 
 Transmitir pelo ar é converter a sequência de amostras em variação de pressão, deixá-la atravessar a sala a 343 m/s e reconvertê-la em amostras do outro lado. Entre um conversor e outro estão o amplificador, o alto-falante, o ar, as superfícies que refletem e o microfone. Esse canal não é plano, não é linear e não é silencioso.
 
+O ruído do ambiente ocupa parte significativa da mesma banda, vindo do tráfego, de máquinas, da fala e do próprio manuseio dos aparelhos, em componentes tanto contínuos quanto em rajada (PUTZ *et al.*, 2026).
+
 Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Colocamos os tons entre 550 e 3500 Hz, onde a resposta medida varia 28 dB entre o melhor e o pior ponto. Acima disso o nível cai de 12 a 20 dB.
 
 O ultrassom atrai porque a sala fica silenciosa acima da banda da fala e a transmissão não incomoda quem está por perto. A amostragem usual de 44,1 ou 48 kHz fecha a banda abaixo de 22 kHz, exigir inaudibilidade a reduz a menos de 4 kHz, e nessa faixa o hardware de áudio é fortemente seletivo (PUTZ *et al.*, 2026). A absorção do ar cresce com a frequência e encurta o alcance, e por isso o ultrassom fica fora deste trabalho.
@@ -279,31 +281,28 @@ Chamamos M-ária a modulação de ordem $M$, em que cada símbolo é um tom esco
 
 $$R_b = R_s \log_2 M \tag{1}$$
 
-Nela, $R_b$ é a taxa de bits, $R_s$ é a taxa de símbolos em bauds e $M$ é o número de frequências do alfabeto. Com a taxa de símbolos presa pela banda e pelas reflexões, subir $M$ é o caminho para subir $R_b$. Construímos quatro formas, e o que muda entre elas é quanto a decisão depende de quão forte o tom chegou.
+Nela, $R_b$ é a taxa de bits, $R_s$ é a taxa de símbolos em bauds e $M$ é o número de frequências. Subir $M$ é o caminho para subir $R_b$, com a taxa de símbolos presa pela banda e pelas reflexões. Construímos quatro formas, e o que muda entre elas é quanto a decisão depende da amplitude. Elas ocupam as duas famílias que Lopes e Aguiar (2001) já haviam formulado, a de um tom por símbolo e a de $k$ tons simultâneos.
 
-A 2-FSK usa os dois tons do padrão Bell 202, 1200 e 2200 Hz, a 1200 símbolos por segundo, com os bytes enquadrados em 8N1. O modulador mantém a fase contínua na troca de tom, porque reiniciá-la a cada símbolo produz um degrau que espalha energia fora da banda.
+A 2-FSK usa os dois tons do padrão Bell 202, 1200 e 2200 Hz, a 1200 símbolos por segundo, com os bytes em 8N1 e fase contínua na troca de tom.
 
-O demodulador filtra a banda, multiplica o sinal por uma cópia dele atrasada de um quarto de período em 1700 Hz e filtra o produto. A média do produto muda de sinal conforme o tom presente, e o bit é esse sinal, sem que haja recuperação de portadora. O limite é o limiar, pois um canal que atenue um tom mais do que o outro desloca a média e enviesa toda decisão no mesmo sentido.
+O demodulador multiplica o sinal filtrado por uma cópia atrasada de um quarto de período em 1700 Hz, e a média do produto muda de sinal conforme o tom presente. O limite é o limiar, pois um canal que atenue um tom mais que o outro enviesa toda decisão no mesmo sentido.
 
-A 5×2-FSK votada troca o limiar por comparação. Cinco pares de tons carregam o mesmo bit a 100 símbolos por segundo, com 200 Hz dentro de cada par, distância curta o bastante para o canal tratar os dois membros de modo parecido. Cada par vota no tom que chegou mais forte, e a maioria decide o bit.
+A 5×2-FSK votada troca o limiar por comparação. Cinco pares de tons carregam o mesmo bit a 100 símbolos por segundo, com 200 Hz dentro de cada par, e cada par vota no tom que chegou mais forte. Como o voto é uma razão, multiplicar o sinal por qualquer fator não muda o resultado.
 
-O voto é uma razão entre dois tons vizinhos, então multiplicar o sinal inteiro por qualquer fator não muda o resultado, e um tom forte pelo motivo errado vale um voto só entre cinco.
+A polaridade alterna ao longo da banda, de modo que os dois acordes ficam com frequência média quase igual, 1620 e 1660 Hz, e um canal inclinado não favorece nenhum bit. Um segundo critério exige que a razão entre vencedor e perdedor passe de 1,3, sem o que o ruído elegeria um bit em sala vazia.
 
-A polaridade alterna ao longo da banda, e nos pares 0, 2 e 4 o tom grave significa 0 enquanto nos pares 1 e 3 significa 1. Assim os dois acordes ficam com frequência média quase igual, 1620 e 1660 Hz, e um canal inclinado não favorece nenhum dos dois bits.
+A 5×2-FSK multicanal usa os mesmos dez tons com um bit distinto em cada par, cinco bits por símbolo. O limite das duas formas de cinco pares é potência, pois o pico que o alto-falante aceita é fixo e cada um dos cinco tons sai 14 dB abaixo do que sairia sozinho.
 
-Uma razão, porém, elege um bit também em sala vazia, e cinco tons de ruído decodificariam para sempre. O segundo critério é a presença, pois o tom perdedor de cada par é uma frequência que ninguém transmitiu, e a mediana da razão entre vencedor e perdedor separa símbolo de sala. Exigimos 1,3. A forma custa doze vezes o tempo da 2-FSK.
+A 16-FSK devolve essa potência. São dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, e exatamente um soa por vez, quatro bits por símbolo, com vizinhos em código Gray para que a confusão do canal custe um bit e não quatro.
 
-A 5×2-FSK multicanal usa os mesmos dez tons com um bit distinto em cada par, cinco bits por símbolo, e a mesma decisão por comparação dentro do par. O limite das duas formas de cinco pares é potência, pois o pico que o alto-falante aceita é fixo, cinco tons simultâneos recebem um quinto dele cada um, e cada tom sai 14 dB abaixo do que sairia sozinho.
-
-A 16-FSK devolve essa potência. São dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, e exatamente um soa por vez, quatro bits por símbolo. Os vizinhos recebem código Gray, de modo que confundir um tom com o do lado, que é a confusão que o canal de fato faz, custa um bit e não quatro.
-
-O receptor mede a energia de cada tom dentro do símbolo, divide pelo piso corrente daquele tom e elege o maior, conforme (2).
+A tarefa do detector é decidir quais frequências estão presentes, sem informação de fase (LOPES; AGUIAR, 2001). O receptor mede a energia de cada tom, divide pelo piso corrente daquele tom e elege o maior, conforme (2).
 
 $$\hat{s} = \arg\max_k \frac{E_k}{P_k} \tag{2}$$
 
-Nela, $E_k$ é a energia no tom $k$ dentro do símbolo e $P_k$ é a média corrente dessa energia. Como cada tom fica em silêncio quinze símbolos em dezesseis, essa média é o piso de ruído naquela frequência, e um tom caído num nulo do pente passa a ser comparado com o próprio nulo em vez de com os outros quinze.
+Nela, $E_k$ é a energia no tom $k$ e $P_k$ é a média corrente dessa energia. Como cada tom fica em silêncio quinze símbolos em dezesseis, essa média é o piso de ruído naquela frequência, e um tom caído num nulo passa a ser comparado com o próprio nulo.
 
-As três formas de 100 bauds compartilham o mesmo relógio de símbolo, ajustado por um gate de adiantamento e atraso guiado pelo contraste da decisão, e descartam os primeiros 15% de cada símbolo como intervalo de guarda. A transmissão abre com um preâmbulo alternado, que dá ao gate as transições de que ele precisa para travar, e fecha com uma cauda ociosa, sem a qual o último byte fica preso no demodulador.
+As três formas de 100 bauds compartilham o relógio de símbolo, ajustado por um gate de adiantamento e atraso, e descartam os primeiros 15% de cada símbolo como guarda. A transmissão abre com preâmbulo alternado, que dá ao gate transições para travar, e fecha com cauda ociosa.
+
 ## 3 MÉTODO DE MEDIÇÃO
 
 <!-- A redigir depois dos resultados. -->

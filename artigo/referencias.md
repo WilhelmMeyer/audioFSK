@@ -14,9 +14,19 @@ meio acustico. As secoes 2.2 em diante seguem a doutrina do projeto, que e suste
 que foi medido em resultados/, e nao em literatura, ate que o autor peca o contrario.
 Os grupos G5 a G8 abaixo ficam levantados para o caso de o autor querer citacao de livro-texto mais
 adiante, e nenhum foi usado.
-ONDE CADA UMA E CITADA HOJE: FINNEGAN e BENSON (2014) na introducao P1; WU (2023) na introducao P2;
-LOPES e AGUIAR (2001) na introducao P3 e na 2.1, no pente; PUTZ et al. (2026) na introducao P4 e na
-2.1, tres vezes, na banda, no eco e no estouro.
+ONDE CADA UMA E CITADA (atualizado 2026-09-07, depois de citar tambem na 2.1 e na 2.2):
+  FINNEGAN e BENSON (2014): introducao P1, e so ali. Foi citada tambem na 2.2, para distinguir o
+    mapeamento direto de marca e espaco do Bell 202 original da codificacao por inversao do uso amador,
+    e o autor mandou tirar: e detalhe interno que a plateia do SIMECA nao cobra. Procurei nesse artigo
+    algo que sustentasse o nosso detector por atraso e produto e NAO HA: o trabalho e sobre protocolo,
+    enquadramento e AX.25, nao sobre deteccao.
+  WU (2023): introducao P2.
+  LOPES e AGUIAR (2001): introducao P3; 2.1, no pente; 2.2 duas vezes, na abertura, pelas duas familias
+    (um tom por simbolo e k tons simultaneos), e no detector, pela tarefa de decidir presenca sem fase.
+  PUTZ et al. (2026): introducao P4; 2.1 quatro vezes, no ultrassom, no eco, no estouro e no ruido do
+    ambiente.
+Nenhuma fonte nao lida foi citada. PROAKIS e SALEHI, KUTTRUFF, TANENBAUM, LIN e COSTELLO, VITERBI e
+FORNEY continuam so levantados; se algum entrar no texto, abrir o livro antes.
 Quatro fontes foram LIDAS no PDF, nao no resumo, e cada uma deu uma frase a um paragrafo da
 introducao: FINNEGAN e BENSON (2014), WU (2023), LOPES e AGUIAR (2001), PUTZ et al. (2026). As demais
 continuam so com dado bibliografico conferido.
