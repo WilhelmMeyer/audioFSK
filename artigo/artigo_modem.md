@@ -43,8 +43,10 @@ NOMENCLATURA (decisao do autor, 2026-09-05; fixa, nao muda mais):
   Forma de toda sigla estrangeira: nome em portugues, "do ingles", termo em italico, sigla entre
     parenteses depois do termo.
 
-ESTADO DO TEXTO: resumo aprovado 2026-09-05. Secoes 1 e 2 redigidas 2026-09-06 na estrutura acima, por
-  revisar. Secoes 3, 4 e 5 sao esqueleto.
+ESTADO DO TEXTO: resumo aprovado 2026-09-05. Secoes 1 e 2 redigidas 2026-09-06, secao 3 em 2026-09-07,
+  secao 4 em 2026-09-07, todas por revisar. Secao 5 e esqueleto. NENHUMA figura ou tabela existe ainda:
+  Tabelas 1 a 5 e Figuras 1 a 5 estao marcadas em comentario no ponto onde entram. As figuras de campanha
+  (espectros, resposta em pente) estao na maquina A e nao foram versionadas.
 -->
 
 # Transmissão de dados por som audível entre dois computadores: o canal acústico medido e um modem para ele
@@ -108,15 +110,33 @@ entrega simbolos e a verossimilhanca de cada bit; o enlace opera em bits, nunca 
 
 ### 2.1 O meio acústico
 
-<!-- Fonte: resultados/02-LVL-TONE, 03-CH-CHIRP (as duas direcoes), 12-13-SYNC. -->
+<!-- Fonte: resultados/02-LVL-TONE e 02-LVL-TONE-A2B (tom pisado, unica frequencia medida assim),
+03-CH-CHIRP-A2B (varredura), 12-13-SYNC.
+CORRIGIDO 2026-09-07. O texto anterior dizia "medida tom a tom [...] a banda util vai de 550 a 3500 Hz" e
+"acima de 4 kHz a SNR cai, 12 dB a 4000, 8 dB a 4500, zero a 5000, negativa acima de 6 kHz". Nada disso
+tem origem em resultados/: o 02-LVL-TONE mede UMA frequencia, 1700 Hz, e os numeros de 4/4,5/5/6 kHz nao
+aparecem em HEADER nenhum. A varredura A->B, repontuada em 2026-09-07 sobre a copia float32 local, mede o
+contrario: 58,3 dB a 4012 Hz, 55,3 a 4462, 46,0 a 4988, e os melhores pontos de toda a varredura ficam
+entre 4,1 e 4,4 kHz. O que cai com a frequencia e o NIVEL, nao a SNR, porque o piso cai mais rapido.
+As duas varreduras discordam (A->B: 76 de 76 bins positivos; B->A: 74 de 76 negativos) e o proprio HEADER
+do B->A explica: 4,0 s contra 6,0 s, pouca energia por Hz. Pela doutrina do projeto (medir uma frequencia
+mandando aquela frequencia) nenhuma varredura decide SNR, e so o tom pisado decide, em 1700 Hz.
+O argumento do ultrassom foi refundado no nivel e na regiao nao exercitada, que e o que os dados sustentam.
+Numeros do pente recalculados a 50 Hz sobre a varredura A->B: degrau entre vizinhos com mediana 2,5 dB,
+p90 6,5 dB, maximo 13,0 dB; excursao de 27,6 dB dentro de 550-3500 Hz; os 16 tons caem entre -5,7 e
+-27,8 dB. O "13 a 18 dB" anterior valia como maximo e exagerava cinco vezes como faixa tipica. -->
 
-Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Medida tom a tom entre as duas máquinas, com a mediana de três repetições por frequência, a banda útil vai de 550 a 3500 Hz. Acima de 4 kHz a relação sinal-ruído cai, 12 dB a 4000 Hz, 8 dB a 4500 Hz e cerca de zero a 5000 Hz, e acima de 6 kHz é negativa. O ultrassom, atraente por ser uma faixa silenciosa, fica portanto fora do alcance destes transdutores, e sobra a banda audível, dividida com tudo o que soa na sala.
+Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Colocamos os tons entre 550 e 3500 Hz, e nessa faixa a resposta medida varia 28 dB entre o melhor e o pior ponto. Acima de 3500 Hz o nível fica de 12 a 20 dB abaixo dela.
 
-Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo seu percurso. Cópias atrasadas somam em fase nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso e se opõem nas intermediárias, de modo que a resposta em frequência é um pente, com máximos e nulos alternados ao longo da banda. Aqui a diferença entre vizinhos a 50 Hz de resolução chega a 13 a 18 dB, e a posição dos nulos depende da geometria e muda quando alguém se move. A Figura 1 mostra a resposta medida com os dezesseis tons da 16-FSK marcados sobre o pente. As reflexões tardias prolongam o som depois que a fonte cala, e enquanto essa cauda dura a energia do símbolo anterior ainda está no microfone quando o seguinte começa. Nesta bancada a cauda não é mensurável, o sinal para no piso de ruído, mas o projeto a antecipa porque outra sala pode tê-la.
+Medimos a relação sinal-ruído mandando o próprio tom, e só em 1700 Hz, onde ela é de 57,3 dB no sentido B→A e 51,6 dB no sentido A→B. Acima de 4 kHz não há medida por tom pisado, e as duas varreduras de que dispomos discordam entre si nessa região, de modo que a faixa não foi exercitada. O ultrassom fica fora do escopo deste trabalho por essa razão e pela queda de nível dos transdutores, não por uma medida de ruído que o sustente. Sobra a banda audível, dividida com tudo o que soa na sala.
 
-<!-- FIGURA 1, aqui: resposta em frequencia medida, tom a tom, com os 16 tons marcados sobre o pente.
-Legenda ABAIXO: o que se ve, a direcao do enlace, e o que notar (a distancia entre um maximo e o nulo
-vizinho e pequena diante da banda util). -->
+Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo seu percurso. Cópias atrasadas somam em fase nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso e se opõem nas intermediárias, de modo que a resposta em frequência é um pente, com máximos e nulos alternados ao longo da banda. Aqui o degrau entre vizinhos a 50 Hz de resolução tem mediana de 2,5 dB e chega a 13 dB, e a posição dos nulos depende da geometria e muda quando alguém se move.
+
+A Figura 1 mostra a resposta medida com os dezesseis tons da 16-FSK marcados sobre o pente. Os tons caem em pontos distintos dele, de 5,7 a 27,8 dB abaixo do melhor ponto da varredura, e essa excursão de 22 dB entre o tom mais forte e o mais fraco é a razão de a decisão do receptor não poder depender da amplitude absoluta de nenhum deles.
+
+![Figura 1 - Resposta em frequência medida por varredura de 300 a 6000 Hz no sentido A→B, em bins de 50 Hz, com os dezesseis tons da 16-FSK marcados. A faixa clara é a região de 550 a 3500 Hz onde os tons foram colocados. A distância entre um máximo e o nulo vizinho é pequena diante da largura da faixa útil, e os tons caem em pontos distintos do pente.](figuras/resposta-canal.png "0.85")
+
+As reflexões tardias prolongam o som depois que a fonte cala, e enquanto essa cauda dura a energia do símbolo anterior ainda está no microfone quando o seguinte começa. Nesta bancada a cauda não é mensurável, o sinal para no piso de ruído, mas o projeto a antecipa porque outra sala pode tê-la.
 
 A cadeia analógica não é linear em toda a excursão. O alto-falante limita os picos e o microfone comprime quando o nível cresce, e a energia retirada do sinal reaparece como harmônicos e produtos de intermodulação dentro da mesma banda, indistinguíveis de sinal transmitido. Além desse ponto, aumentar o nível de transmissão piora a recepção. As duas máquinas amostram com osciladores próprios, de modo que o intervalo de símbolo recebido difere do transmitido por uma fração de amostra que se acumula ao longo de um bloco.
 
@@ -198,50 +218,106 @@ Cada campanha varre um eixo por vez, com três a doze gravações por ponto, e g
 Não variamos a distância entre a caixa e o microfone nem o cômodo, e a dependência da geometria não foi levantada. Cada número da seção Resultados experimentais diz a direção em que o enlace operou, e traz ao lado a condição degradada de propósito, quando houve.
 
 ## 4 RESULTADOS EXPERIMENTAIS
+
 <!--
-Ordem: primeiro o que o meio e (identificacao), depois a operacao das camadas, na ordem em que a 2 as
-introduziu. Cada paragrafo com a celula do estilo: Figura N mostra + condicao + numero com incerteza ou
-repeticao + previsto contra medido + causa + o que aquele numero passou a alimentar. Cada numero diz de
-qual direcao veio (B->A ou A->B).
-
-4.a O meio ja esta em 2.1. Aqui so o que fecha ganchos: sem cauda de reverberacao mensuravel, a guarda de
-    35% foi projetada contra uma cauda que esta bancada nao tem; o voto elege um bit do silencio (485 bytes
-    decodificados de sala vazia); o microfone comprime ~3,5 dB ao longo da rajada; periodo de simbolo
-    medido 479,96 +- 0,07 amostras onde o nominal e 480. resultados/02, 03, 12-13-SYNC.
-
-4.b Nivel e saturacao. Ganho digital MENOR ganha. A->B a ganho 0,5 fixo, alto-falante 1,00 / 0,45 / 0,20 /
-    0,10: 82,3% / 85,1% / 88,0% / 82,2% de bits, blocos 0/3, 0/3, 3/3, 1/3. U invertido com joelho em
-    0,20. A inversao do ganho digital em 0,45 (81,4% a 1,0 contra 89,1% a 0,25, picos recebidos so
-    0,10-0,19) some em 0,20. Levou A->B de 0 de 12 a 8 de 9. resultados/17-SPK-LEVEL-A2B, 16-SPK-A2B.
-    FIGURA: bits certos e blocos inteiros contra nivel do alto-falante.
-
-4.c As quatro formas no mesmo enlace. Tabela: forma | bits por simbolo | taxa | medido no ar. 2-FSK nunca
-    entregou uma mensagem; 5x2-FSK votada 1,8 B/s 4/4; 5x2-FSK multicanal 5,9 B/s 5/9; 16-FSK repeticao 2
-    e ganho 0,5 9,4 B/s 9/11; 16-FSK repeticao 1 em cadeia linear 11,3 B/s 12/12. A 16-FSK recebe 0,14 rms
-    onde os cinco canais simultaneos recebiam 0,07-0,09, que e a troca de potencia de 2.2 medida. resultados/04 a 08,
-    11, 14.
-
-4.d Redundancia. Cadeia saturada: repeticao 1 0/6 e 1/6, repeticao 2 2/6 e 5/6, repeticao 4 4/7. Cadeia
-    corrigida, 48 bytes, quatro gravacoes por ponto: repeticao 1, 2 e 4 todas 4 de 4, a 11,3 / 6,7 /
-    3,7 B/s. Redundancia compra a cauda e nao a media (uma gravacao a repeticao 4 leu 64% dos bits e ainda
-    entregou o bloco). resultados/14-FEC-REP.
-
-4.e Relogio de simbolo. Oito gravacoes: gate 87,7% e 5/8; melhor deslocamento (oraculo) 89,3% e 7/8;
-    varredura da frente 88,4% e 8/8; duas varreduras com periodo medido 89,0% e 8/8. O gate nao e ruim na
-    media, ele colapsa (49,0% onde o relogio congelado leu 84,9%). Pareado: as varreduras leem mais bits
-    em 59 de 60. Parte na auto-captura Bluetooth, canal diferente, dizer. resultados/12-13-SYNC.
-
-4.f Arquivo inteiro. testcard.bmp, 1334 bytes, 21 de 21 pacotes de 64 bytes sem retransmissao a 6,8 B/s;
-    11 de 11 a 7,2 B/s com 128 bytes (3 retransmissoes). Pacote maior amortiza o preambulo e falha mais;
-    quase empata. Antes entregava 1 de 21, e nada na subdivisao ou no reenvio mudou: foi a correcao
-    analogica. Zero retransmissoes em 21 e resultado forte mas nao mede a taxa de falha por pacote com
-    precisao. resultados/15-PKT-ARQ.
-
-4.g O que nao ajudou e o que ficou fora: silencio entre simbolos, banda de integracao e acorde por nibble
-    (custam ou nao medem nada); piloto por tom medido e morto; a correcao do estimador de piso, boa na
-    cadeia distorcida e pior na linear (0 de 3 contra 2 de 3), ainda nao no ar. Curto, cada um com o
-    numero e a pasta. resultados/09, 10, 11, INVESTIGACAO-A2B.md.
+Redigida 2026-09-07. Ordem segue a da secao 2: meio, nivel da cadeia, as quatro formas, relogio de
+simbolo, redundancia, arquivo, e o que ficou fora. O esqueleto trazia redundancia antes de relogio; a 2.3
+introduz sincronismo primeiro, e resultado segue a ordem da teoria.
+REGUA UNICA: acerto de bits pelo gate, que e a coluna `acerto_bits` de todos os `resultado.csv`.
+Conferido em 2026-09-07 rodando `align.py` sobre a 08: ele reporta "gate early/late, como esta hoje 79,1%",
+que e a media do `resultado.csv` da mesma pasta -- a coluna e mesmo a do gate, como o HEADER da 08 rotula.
+(O docstring do `resultado.py` diz "best brute-forced slide"; e o docstring que esta errado.)
+O CLAUDE.md da raiz reporta a serie de nivel A->B pela regua do `align.py` (relogio travado), cerca de 2
+pontos acima, e com 3/3 no joelho onde o csv traz 2/3. Os numeros aqui sao os das pastas.
+VERIFICACAO 2026-09-07: as 42 gravacoes A->B (08, 08B, 16, 17) foram repontuadas com o codigo de hoje
+sobre as copias float32 locais de `captures/`, e as 42 reproduzem o publicado ate a segunda decimal, com
+os mesmos blocos. O piloto da 4.g tambem foi refeito (`align.py` na 08): 81,7% e 1 de 12 contra 87,6% e
+4 de 12, identico ao publicado. Os numeros B->A nao puderam ser reconferidos: o audio esta na maquina A.
+Fontes, por paragrafo: 02-LVL-TONE e INVESTIGACAO-A2B.md; 07-MARY-BASE, 08-MARY-GAIN-A2B,
+08B-MARY-GAIN-A2B, 16-SPK-A2B, 17-SPK-LEVEL-A2B; 04-FSK-BASE, 05-MFSK-VOTE, 06-MFSK-PAR, 07-MARY-BASE;
+12-13-SYNC; 14-FEC-REP; 15-PKT-ARQ; 09-MARY-GAP, 10-MARY-BAND, 11-MARY-CHORD, 08-MARY-GAIN-A2B.
+FIGURAS PENDENTES: as `figuras/` das campanhas estao na maquina A (Linux) e nao foram versionadas
+(`.gitignore` ignora `figuras/` e `*.wav`), entao nao ha como gerar aqui. Figura 4 e Figura 5 abaixo estao
+marcadas e sem arquivo.
 -->
+
+O tom de 1700 Hz chega ao microfone 57,3 dB acima do piso no sentido B→A, mediana de três repetições, e 51,6 dB acima dele no sentido A→B, mediana de cinco. Nenhum resultado desta seção é falta de sinal.
+
+A cauda de reverberação não é mensurável nesta sala, pois o nível para no piso quando a fonte cala. A guarda de 35% de cada símbolo defende contra um transiente que esta bancada não tem.
+
+O microfone comprime cerca de 3,5 dB ao longo de uma rajada no sentido A→B. É um ganho global, que multiplica os dezesseis tons igualmente e não desloca a comparação de (2).
+
+A cadeia analógica domina todos os números que seguem. Medimos a 16-FSK duas vezes no sentido B→A, com o mesmo ganho digital de 1,0, o mesmo bloco de 48 bytes e dezoito minutos de intervalo, antes e depois de baixar o volume do alto-falante que transmite e o ganho de captura de quem grava.
+
+A cadeia saturada entregou 1 bloco inteiro de 3, com o sinal chegando a rms 0,48, pico 1,000 e 9,65% das amostras acima de 0,99. A corrigida entregou 3 de 3, com rms 0,027 a 0,031 e pico 0,14 a 0,20.
+
+Reduzir em 24 dB o nível recebido triplicou a entrega, o que não é resultado sobre amplitude e sim sobre linearidade. A energia que o limitador retira do sinal reaparece como produto de intermodulação dentro da mesma banda, onde o receptor não a distingue de tom transmitido.
+
+Varrer o volume analógico com o ganho digital fixo separa a saturação da falta de nível, já que os dois chegam ao alto-falante por caminhos distintos. A Figura 4 mostra a varredura no sentido A→B, com ganho digital 0,5, repetição 1 e três gravações por ponto.
+
+O alto-falante em 1,00 leu 79,9% dos bits e nenhum bloco de 3, em 0,45 leu 83,2% e nenhum de 3, em 0,20 leu 86,1% e 2 de 3, e em 0,10 leu 80,0% e 1 de 3. É um U invertido com joelho em 0,20, que comprime acima e fica sem sinal abaixo.
+
+<!-- FIGURA 4, aqui: bits certos e blocos inteiros contra o volume do alto-falante, sentido A->B, ganho
+digital 0,5, tres gravacoes por ponto. Barras de blocos e linha de bits, dois eixos. Legenda dentro do
+alt, dizendo que o eixo e o volume ANALOGICO e que o ganho digital esta fixo. Fonte: 08, 08B, 17.
+Os audios das tres campanhas estao em captures/ nesta maquina, entao esta figura e gerada aqui. -->
+
+O sinal de que a cadeia ainda comprime é o ganho digital andar para trás. Com o alto-falante em 0,45 o ganho de 1,0 leu 79,1% dos bits e nenhum bloco de 3, contra 86,0% e 2 de 3 no ganho de 0,25, com picos recebidos entre 0,10 e 0,38, muito abaixo do que o receptor poderia ceifar.
+
+Em 0,20 essa inversão desaparece, 86,5% em ganho 1,0 contra 86,1% em 0,5 e 82,4% em 0,25, que é o comportamento de uma cadeia linear. A correção levou o sentido A→B de nenhum bloco inteiro em doze gravações a 2 de 3, sem que uma linha do processamento mudasse.
+
+<!-- TABELA 4, antes do paragrafo seguinte: as quatro formas. Colunas: forma | bits por simbolo | taxa
+util | condicao medida | blocos inteiros. A coluna de condicao e obrigatoria, as campanhas nao sao
+pareadas: a 2-FSK e a 5x2-FSK votada usaram a caixa antiga em P2, a multicanal e a 16-FSK a Bluetooth, e
+so a 16-FSK tem ponto em cadeia corrigida. Legenda ACIMA. -->
+
+As quatro formas foram medidas no mesmo sentido B→A, com 48 bytes aleatórios e três gravações cada, e a Tabela 4 as reúne com a condição de cada uma, que não é a mesma.
+
+A 2-FSK acertou 2,8% dos bytes e não localizou o preâmbulo em nenhuma das seis leituras, com o sinal 40 dB acima do piso. O receptor entregou de 45 a 56 bytes de um payload de 48 e acertou um ou dois, porque o detector de bit de partida encontra borda de descida em toda parte e produz uma quantidade plausível de bytes, todos errados. Contagem certa, conteúdo lixo.
+
+As duas formas de cinco pares recuperaram bloco inteiro de forma esparsa, 1 de 3 na votada e nenhum de 6 na multicanal, chegando com rms entre 0,051 e 0,080.
+
+No mesmo ganho digital de 1,0 a 16-FSK chegou com rms 0,48 e pico 1,000, ou seja, concentrar num tom só a potência repartida em cinco levou a mesma cadeia ao limitador. É a troca de potência de 2.2, medida pelo lado do custo.
+
+Calibrada no joelho da Figura 4, a 16-FSK entrega 3 blocos de 3. A Figura 5 mostra o espectro recebido de uma dessas gravações, com o tom transmitido e o tom decidido sobrepostos símbolo a símbolo.
+
+<!-- FIGURA 5, aqui: espectro recebido de uma gravacao 16-FSK em cadeia linear (07-MARY-BASE, bateria 3),
+com o painel do tom transmitido e o do tom decidido sobrepostos, grade de simbolo e rotulo de nibble.
+Gerada por `spectro.py --fundido`. Legenda dentro do alt: o que e cada camada de cor e onde ler a
+concordancia. O AUDIO ESTA NA MAQUINA A (a 07 e B->A) e nao foi versionado. Alternativa, se ele nao vier:
+usar uma gravacao do joelho da 17-SPK-LEVEL-A2B, que esta aqui e e a mesma condicao da Figura 4. -->
+
+O par de varreduras mede o período de símbolo em 479,99 ± 0,07 amostras sobre quatro gravações de 192 bytes no sentido B→A, contra 480,00 nominais. Vinte e quatro segundos de quadro não acumularam deriva mensurável entre os dois relógios.
+
+O gate ficou a 0,1 ponto de um oráculo que recebeu o deslocamento correto, 95,31% contra 95,4% dos bits. As duas varreduras leram 95,68%, ganhando em três das quatro gravações e empatando na quarta, com 4 blocos de 4 em todas as leituras.
+
+A varredura de abertura sozinha ficou abaixo do gate, 93,6%, pois acerta o início dentro de um oitavo de símbolo e congela ali. O valor do mecanismo está no par, que reposiciona cada janela pelo período medido de (3).
+
+A margem de 0,37 ponto entre o gate e o par é menor que a diferença entre duas gravações vizinhas do mesmo ajuste, e quatro repetições não a resolvem. Um ensaio de sincronismo só separa métodos num canal em que algo falha, e aqui nada falhou.
+
+<!-- TABELA 5, antes do paragrafo seguinte: repeticao 1 / 2 / 4. Colunas: repeticao | tempo de ar | taxa
+util | bits certos | blocos inteiros. Valores 4,26 / 7,19 / 13,04 s; 11,3 / 6,7 / 3,7 B/s; 92,2 / 91,9 /
+84,9%; 4 de 4 nos tres. Legenda ACIMA. Fonte: 14-FEC-REP. -->
+
+A Tabela 5 varre a repetição em três pontos, com quatro gravações cada, no sentido B→A e na cadeia corrigida. Os doze blocos saíram inteiros nos três pontos, e a repetição 1 é 2,2 vezes mais rápida que a 2, de modo que a redundância não compra nada nesta bancada.
+
+Na cadeia saturada a mesma varredura recuperava 1 bloco de 6 na repetição 1 contra 5 de 6 na 2. O que a redundância comprava ali era a saturação, não o canal.
+
+O que ela ainda compra é a cauda e não a média. Uma gravação em repetição 4 leu 63,2% dos bits, um terço deles errados, e ainda entregou o bloco inteiro, num nível de erro que nenhuma gravação em repetição 1 ou 2 alcançou.
+
+Transferimos um arquivo de 1334 bytes com reenvio pare-e-espere dirigido pelo receptor. Com carga de 64 bytes chegaram 21 pacotes de 21 em 197 s, 6,8 bytes por segundo, sem uma única retransmissão. Com 128 bytes chegaram 11 de 11 em 186 s, 7,2 bytes por segundo, com três retransmissões. O arquivo confere byte a byte contra o original nos dois casos.
+
+O pacote maior amortiza os 120 símbolos de preâmbulo que cada um paga e em compensação falha mais, e as duas coisas quase se cancelam em 6% de ganho líquido.
+
+A taxa do arquivo fica abaixo dos 11,3 bytes por segundo da camada porque paga preâmbulo por pacote, cabeçalho e verificação, e o intervalo de controle de cerca de 3 s entre um pacote e o seguinte. Nada disso é perda no ar.
+
+Três ajustes do receptor foram medidos e não se pagam. O silêncio entre símbolos leva os bits de 99,61% a 88,12% quando cresce de zero a 30% do símbolo, com 9 blocos inteiros de 9 nos três pontos, e gasta tempo de ar para piorar a leitura.
+
+A largura da janela de medida por tom não muda nada entre 0 e 40 Hz, de 99,84% a 99,94%. O acorde de três tons por nibble perde cerca de um ponto de bits, pelo nível que a divisão por três custa.
+
+Um piloto por tom foi avaliado sobre as doze gravações do sentido A→B contra um divisor perfeito de ganho e leu 81,7% dos bits e 1 bloco de 12, abaixo dos 87,6% e 4 de 12 do piso de ruído que o receptor já estima sozinho.
+
+A correção do estimador de piso melhora a cadeia distorcida e piora a linear, e não foi medida no ar. Não variamos a distância entre o alto-falante e o microfone nem o cômodo, e a dependência da geometria não foi levantada.
 
 ## 5 CONSIDERAÇÕES FINAIS
 
