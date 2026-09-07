@@ -35,6 +35,9 @@ Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do rep
 
 - `artigo_modem.md`: **fonte única da prosa.** Esqueleto com o resumo redigido; o resto são seções e comentários com o que entra em cada trecho, orçamento de palavras e a pasta de `resultados/` que sustenta cada número.
 - `estilo.md`: o estilo do autor, extraído dos dois artigos dele (SIMECA roda de reação e IEEE TIE). **Ler antes de redigir qualquer trecho.** Tem lista de verificação no fim.
+- `referencias.md`: as referências levantadas, com a fonte da verificação de cada uma, onde cada uma é citada hoje e o que foi levantado e descartado, com a razão. Teto de 40 referências, decisão do autor. Nenhuma foi inventada e nenhuma fonte não lida entrou no texto.
+- `procedencia.md`: **de onde veio cada número já escrito, e se ele se reconfere.** Auditado em 2026-09-07 importando `modem.py` e recalculando a varredura. Ler antes de mexer em número da 2.1 ou da 2.2, e antes de responder "de onde saiu isso". Registra dois números da 2.1 que **não** se sustentam e as duas falhas de ferramenta que impedem reconferir.
+- `referencias-pdf/`: os PDFs abertos das fontes, **ignorada pelo git** por serem textos de terceiros. Quem clona refaz a pasta pelas URLs de `referencias.md`.
 - `monta.py`: **a montagem, em um lugar só.** Confere a versão do Python e chama o conversor com caminhos absolutos. Não roda `cd` para dentro do conversor: as figuras já resolvem a partir da pasta do `.md`.
 - `monta.sh` e `monta.cmd`: invocadores finos do `monta.py`, um para Linux e macOS, outro para Windows. Só escolhem o interpretador. **Não duplicar lógica neles**, pela mesma razão que a tabela de comandos do `console.py` é única. Aceitam `--verifica`, `--sem-figuras`. Rode de qualquer pasta.
 - `MONTAGEM.md`: instruções de montagem para quem não trabalha neste repositório todo dia, inclusive no Windows. É o arquivo a apontar quando alguém pergunta como gerar o docx.
