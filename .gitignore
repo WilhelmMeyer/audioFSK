@@ -14,3 +14,4 @@ artigo/*.pdf
 !artigo/figuras/
 !artigo/simeca-md/exemplos/figuras/
 !artigo/simeca-md/modelos/*/figuras/
+artigo/referencias-pdf/
