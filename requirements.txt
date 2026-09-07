@@ -4,3 +4,4 @@ pycparser==3.0
 pyserial==3.5
 scipy==1.18.0
 sounddevice==0.5.5
+soundfile==0.14.0
