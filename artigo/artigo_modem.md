@@ -76,7 +76,7 @@ camadas; a implementacao e o metodo; os numeros. So a ultima frase tem numero.
 Fonte dos numeros: resultados/14-FEC-REP, resultados/15-PKT-ARQ.
 -->
 
-Este artigo apresenta a transmissão de dados por som audível entre dois computadores, com alto-falante e microfone comuns, expondo o enlace à aplicação como uma porta serial. O meio acústico impõe condições severas: a banda audível comporta poucas unidades de informação por segundo, aqui chamadas de símbolos, a amplitude que chega não é a que saiu, frequências vizinhas chegam com dezenas de decibéis de diferença, o eco de um símbolo invade o seguinte, o ruído e a fala ocupam a mesma banda, e o hardware também pode saturar e distorcer o sinal. Tratamos essas dificuldades em duas camadas. Na física, conferimos quatro modulações de ordem M, ditas M-árias, em que cada símbolo é um tom escolhido entre M frequências e carrega tantos bits quanto essa escolha permite: a 2-FSK binária, modulação por chaveamento na frequência, do inglês *frequency shift keying* (FSK), e três por chaveamento em múltiplas frequências, do inglês *multiple frequency shift keying* (MFSK), a 5×2-FSK com o mesmo bit em cinco canais e decisão por voto, a 5×2-FSK multicanal com cinco bits em paralelo, e a 16-FSK com quatro bits por símbolo. Mesmo na melhor dessas formas, parte dos bits pode chegar com erro ou se perder, e na camada de enlace implementamos a correção antecipada de erros, do inglês *forward error correction* (FEC), o sincronismo de quadro por palavra de referência, a segmentação do arquivo em pacotes com verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC), e a retransmissão automática, do inglês *automatic repeat request* (ARQ). Medimos cada recurso sobre gravações do mesmo enlace, para comparar as variantes sobre o mesmo ar. Na melhor configuração o enlace entregou cerca de 11 bytes por segundo com 12 blocos íntegros em 12, e um arquivo de 1334 bytes chegou idêntico em 21 pacotes de 21, sem reenvio.
+Este artigo apresenta a transmissão de dados por som audível entre dois computadores, com alto-falante e microfone comuns, expondo o enlace à aplicação como uma porta serial. O meio acústico impõe condições severas: a banda audível comporta poucas unidades de informação por segundo, aqui chamadas de símbolos, a amplitude que chega não é a que saiu, frequências vizinhas chegam com dezenas de decibéis de diferença, o eco de um símbolo invade o seguinte, o ruído e a fala ocupam a mesma banda, e o hardware também pode saturar e distorcer o sinal. Tratamos essas dificuldades em duas camadas. Na física, conferimos quatro modulações de ordem M, ditas M-árias, em que cada símbolo é um tom escolhido entre M frequências e carrega tantos bits quanto essa escolha permite: a 2-FSK binária, modulação por chaveamento na frequência, do inglês *frequency shift keying* (FSK), e três por chaveamento em múltiplas frequências, do inglês *multiple frequency shift keying* (MFSK), a 5×2-FSK com o mesmo bit em cinco canais e decisão por voto, a 5×2-FSK multicanal com cinco bits em paralelo, e a 16-FSK com quatro bits por símbolo. Mesmo na melhor dessas formas, parte dos bits pode chegar com erro ou se perder, e na camada de enlace implementamos a correção antecipada de erros, do inglês *forward error correction* (FEC), o sincronismo de quadro por palavra de referência, a segmentação do arquivo em pacotes com verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC), e a retransmissão automática, do inglês *automatic repeat request* (ARQ). Medimos cada recurso sobre gravações do mesmo enlace, para comparar as variantes sobre o mesmo ar. Na melhor configuração o enlace entregou cerca de 11 bytes por segundo com os quatro blocos de ensaio íntegros, e 12 blocos íntegros de 12 na campanha de redundância; um arquivo de 1334 bytes chegou idêntico em 21 pacotes de 21, sem reenvio.
 
 **PALAVRAS-CHAVE:** Modem acústico. Modulação por chaveamento de frequência. Codificação convolucional. Canal acústico.
 
@@ -89,8 +89,16 @@ paragrafos: os meios; o fio e o ar; o caso e o que exige; o que apresentamos. Nu
 
 Levar bytes de uma máquina a outra tem vários meios, e cada um cobra a sua instalação. O cabo entrega megabytes por segundo e exige um conector livre em cada ponta. O rádio, no Wi-Fi ou no Bluetooth, exige um transceptor, um pareamento e a permissão de operar, que nem todo ambiente concede. O infravermelho exige linha de visada. O som audível não exige nenhuma das três coisas, pois o alto-falante e o microfone já vêm em qualquer computador ou telefone, e o que ele cobra é a taxa. A Tabela 1 põe os quatro meios lado a lado. (CITAR: comunicação acústica entre dispositivos, transferência de dados por áudio)
 
-<!-- TABELA 1, aqui. Colunas: meio | hardware exigido | taxa tipica | alcance | onde cabe. Linhas: cabo,
-radio, infravermelho, som audivel, esta por ultimo e julgada pela mesma regua. Legenda ACIMA da tabela. -->
+Tabela 1 - Meios de transmissão de dados entre duas máquinas próximas, pelo hardware que cada um exige. As taxas e os alcances são ordens de grandeza correntes de cada tecnologia; a linha do som audível traz o que esta bancada mediu.
+
+| meio | hardware exigido | taxa típica | alcance | onde cabe |
+|---|---|---|---|---|
+| cabo | conector livre nas duas pontas | 10⁶ a 10⁹ B/s | o comprimento do cabo | quando as duas máquinas se tocam |
+| rádio | transceptor, pareamento, permissão de operar | 10⁵ a 10⁷ B/s | dezenas de metros | quando o ambiente autoriza |
+| infravermelho | emissor, receptor e linha de visada | 10³ a 10⁵ B/s | poucos metros, sem obstáculo | quando há visada direta |
+| som audível | alto-falante e microfone, que a máquina já tem | 10⁰ a 10¹ B/s | a mesma sala | quando nada pode ser instalado |
+
+<!-- (CITAR: taxas correntes de cada meio) na legenda ou no corpo. Linha do som audivel: resultados/14-FEC-REP e 15-PKT-ARQ. -->
 
 A resposta clássica para pôr dados num canal de voz é a modulação por chaveamento na frequência, do inglês *frequency shift keying* (FSK), em que a portadora comuta entre duas frequências e cada uma vale um valor do bit. O padrão Bell 202 fixa 1200 e 2200 Hz a 1200 símbolos por segundo, com os bytes enquadrados em 8N1, e o receptor decide o bit pelo sinal de um discriminador de frequência. No par de fios telefônico as duas frequências chegam no mesmo nível. No ar, o canal não é um fio. O som chega pelo caminho direto e pelas reflexões da sala, que se somam com fases dependentes da frequência, e a resposta vira um pente, com mais de dez decibéis entre frequências vizinhas. O alto-falante limita os picos e o microfone comprime, os dois relógios de amostragem são independentes, e a banda é a da fala, dividida com qualquer conversa. (CITAR: Bell 202, canal acústico em ambiente fechado, resposta em pente)
 
@@ -167,83 +175,122 @@ O bloco é localizado por uma palavra de referência de 31 bits, correlacionada 
 ## 3 MÉTODO DE MEDIÇÃO
 
 <!--
-Por que uma secao propria: julgar uma ideia transmitindo mede a ideia e a sala ao mesmo tempo, e a sala nao
-para. Orcamento ~350 palavras.
-Hardware: as duas maquinas, placas de som, alto-falante e microfone de cada uma, taxa de amostragem 48 kHz.
-Software: Python, com o processamento de sinal separado de toda entrada e saida (o mesmo codigo roda ao
-  vivo e sobre gravacao), e a interface como porta serial virtual.
-Cabo serial entre as maquinas: UMA frase, como auxilio do ensaio (sincronizar o inicio e combinar a carga
-  conhecida gerada dos dois lados), deixando claro que os bytes pontuados viajaram so pelo ar. Nunca como
-  recurso da comunicacao. Decisao do autor, 2026-09-05.
-Metodo: gravacao do lado remoto transmitindo carga conhecida e pontuacao offline; um canal fixo permite
-  comparar variantes sobre os mesmos segundos de ar. Pontuacao com alinhamento tolerante, porque o enlace
-  derruba bytes e um byte perdido desloca o resto. Regua unica: bits no melhor deslocamento, blocos
-  inteiros como numero separado. Comparacao pareada sobre a mesma gravacao. Calibrar ganho numa rajada e
-  nao num tom, porque os transientes de troca de tom levam cerca de 2,5 vezes o pico de um tom parado.
-  O que foi degradado de proposito e dito ao lado do numero.
-Tabela candidata: parametros do enlace (fs, baud por camada, tons, K, r, tamanho de bloco, ganho, guarda),
-  com a coluna de simbolos igual a do texto.
-FIGURA CANDIDATA: foto ou diagrama da bancada.
+Redigida 2026-09-07. Orcamento ~350 palavras. Fonte: HEADER.md das pastas de resultados.
 -->
+
+A bancada são duas máquinas comuns na mesma sala, uma com Linux e outra com Windows, cada uma com a sua placa de som a 48 kHz, chamadas A e B ao longo do texto. A transmite por uma caixa Bluetooth e B grava pelo microfone interno do próprio computador, e o sentido se inverte quando o ensaio pede, o que se anota em cada número como A→B ou B→A. O programa é escrito em Python, com o processamento de sinal isolado de toda entrada e saída, de modo que o mesmo código que roda ao vivo pontua uma gravação sem alteração, e a aplicação enxerga o enlace como uma porta serial virtual. Um cabo serial liga as duas máquinas apenas como auxílio do ensaio, para sincronizar o início da transmissão e combinar a semente que gera a carga conhecida dos dois lados; os bytes pontuados viajam somente pelo ar, e o cabo nunca transporta dado do enlace.
+
+Julgar uma ideia transmitindo-a mede a ideia e a sala ao mesmo tempo, e a sala não fica parada: duas execuções do mesmo código discordam. Por isso o ensaio grava o lado remoto transmitindo uma carga conhecida e guarda o áudio ao lado de um registro do que foi enviado, e a pontuação é feita depois, sobre o arquivo. Uma gravação é um canal congelado, então variantes do receptor são comparadas sobre os mesmos segundos de ar, e a comparação é sempre pareada, variante contra variante na mesma gravação, e não entre duas médias.
+
+A pontuação usa duas réguas separadas e nunca as mistura. O acerto de bits é medido com o relógio travado no melhor deslocamento por força bruta, em todas as linhas, porque escolher o deslocamento pela posição que o sincronismo encontrou pontua as falhas acima dos acertos. O bloco íntegro é o número honesto ao lado dele, e passa pelo caminho completo, com sincronismo por correlação, decodificação de Viterbi e comparação dos bytes. O alinhamento tolera deslocamento, porque este enlace apaga bytes além de corrompê-los e um byte perdido desloca todos os seguintes. O ganho de transmissão é calibrado sobre uma rajada e não sobre um tom parado, pois a troca de tom a cada símbolo produz transientes com cerca de 2,5 vezes o pico de um tom contínuo, e uma calibração feita no tom deixa a rajada ceifada. Onde uma condição foi degradada de propósito, isso é dito ao lado do número. A Tabela 3 reúne os parâmetros mantidos fixos.
+
+Tabela 3 - Parâmetros mantidos fixos ao longo dos ensaios. Onde um ensaio variou um deles, isso é dito ao lado do número.
+
+| parâmetro | valor |
+|---|---|
+| taxa de amostragem | 48 kHz nas duas máquinas |
+| taxa de símbolo | 100 bauds nas formas MFSK, 1200 bauds na 2-FSK |
+| banda útil | 550 a 3500 Hz |
+| alfabeto da 16-FSK | 16 tons, um soando por vez, vizinhos em código Gray |
+| intervalo de guarda | 35% do símbolo, descartado antes da medida |
+| código corretor | convolucional, $K = 7$, taxa 1/3, Viterbi de decisão suave |
+| repetição | $r = 1$, salvo onde a redundância é o eixo variado |
+| palavra de referência | 31 bits, localizada por correlação |
+| bloco de ensaio | 48 bytes de carga aleatória, 192 bytes na campanha de sincronismo |
 
 ## 4 RESULTADOS EXPERIMENTAIS
+
 <!--
-Ordem: primeiro o que o meio e (identificacao), depois a operacao das camadas, na ordem em que a 2 as
-introduziu. Cada paragrafo com a celula do estilo: Figura N mostra + condicao + numero com incerteza ou
-repeticao + previsto contra medido + causa + o que aquele numero passou a alimentar. Cada numero diz de
-qual direcao veio (B->A ou A->B).
-
-4.a O meio ja esta em 2.1. Aqui so o que fecha ganchos: sem cauda de reverberacao mensuravel, a guarda de
-    35% foi projetada contra uma cauda que esta bancada nao tem; o voto elege um bit do silencio (485 bytes
-    decodificados de sala vazia); o microfone comprime ~3,5 dB ao longo da rajada; periodo de simbolo
-    medido 479,96 +- 0,07 amostras onde o nominal e 480. resultados/02, 03, 12-13-SYNC.
-
-4.b Nivel e saturacao. Ganho digital MENOR ganha. A->B a ganho 0,5 fixo, alto-falante 1,00 / 0,45 / 0,20 /
-    0,10: 82,3% / 85,1% / 88,0% / 82,2% de bits, blocos 0/3, 0/3, 3/3, 1/3. U invertido com joelho em
-    0,20. A inversao do ganho digital em 0,45 (81,4% a 1,0 contra 89,1% a 0,25, picos recebidos so
-    0,10-0,19) some em 0,20. Levou A->B de 0 de 12 a 8 de 9. resultados/17-SPK-LEVEL-A2B, 16-SPK-A2B.
-    FIGURA: bits certos e blocos inteiros contra nivel do alto-falante.
-
-4.c As quatro formas no mesmo enlace. Tabela: forma | bits por simbolo | taxa | medido no ar. 2-FSK nunca
-    entregou uma mensagem; 5x2-FSK votada 1,8 B/s 4/4; 5x2-FSK multicanal 5,9 B/s 5/9; 16-FSK repeticao 2
-    e ganho 0,5 9,4 B/s 9/11; 16-FSK repeticao 1 em cadeia linear 11,3 B/s 12/12. A 16-FSK recebe 0,14 rms
-    onde os cinco canais simultaneos recebiam 0,07-0,09, que e a troca de potencia de 2.2 medida. resultados/04 a 08,
-    11, 14.
-
-4.d Redundancia. Cadeia saturada: repeticao 1 0/6 e 1/6, repeticao 2 2/6 e 5/6, repeticao 4 4/7. Cadeia
-    corrigida, 48 bytes, quatro gravacoes por ponto: repeticao 1, 2 e 4 todas 4 de 4, a 11,3 / 6,7 /
-    3,7 B/s. Redundancia compra a cauda e nao a media (uma gravacao a repeticao 4 leu 64% dos bits e ainda
-    entregou o bloco). resultados/14-FEC-REP.
-
-4.e Relogio de simbolo. Oito gravacoes: gate 87,7% e 5/8; melhor deslocamento (oraculo) 89,3% e 7/8;
-    varredura da frente 88,4% e 8/8; duas varreduras com periodo medido 89,0% e 8/8. O gate nao e ruim na
-    media, ele colapsa (49,0% onde o relogio congelado leu 84,9%). Pareado: as varreduras leem mais bits
-    em 59 de 60. Parte na auto-captura Bluetooth, canal diferente, dizer. resultados/12-13-SYNC.
-
-4.f Arquivo inteiro. testcard.bmp, 1334 bytes, 21 de 21 pacotes de 64 bytes sem retransmissao a 6,8 B/s;
-    11 de 11 a 7,2 B/s com 128 bytes (3 retransmissoes). Pacote maior amortiza o preambulo e falha mais;
-    quase empata. Antes entregava 1 de 21, e nada na subdivisao ou no reenvio mudou: foi a correcao
-    analogica. Zero retransmissoes em 21 e resultado forte mas nao mede a taxa de falha por pacote com
-    precisao. resultados/15-PKT-ARQ.
-
-4.g O que nao ajudou e o que ficou fora: silencio entre simbolos, banda de integracao e acorde por nibble
-    (custam ou nao medem nada); piloto por tom medido e morto; a correcao do estimador de piso, boa na
-    cadeia distorcida e pior na linear (0 de 3 contra 2 de 3), ainda nao no ar. Curto, cada um com o
-    numero e a pasta. resultados/09, 10, 11, INVESTIGACAO-A2B.md.
+Redigida 2026-09-07, direto das pastas de resultados. Cada numero traz a direcao e a pasta.
+Divergencias corrigidas em relacao ao esqueleto anterior estao anotadas no fim de cada bloco.
 -->
+
+### 4.1 O que o meio faz com o sinal
+
+<!-- Fonte: resultados/01-LVL-BASE, 01-LVL-BASE-A2B, 02-LVL-TONE, 03-CH-CHIRP, 03-CH-CHIRP-A2B, 12-13-SYNC. -->
+
+Com nada transmitindo, o piso de ruído da sala na banda útil ficou em −62,6 dBFS no microfone de A e em −55,0 dBFS no de B, medido sobre gravações de oito segundos. Um tom parado de 1700 Hz enviado de B para A chegou à mediana de −21,8 dBFS, isto é, cerca de 57 dB acima desse piso, com 7,1 dB de espalhamento entre três repetições da mesma medida. Falta de sinal, portanto, não é o problema deste enlace em nenhum dos resultados que seguem.
+
+A varredura de frequência, que seria o instrumento natural para levantar o pente, discordou de si mesma entre os dois sentidos: uma varredura de 300 a 6000 Hz deu relação sinal-ruído positiva em 76 dos 76 intervalos no sentido A→B e negativa em 74 dos 76 no sentido B→A, na mesma sala e com os mesmos transdutores, minutos depois. Medir uma frequência enviando aquela frequência, com a mediana de três repetições, deu margens saudáveis nos dois sentidos. A varredura é boa para achar a forma do pente e ruim para afirmar que um tom está morto, e os tons do sistema foram conferidos um a um.
+
+O período de símbolo recebido foi medido em 479,99 amostras onde o nominal é 480, com os quatro valores individuais entre 479,899 e 480,070, o que corresponde a uma deriva entre os dois relógios da ordem de uma parte em vinte mil e a um símbolo inteiro de erro acumulado ao longo de um quadro de 192 bytes. A cauda de reverberação não foi mensurável nesta sala, pois o sinal para no piso de ruído depois que a fonte cala, de modo que a guarda de 35% do símbolo protege contra uma cauda que esta bancada não tem, e permanece por antecipação.
+
+### 4.2 Nível de operação e saturação
+
+<!-- Fonte: resultados/08-MARY-GAIN-A2B (caixa 1,00), 08B-MARY-GAIN-A2B (0,45), 16-SPK-A2B (0,45),
+17-SPK-LEVEL-A2B (0,20 e 0,10). Sentido A->B, 16-FSK, repeticao 1, 48 bytes, 3 gravacoes por ponto. -->
+
+O sentido A→B decodificava muito pior que o inverso, e a causa não estava na modulação. Com o ganho digital fixo em 0,5 e três gravações por ponto, baixando apenas o volume do alto-falante de A no sistema operacional, o acerto de bits foi de 79,9% com o alto-falante em 1,00, 83,2% em 0,45, 86,1% em 0,20 e 80,0% em 0,10, e os blocos íntegros foram 0, 0, 2 e 1 de 3. A curva é um U invertido com joelho em 0,20: acima dele a cadeia comprime, abaixo dele falta sinal. A Figura 4 mostra os quatro pontos.
+
+O sinal de que a cadeia ainda comprime não é o pico recebido, e sim o ganho digital andar para trás. Com o alto-falante em 0,45, o ganho digital 1,0 leu 79,1% dos bits e nenhum bloco de três, enquanto o ganho 0,25 leu 86,0% e dois de três, com picos recebidos de apenas 0,10 a 0,38, muito abaixo de qualquer ceifamento no receptor. Com o alto-falante em 0,20 essa inversão desaparece, 86,5% em ganho 1,0 contra 86,1% em 0,5, que é o comportamento de uma cadeia linear. Corrigir o fader analógico levou o sentido A→B de nenhum bloco íntegro em doze gravações para cinco em nove, sem nenhuma alteração no processamento de sinal.
+
+<!-- FIGURA 4, aqui: acerto de bits e blocos inteiros contra o volume do alto-falante de A, ganho digital
+fixo em 0,5, tres gravacoes por ponto. Legenda ABAIXO, dizendo o sentido A->B e que os quatro pontos vem de
+quatro pastas de campanha diferentes, medidas no mesmo dia. -->
+
+### 4.3 As quatro formas de transmissão
+
+<!-- Fonte: resultados/04-FSK-BASE, 05-MFSK-VOTE, 06-MFSK-PAR, 07-MARY-BASE, 08-MARY-GAIN, 14-FEC-REP. -->
+
+A Tabela 4 põe as quatro formas lado a lado, no sentido B→A. Elas não foram medidas sobre uma cadeia congelada, pois entraram na ordem em que o enlace as exigiu e o alto-falante da máquina B foi trocado entre a segunda e a terceira, de modo que a coluna de resultado é o que cada forma entregou quando foi a candidata, e não um torneio simultâneo. A leitura que a tabela sustenta é ordinal, e é forte o bastante: a 2-FSK falha por um motivo diferente das demais e a 16-FSK é a única que entrega o bloco de forma repetível.
+
+Tabela 4 - As quatro formas de transmissão no sentido B→A, com o que cada uma entregou quando foi a candidata. As linhas não compartilham a mesma cadeia analógica, e a condição de cada uma está na última coluna.
+
+| forma | bits por símbolo | taxa de símbolo | resultado medido | condição |
+|---|---|---|---|---|
+| 2-FSK | 1 | 1200 bauds | 2,8% dos bytes certos em 3 gravações, preâmbulo nunca localizado | sem bloco codificado, por definição da camada |
+| 5×2-FSK votada | 1, por voto de cinco pares | 100 bauds | 1 bloco íntegro de 3 | alto-falante antigo, distorção audível |
+| 5×2-FSK multicanal | 5 | 100 bauds | nenhum bloco íntegro de 6 | cadeia saturada, dois ganhos digitais |
+| 16-FSK | 4 | 100 bauds | 3 blocos íntegros de 3, e 11 de 12 na varredura de ganho | cadeia linear |
+
+A 2-FSK não falha por falta de sinal. Com rms recebido de 0,07 a 0,08 e pico de 0,64 a 0,69, cerca de 40 dB acima do piso medido meia hora antes, o receptor entregou de 45 a 56 bytes para uma carga de 48 e acertou um ou dois deles, e o preâmbulo não foi localizado em nenhuma das seis leituras. É o retrato do modo de falha do enquadramento 8N1 sobre este canal: o detector de bit de partida encontra borda de descida em toda parte e produz uma quantidade plausível de bytes, todos errados. Baixar o limiar de silenciamento dez vezes levou o acerto de 2,8% para 4,9%, que é a diferença entre nada e nada.
+
+As duas formas de cinco pares falham por potência, e não por decisão. O pico que o alto-falante aceita é fixo, então cinco tons simultâneos recebem um quinto dele cada um. A 16-FSK, com um tom por vez, chegou com rms de 0,027 a 0,031 na mesma bancada em que os cinco pares em paralelo chegavam a 0,051 a 0,065 com o dobro do ganho digital, e é a única das quatro que entregou blocos íntegros de forma repetível. A mesma aritmética aparece dentro da própria 16-FSK quando se troca o tom único por um acorde de três tons por nibble: o rms recebido cai de 0,034 a 0,039 para 0,022 a 0,024, cerca de 4,3 dB, que é dividir a amplitude por três, e os blocos íntegros caem de 3 de 3 para 2 de 3.
+
+### 4.4 Redundância
+
+<!-- Fonte: resultados/14-FEC-REP. B->A, 16-FSK, ganho 1.0, 48 bytes, quatro gravacoes por ponto. -->
+
+Sobre a cadeia corrigida, com quatro gravações por ponto e um único eixo variado, a repetição $r$ de 1, 2 e 4 entregou os quatro blocos íntegros em todos os três pontos, a 11,3, 6,7 e 3,7 bytes por segundo, com 92,2%, 91,9% e 84,9% dos bits certos. A redundância extra não comprou nada aqui, e o enlace deve operar em $r = 1$, gastando o ar economizado em mais blocos. Sobre a cadeia saturada, antes da correção do fader, a mesma varredura dava nenhum bloco de seis em $r = 1$ e cinco de seis em $r = 2$, e a leitura de que a taxa 1/3 sozinha é fraca descrevia aquela cadeia e não o código.
+
+O que a redundância ainda compra é a cauda e não a média. Uma das gravações em $r = 4$ leu 63,2% dos bits, mais de um terço errados, e ainda assim entregou o bloco inteiro, enquanto nenhuma gravação em $r = 1$ chegou perto dessa taxa de erro. A repetição alta é o ajuste para uma sala ruim, e não para o uso corrente.
+
+### 4.5 Recuperação do relógio de símbolo
+
+<!-- Fonte: resultados/12-13-SYNC. B->A, 16-FSK, repeticao 2, bloco de 192 bytes, 4 gravacoes,
+`syncsweep on` nas duas pontas. As duas colunas saem do MESMO audio: comparacao pareada. -->
+
+O bloco de 192 bytes, cerca de 24 segundos de ar, é onde a deriva entre os relógios se acumula o bastante para aparecer. Com as varreduras de sincronismo ligadas nas duas pontas, a mesma gravação foi decodificada pelos dois caminhos, o que torna a comparação pareada e sem sala nem momento diferentes entre as colunas. O gate antecipado/atrasado leu 95,31% dos bits e o par de varreduras leu 95,68%, e os quatro blocos chegaram inteiros pelos dois caminhos. As varreduras leram mais bits em três das quatro gravações e empataram na quarta, e o período que mediram ficou entre 479,899 e 480,070 amostras.
+
+O ganho médio é pequeno porque este quadro não colapsou. O que as varreduras compram é o caso em que o gate perde o passo, pois elas dão o início do quadro como índice absoluto e o período como uma medida, em vez de uma correção acumulada símbolo a símbolo, ao custo de 160 ms em um quadro de 24 segundos. Elas ainda não foram levadas ao caminho de transferência de arquivo, que roda com o gate.
+
+### 4.6 Transferência de um arquivo inteiro
+
+<!-- Fonte: resultados/15-PKT-ARQ. B->A, 16-FSK, repeticao 1, ganho 1.0, syncsweep off. -->
+
+Um arquivo de imagem de 1334 bytes atravessou o enlace em 21 pacotes de 64 bytes de carga, em 197 segundos, a 6,8 bytes por segundo, sem uma única retransmissão, e chegou idêntico ao original pela verificação de redundância cíclica e por comparação byte a byte. Com carga de 128 bytes foram 11 pacotes em 186 segundos, a 7,2 bytes por segundo, com três retransmissões. O pacote maior amortiza os 120 símbolos de preâmbulo que cada pacote paga, mas também falha mais, e as duas coisas quase se cancelam em 6% de ganho líquido; num canal um pouco pior a conta se inverte, porque uma retransmissão custa o pacote inteiro.
+
+O mesmo ensaio, com o mesmo arquivo e o mesmo tamanho de pacote, entregava um pacote de 21 antes da correção da cadeia analógica, e nada mudou na segmentação nem no reenvio. Um protocolo que retenta até desistir precisa de uma probabilidade de sucesso por pacote que faça a retentativa convergir, e uma cadeia saturada não tem essa probabilidade para nenhum número de retentativas. Vinte e uma entregas em vinte e uma sem reenvio é um resultado forte e não mede com precisão a taxa de falha por pacote, que exigiria muito mais transferências.
+
+### 4.7 O que não ajudou
+
+<!-- Fonte: resultados/09-MARY-GAP, 10-MARY-BAND, 11-MARY-CHORD, 08-MARY-GAIN-A2B, INVESTIGACAO-A2B.md. -->
+
+Três recursos foram medidos e descartados. O silêncio entre símbolos piora os bits em vez de melhorá-los, com 99,61%, 97,99% e 88,12% de acerto para intervalos de 0, 15% e 30% do símbolo, e nove blocos íntegros de nove nos três pontos, de modo que ele gasta até 30% do tempo de ar sem comprar nada. A largura da janela de integração por tom não mudou nada mensurável, com 99,84%, 99,87% e 99,94% para 0, 20 e 40 Hz. O acorde de três tons por nibble custa 4,3 dB de nível recebido, pela mesma divisão de potência que separa a 16-FSK das formas de cinco pares.
+
+Um tom piloto por frequência, que aprenderia o ganho do canal em cada tom para dividir por ele, foi avaliado contra o divisor perfeito calculado do payload conhecido, e não se sustenta: dividir pelo ganho por tom leu 81,7% dos bits e um bloco de doze, contra 87,6% e quatro de doze ao dividir pelo *ruído* por tom, que é o que o receptor já estima sozinho sem piloto algum. A decisão sobre a presença de um tom quer a energia dele sobre o ruído naquela frequência, e não sobre o sinal.
+
+Fica em aberto o estimador de piso na cadeia distorcida. A regra que o receptor usa hoje exclui o tom vencedor da atualização do próprio piso, o que é correto enquanto a maioria dos símbolos está certa e vira realimentação positiva quando não está. Uma correção que remove essa exclusão e limita o que um símbolo pode contribuir levou o sentido A→B de 79,1% para 90,2% dos bits e de nenhum bloco em doze para nove em doze sobre 27 gravações, e piorou nas gravações mais lineares da campanha. Ela está medida sobre gravações e ainda não no ar, e por isso não é o ajuste corrente.
 
 ## 5 CONSIDERAÇÕES FINAIS
 
-<!--
-Tres paragrafos, no passado, sem numero novo, os mesmos do resumo.
-1. O que se apresentou: o meio e as duas camadas construidas sobre ele, com o mecanismo de cada uma.
-2. O que a estrutura fez: 11,3 B/s a 12 de 12; arquivo inteiro 21 de 21; e a observacao de que a
-   linearidade da cadeia pesou mais que qualquer mudanca de codigo, nas duas direcoes. Situar de volta
-   entre os meios da Tabela 1: taxa de um teclado lento, hardware de qualquer maquina, para o caso
-   descrito na introducao.
-3. Passo seguinte e fronteira: varreduras no caminho de arquivo (nao medido); estimador de piso a medir no
-   ar; ultrassom fora do escopo por transdutor e nao por argumento.
--->
+<!-- Redigida 2026-09-07. Tres paragrafos, no passado, sem numero novo. -->
+
+Apresentamos a transmissão de dados por som audível entre dois computadores comuns, começando pelo que o meio faz com o sinal e construindo sobre ele duas camadas. Na camada física comparamos quatro modulações de ordem M no mesmo enlace, da 2-FSK herdada da telefonia à 16-FSK com um tom por vez entre dezesseis, e a razão de cada passo foi a mesma: retirar da amplitude a decisão do receptor e devolver potência a cada tom. Na camada de enlace usamos correção antecipada de erros com decodificação de decisão suave, sincronismo de bloco por correlação e, acima dele, pacotes com verificação cíclica e retransmissão automática, com a aplicação enxergando uma porta serial.
+
+O conjunto entregou blocos íntegros de forma repetível e transferiu um arquivo inteiro pelo ar, byte a byte idêntico, a uma taxa da ordem de um teclado lento e com o alto-falante e o microfone que a máquina já tem. O achado que mais pesou não foi de processamento de sinal: em ambos os sentidos, corrigir a linearidade da cadeia analógica valeu mais que qualquer alteração de código medida aqui, e um enlace que aparentava exigir redundância pesada passou a dispensá-la depois da correção. Uma inversão do ganho digital, em que reduzir o nível transmitido melhora a recepção, é o sinal barato de que a cadeia ainda comprime, e custa poucas gravações para ser lido.
+
+Ficam três frentes. As varreduras de sincronismo ainda não foram levadas ao caminho de transferência de arquivo. O estimador de piso por tom tem uma correção medida sobre gravações e ainda não confirmada no ar, com sinal de que ela depende do regime de nível. E o ultrassom, atraente por ser uma banda silenciosa, ficou fora do escopo por limitação dos transdutores desta bancada, e não por argumento contrário à ideia.
 
 ## AGRADECIMENTOS
 
