@@ -122,7 +122,7 @@ Um alto-falante e um microfone de uso geral respondem bem na banda da fala e per
 
 Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo seu percurso. Cópias atrasadas somam em fase nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso e se opõem nas intermediárias, de modo que a resposta em frequência é um pente, com máximos e nulos alternados ao longo da banda. Aqui a diferença entre vizinhos a 50 Hz de resolução chega a 13 a 18 dB, e a posição dos nulos depende da geometria e muda quando alguém se move. A Figura 1 mostra a resposta medida com os dezesseis tons da 16-FSK marcados sobre o pente, e sobre ela uma segunda característica, a inclinação de cerca de 20 dB que os transdutores impõem dos graves aos agudos, que desfavorece os tons altos do alfabeto de forma sistemática e não acidental. As reflexões tardias prolongam o som depois que a fonte cala, e enquanto essa cauda dura a energia do símbolo anterior ainda está no microfone quando o seguinte começa. Nesta bancada a cauda não é mensurável, o sinal para no piso de ruído, mas o projeto a antecipa porque outra sala pode tê-la.
 
-![Figura 1 - Resposta em frequência do canal acústico, medida por varredura no sentido A→B, em 76 intervalos de 74 Hz entre 338 e 5962 Hz, em decibéis relativos ao melhor intervalo da própria varredura. As marcas na base são os dezesseis tons da 16-FSK e a faixa sombreada é a banda útil de 550 a 3500 Hz. Note as duas coisas sobrepostas: uma inclinação que perde cerca de 20 dB dos graves aos agudos, que é dos transdutores, e sobre ela o pente, em que dentro da banda útil intervalos vizinhos diferem em até 9,4 dB e o desnível total chega a 23,8 dB, de modo que um máximo e o nulo ao lado ficam a poucas centenas de hertz um do outro. Com resolução mais fina, de 50 Hz, a diferença entre vizinhos chega a 13 a 18 dB, que é o valor citado no texto.](figuras/resposta-canal.png "1.0")
+![Figura 1 - Resposta em frequência do canal acústico, medida por varredura no sentido A→B, em 76 intervalos de 74 Hz entre 338 e 5962 Hz, em decibéis relativos ao melhor intervalo da própria varredura. As marcas na base são os dezesseis tons da 16-FSK e a faixa sombreada é a banda útil de 550 a 3500 Hz. Note as duas coisas sobrepostas: uma inclinação que perde cerca de 20 dB dos graves aos agudos, que é dos transdutores, e sobre ela o pente, em que dentro da banda útil intervalos vizinhos diferem em até 9,4 dB e o desnível total chega a 23,8 dB, de modo que um máximo e o nulo ao lado ficam a poucas centenas de hertz um do outro.](figuras/resposta-canal.png "1.0")
 
 A cadeia analógica não é linear em toda a excursão. O alto-falante limita os picos e o microfone comprime quando o nível cresce, e a energia retirada do sinal reaparece como harmônicos e produtos de intermodulação dentro da mesma banda, indistinguíveis de sinal transmitido. Além desse ponto, aumentar o nível de transmissão piora a recepção. As duas máquinas amostram com osciladores próprios, de modo que o intervalo de símbolo recebido difere do transmitido por uma fração de amostra que se acumula ao longo de um bloco.
 
@@ -138,7 +138,7 @@ Nela, $R_b$ é a taxa de bits, $R_s$ é a taxa de símbolos em bauds e $M$ é o 
 
 <!-- FIGURA de quatro paineis de espectro sinteticos (dois tons; cinco pares com o mesmo bit; cinco pares
 com bits distintos; dezesseis tons com um so soando) fica FORA desta versao. Ela ilustra metodo, nao mede
-nada, e o texto desta subsecao ja descreve cada forma. Se entrar, entra numerada como Figura 2 e as
+nada, e o texto desta subsecao ja descreve cada forma. Se entrar, entra logo depois da Figura 1 e as
 seguintes sobem, e a legenda tem de dizer que e sintetica para nao ser lida como medicao. -->
 
 A 2-FSK usa os tons do padrão Bell 202, 1200 e 2200 Hz a 1200 símbolos por segundo, bytes em 8N1. O demodulador multiplica o sinal filtrado por uma cópia atrasada de um quarto de período em 1700 Hz e filtra o produto, cuja média tem um sinal para cada tom, e o bit é esse sinal. O limite é o limiar, pois um canal que atenue um tom mais do que o outro desloca a média e enviesa toda decisão no mesmo sentido.
@@ -191,7 +191,7 @@ Cabo serial: uma mencao so, no paragrafo da carga, como auxilio do ensaio. Nunca
 
 Uma variante julgada pela transmissão é medida junto com a sala, e a sala não se repete, pois duas execuções do mesmo código no mesmo cômodo discordam. Gravamos a máquina remota transmitindo uma carga conhecida e pontuamos a gravação depois. Um canal congelado em disco deixa comparar variantes sobre os mesmos segundos de ar, e a diferença entre duas leituras passa a ser do receptor.
 
-A bancada é de dois notebooks numa sala comum, com uma caixa de som de teste ligada à máquina que transmite e o microfone interno da que recebe, ambas amostrando a 48 kHz. A Figura 3 mostra o arranjo e a Tabela 3 reúne os parâmetros do enlace.
+A bancada é de dois notebooks numa sala comum, com uma caixa de som de teste ligada à máquina que transmite e o microfone interno da que recebe, ambas amostrando a 48 kHz. A Figura 2 mostra o arranjo e a Tabela 3 reúne os parâmetros do enlace.
 
 Tabela 3 - Parâmetros mantidos fixos ao longo dos ensaios. Onde um ensaio variou um deles, isso é dito ao lado do número.
 
@@ -209,8 +209,7 @@ Tabela 3 - Parâmetros mantidos fixos ao longo dos ensaios. Onde um ensaio vario
 | bloco de ensaio | 48 bytes de carga aleatória, 192 bytes na campanha de sincronismo |
 | ganho de transmissão | 0,5 na 16-FSK, salvo onde o nível é o eixo variado |
 
-<!-- FIGURA 3, aqui: bancada, desenho simples. Os dois notebooks, a caixa ligada ao que transmite, o
-microfone interno do que grava, e o cabo serial tracejado, rotulado como controle. Legenda ABAIXO. -->
+![Figura 2 - Arranjo da bancada. Duas máquinas comuns numa sala, com uma caixa de som de teste ligada à que transmite e o microfone interno da que recebe, ambas amostrando a 48 kHz. Os bytes pontuados atravessam apenas o caminho acústico. O cabo serial, tracejado, combina a semente da carga e sincroniza o início da transmissão, e não transporta dado do enlace.](figuras/bancada.png "1.0")
 
 O programa é escrito em Python, com o processamento de sinal separado de toda entrada e saída de áudio. O mesmo código demodula o fluxo ao vivo e a gravação, de modo que a variante pontuada em disco é a que opera no enlace.
 
@@ -248,11 +247,11 @@ O período de símbolo recebido foi medido em 479,99 amostras onde o nominal é 
 <!-- Fonte: resultados/08-MARY-GAIN-A2B (caixa 1,00), 08B-MARY-GAIN-A2B (0,45), 16-SPK-A2B (0,45),
 17-SPK-LEVEL-A2B (0,20 e 0,10). Sentido A->B, 16-FSK, repeticao 1, 48 bytes, 3 gravacoes por ponto. -->
 
-O sentido A→B decodificava muito pior que o inverso, e a causa não estava na modulação. Com o ganho digital fixo em 0,5 e três gravações por ponto, baixando apenas o volume do alto-falante de A no sistema operacional, o acerto de bits foi de 79,9% com o alto-falante em 1,00, 83,2% em 0,45, 86,1% em 0,20 e 80,0% em 0,10, e os blocos íntegros foram 0, 0, 2 e 1 de 3. A curva é um U invertido com joelho em 0,20: acima dele a cadeia comprime, abaixo dele falta sinal. A Figura 2 mostra os quatro pontos.
+O sentido A→B decodificava muito pior que o inverso, e a causa não estava na modulação. Com o ganho digital fixo em 0,5 e três gravações por ponto, baixando apenas o volume do alto-falante de A no sistema operacional, o acerto de bits foi de 79,9% com o alto-falante em 1,00, 83,2% em 0,45, 86,1% em 0,20 e 80,0% em 0,10, e os blocos íntegros foram 0, 0, 2 e 1 de 3. A curva é um U invertido com joelho em 0,20: acima dele a cadeia comprime, abaixo dele falta sinal. A Figura 3 mostra os quatro pontos.
 
 O sinal de que a cadeia ainda comprime não é o pico recebido, e sim o ganho digital andar para trás. Com o alto-falante em 0,45, o ganho digital 1,0 leu 79,1% dos bits e nenhum bloco de três, enquanto o ganho 0,25 leu 86,0% e dois de três, com picos recebidos de apenas 0,10 a 0,38, muito abaixo de qualquer ceifamento no receptor. Com o alto-falante em 0,20 essa inversão desaparece, 86,5% em ganho 1,0 contra 86,1% em 0,5, que é o comportamento de uma cadeia linear. Corrigir o fader analógico levou o sentido A→B de nenhum bloco íntegro em doze gravações para cinco em nove, sem nenhuma alteração no processamento de sinal.
 
-![Figura 2 - Acerto de bits e blocos íntegros contra o volume do alto-falante da máquina transmissora, no sentido A→B, com o ganho digital fixo em 0,5 e três gravações por ponto. Os círculos são as gravações individuais, o quadrado é a média e as barras são os blocos íntegros de três, no eixo da direita. O eixo horizontal é categórico e não linear. Note o U invertido com joelho em 0,20, e que o ponto de 0,10 é o pior determinado, com 14 pontos percentuais de espalhamento entre as três gravações contra 1,9 no joelho. Os quatro pontos vêm de quatro campanhas medidas no mesmo dia, na mesma bancada.](figuras/nivel-alto-falante.png "1.0")
+![Figura 3 - Acerto de bits e blocos íntegros contra o volume do alto-falante da máquina transmissora, no sentido A→B, com o ganho digital fixo em 0,5 e três gravações por ponto. Os círculos são as gravações individuais, o quadrado é a média e as barras são os blocos íntegros de três, no eixo da direita. O eixo horizontal é categórico e não linear. Note o U invertido com joelho em 0,20, e que o ponto de 0,10 é o pior determinado, com 14 pontos percentuais de espalhamento entre as três gravações contra 1,9 no joelho. Os quatro pontos vêm de quatro campanhas medidas no mesmo dia, na mesma bancada.](figuras/nivel-alto-falante.png "1.0")
 
 ### 4.3 As quatro formas de transmissão
 
