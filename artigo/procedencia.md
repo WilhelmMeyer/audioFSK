@@ -54,9 +54,9 @@ Da varredura A→B, recalculados hoje sobre `resultados/03-CH-CHIRP-A2B/gravacao
 
 **O "12 a 20 dB" contradiz a própria varredura e o próprio comentário da seção**, que já registra que os melhores pontos ficam entre 4,1 e 4,4 kHz. Medido, a faixa de 4000 a 4500 Hz está apenas 1,8 dB abaixo da faixa útil. Essa frase atravessou três reescritas nesta sessão sem ser conferida, e é o erro que esta auditoria achou.
 
-**Resolvido em 2026-09-07.** Os quatro números saíram da 2.1 ao acertá-la com a seção 4: os dois que não se sustentavam por serem falsos, e os dois que se conferiam por medirem com outra régua o que a seção 4 já mede com a dela. A 2.1 ficou qualitativa nesses pontos e manda para a 4; a banda passou a ser a que os tons ocupam, 700 a 3325 Hz, que se confere em `modem.py`. Sobra por conferir só o que a seção 4 afirma, que veio da outra máquina com as pastas de `resultados/` a reboque.
+**Resolvido em 2026-09-07.** Os quatro números saíram da 2.1 ao acertá-la com a seção de resultados, então a 4 e hoje a 5: os dois que não se sustentavam por serem falsos, e os dois que se conferiam por medirem com outra régua o que a seção 4 já mede com a dela. A 2.1 ficou qualitativa nesses pontos e manda para a 4; a banda passou a ser a que os tons ocupam, 700 a 3325 Hz, que se confere em `modem.py`. Sobra por conferir só o que a seção 4 afirma, que veio da outra máquina com as pastas de `resultados/` a reboque.
 
-**Contexto que pesa:** a máquina remota declarou sem lastro, no comentário da seção 4, a banda de 550 a 3500 Hz, o colapso acima de 4 kHz e o descarte do ultrassom. A auditoria dá razão a ela quanto ao colapso acima de 4 kHz.
+**Contexto que pesa:** a máquina remota declarou sem lastro, no comentário da seção de resultados, a banda de 550 a 3500 Hz, o colapso acima de 4 kHz e o descarte do ultrassom. A auditoria dá razão a ela quanto ao colapso acima de 4 kHz.
 
 ## Como refazer a conferência dos números da 2.1
 
@@ -85,6 +85,5 @@ print(np.median(deg), np.percentile(deg, 90), deg.max())
 
 ## O que fica pendente
 
-- Decidir como a seção 4 nomeia as formas. Ela diz "a primeira forma de transmissão medida" e "a segunda", nunca a notação fixa, e a "primeira" dela é a segunda da 2.2, que apresenta as quatro em outra ordem.
-- Decidir onde entra a correção de erros. A seção 4 se apoia nela (os 48 bytes idênticos são o resultado dela) e a seção 2 não a apresenta, porque a 2.3 foi recolhida "por enquanto".
+- Decidir como a seção 5 nomeia as formas. Ela diz "a primeira forma de transmissão medida" e "a segunda", nunca a notação fixa, e a "primeira" dela é a segunda da 2.2, que apresenta as quatro em outra ordem.
 - `figura_canal.py` lendo FLAC, e `soundfile` instalado, sem o que nenhum número da 2.1 se reconfere.
