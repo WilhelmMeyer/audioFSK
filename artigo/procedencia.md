@@ -85,8 +85,6 @@ print(np.median(deg), np.percentile(deg, 90), deg.max())
 
 ## O que fica pendente
 
-- Decidir a frase da seção 4 que diz "Dez frequências soam ao mesmo tempo" e "Dez tons simultâneos precisam dividir o mesmo pico". Soam cinco, uma por par, e o modulador divide por cinco: são os 14 dB que a 2.2 cita. A 2.2 está certa e a seção 4 não, e a correção é de uma palavra em dois lugares.
-- Decidir o "onde a decisão do receptor precisa de apenas 1,3 dB" da seção 4. O 1,3 é `MFSK_PRESENCE_MIN`, razão de energia entre vencedor e perdedor (`modem.py`, linha 296), e razão não é decibel: 1,3 são 1,1 dB. E ele é o critério de presença da 5×2-FSK votada, não do detector de dezesseis sondas que a Figura 2 mostra, cuja decisão é o maior entre dezesseis. A 2.2 diz "a razão entre vencedor e perdedor passe de 1,3", que está certo.
 - Decidir como a seção 4 nomeia as formas. Ela diz "a primeira forma de transmissão medida" e "a segunda", nunca a notação fixa, e a "primeira" dela é a segunda da 2.2, que apresenta as quatro em outra ordem.
 - Decidir onde entra a correção de erros. A seção 4 se apoia nela (os 48 bytes idênticos são o resultado dela) e a seção 2 não a apresenta, porque a 2.3 foi recolhida "por enquanto".
 - `figura_canal.py` lendo FLAC, e `soundfile` instalado, sem o que nenhum número da 2.1 se reconfere.
