@@ -55,10 +55,21 @@ ESTADO DO TEXTO (2026-09-07, depois do merge das duas maquinas). O artigo esta s
   SECOES 3 e 5: como a versao remota as deixou, a redigir.
   As quatro contradicoes entre a 2.1 e a secao 4 foram fechadas em 2026-09-07, a pedido do autor e sempre
   mexendo na 1 e na 2: a secao 4 e a regua. O historico de cada uma esta no comentario da 2.1.
-  ATENCAO, e o unico ponto aberto: a secao 4 diz "Dez frequencias soam ao mesmo tempo" e "Dez tons
-  simultaneos precisam dividir o mesmo pico". Soam CINCO, uma por par, e o modulador divide por cinco
-  (`out / len(tones)` em MFSKModulator._symbol), que sao os 14 dB que a 2.2 cita. A 2.2 esta certa e a 4
-  nao; nao foi corrigida porque a instrucao era mexer so na 1 e na 2.
+  ABERTO, e nada disso se conserta na 1 nem na 2, entao ficou intocado. Quatro pontos, os dois primeiros
+  de fato e os dois ultimos de estrutura:
+  a) a secao 4 diz "Dez frequencias soam ao mesmo tempo" e "Dez tons simultaneos precisam dividir o mesmo
+     pico". Soam CINCO, uma por par, e o modulador divide por cinco (`out / len(tones)` em
+     MFSKModulator._symbol), que sao os 14 dB que a 2.2 cita. Com dez seriam 20 dB.
+  b) a secao 4 diz "onde a decisao do receptor precisa de apenas 1,3 dB". O 1,3 e MFSK_PRESENCE_MIN, razao
+     de energia entre vencedor e perdedor, e razao nao e decibel: 1,3 sao 1,1 dB. E o criterio e' o da
+     5x2-FSK votada, nao o do detector de dezesseis sondas que a Figura 2 mostra.
+  c) a secao 4 nao usa a notacao fixa. Ela diz "a primeira forma de transmissao medida" e "a segunda", e a
+     "primeira" dela e' a SEGUNDA da 2.2, que apresenta as quatro em outra ordem. O leitor nao liga uma
+     coisa a outra. A notacao esta fixada no CLAUDE.md desta pasta e a 2.2 a segue.
+  d) a secao 4 se apoia na correcao de erros (os 48 bytes que chegam identicos sao o resultado dela) e a
+     secao 2 nao a apresenta, porque a 2.3, "Sincronismo e correcao de erros", foi recolhida por decisao
+     do autor "por enquanto". O texto dela esta preservado no comentario da 2.2. Voltar a 2.3 ou passar a
+     apresentacao para a 3 e' decisao do autor.
 -->
 
 # Transmissão de dados por som audível entre dois computadores: o canal acústico medido e um modem para ele
@@ -90,7 +101,7 @@ camadas; a implementacao e o metodo; os numeros. So a ultima frase tem numero.
 Fonte dos numeros: resultados/14-FEC-REP, resultados/15-PKT-ARQ.
 -->
 
-Este artigo apresenta a transmissão de dados por som audível entre dois computadores, com alto-falante e microfone comuns, expondo o enlace à aplicação como uma porta serial. O meio acústico impõe condições severas: a banda audível comporta poucas unidades de informação por segundo, aqui chamadas de símbolos, a amplitude que chega não é a que saiu, frequências vizinhas chegam com dezenas de decibéis de diferença, o eco de um símbolo invade o seguinte, o ruído e a fala ocupam a mesma banda, e o hardware também pode saturar e distorcer o sinal. Tratamos essas dificuldades em duas camadas. Na física, conferimos quatro modulações de ordem M, ditas M-árias, em que cada símbolo é um tom escolhido entre M frequências e carrega tantos bits quanto essa escolha permite: a 2-FSK binária, modulação por chaveamento na frequência, do inglês *frequency shift keying* (FSK), e três por chaveamento em múltiplas frequências, do inglês *multiple frequency shift keying* (MFSK), a 5×2-FSK com o mesmo bit em cinco canais e decisão por voto, a 5×2-FSK multicanal com cinco bits em paralelo, e a 16-FSK com quatro bits por símbolo. Mesmo na melhor dessas formas, parte dos bits pode chegar com erro ou se perder, e na camada de enlace implementamos a correção antecipada de erros, do inglês *forward error correction* (FEC), o sincronismo de quadro por palavra de referência, a segmentação do arquivo em pacotes com verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC), e a retransmissão automática, do inglês *automatic repeat request* (ARQ). Medimos cada recurso sobre gravações do mesmo enlace, para comparar as variantes sobre o mesmo ar. Na melhor configuração o enlace entregou cerca de 11 bytes por segundo com 12 blocos íntegros em 12, e um arquivo de 1334 bytes chegou idêntico em 21 pacotes de 21, sem reenvio.
+Este artigo apresenta a transmissão de dados por som audível entre dois computadores, com alto-falante e microfone comuns, expondo o enlace à aplicação como uma porta serial. O meio acústico impõe condições severas: a banda audível comporta poucas unidades de informação por segundo, aqui chamadas de símbolos, a amplitude que chega não é a que saiu, frequências vizinhas chegam com vários decibéis de diferença, o eco de um símbolo invade o seguinte, o ruído e a fala ocupam a mesma banda, e o hardware também pode saturar e distorcer o sinal. Tratamos essas dificuldades em duas camadas. Na física, conferimos quatro modulações de ordem M, ditas M-árias, em que cada símbolo é um tom escolhido entre M frequências e carrega tantos bits quanto essa escolha permite: a 2-FSK binária, modulação por chaveamento na frequência, do inglês *frequency shift keying* (FSK), e três por chaveamento em múltiplas frequências, do inglês *multiple frequency shift keying* (MFSK), a 5×2-FSK com o mesmo bit em cinco canais e decisão por voto, a 5×2-FSK multicanal com cinco bits em paralelo, e a 16-FSK com quatro bits por símbolo. Mesmo na melhor dessas formas, parte dos bits pode chegar com erro ou se perder, e na camada de enlace implementamos a correção antecipada de erros, do inglês *forward error correction* (FEC), o sincronismo de quadro por palavra de referência, a segmentação do arquivo em pacotes com verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC), e a retransmissão automática, do inglês *automatic repeat request* (ARQ). Medimos cada recurso sobre gravações do mesmo enlace, para comparar as variantes sobre o mesmo ar. Na melhor configuração o enlace entregou cerca de 11 bytes por segundo com 12 blocos íntegros em 12, e um arquivo de 1334 bytes chegou idêntico em 21 pacotes de 21, sem reenvio.
 
 **PALAVRAS-CHAVE:** Modem acústico. Modulação por chaveamento de frequência. Codificação convolucional. Canal acústico.
 
@@ -310,7 +321,7 @@ $$\hat{s} = \arg\max_k \frac{E_k}{P_k} \tag{2}$$
 
 Nela, $E_k$ é a energia no tom $k$ e $P_k$ é a média corrente dessa energia. Como cada tom fica em silêncio quinze símbolos em dezesseis, essa média é o piso de ruído naquela frequência, e um tom caído num nulo passa a ser comparado com o próprio nulo.
 
-As três formas de 100 bauds compartilham o relógio de símbolo, ajustado por um gate de adiantamento e atraso, e descartam os primeiros 15% de cada símbolo como guarda. A transmissão abre com preâmbulo alternado, que dá ao gate transições para travar, e fecha com cauda ociosa.
+As três formas de 100 bauds recuperam o relógio de símbolo do próprio sinal, com um gate de adiantamento e atraso, porque as duas máquinas contam o tempo por osciladores independentes. Elas descartam os primeiros 15% de cada símbolo como guarda. A transmissão abre com preâmbulo alternado, que dá ao gate transições para travar, e fecha com cauda ociosa.
 
 ## 3 MÉTODO DE MEDIÇÃO
 
