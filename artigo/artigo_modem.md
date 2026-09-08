@@ -347,15 +347,15 @@ confusoes". Esta secao nao repete a afirmacao.
 
 A 2-FSK usa os dois tons do padrão Bell 202 a 1200 símbolos por segundo, sai do modulador com fase contínua e leva cada byte em 8N1.
 
-A detecção é por atraso e produto: um passa-faixa Butterworth de quarta ordem entre 800 e 2600 Hz limpa o sinal, multiplicado por uma cópia de si mesmo atrasada de sete amostras, um quarto de período em 1700 Hz, e um passa-baixa em 1800 Hz filtra o produto, positivo para um tom e negativo para o outro. A decisão é o seu sinal, e a fraqueza está aí: um canal que atenue um tom mais que o outro enviesa todas elas no mesmo sentido.
+A detecção é por atraso e produto: um passa-faixa Butterworth de quarta ordem entre 800 e 2600 Hz limpa o sinal, multiplicado por uma cópia de si mesmo atrasada de sete amostras, um quarto de período em 1700 Hz, e um passa-baixa em 1800 Hz filtra o produto, positivo para um tom e negativo para o outro. O bit é o sinal desse produto filtrado. Um canal que atenue um tom mais que o outro desloca a média para um dos lados e enviesa todas as decisões no mesmo sentido.
 
-A 5×2-FSK votada compara dentro de cada par, a 100 símbolos por segundo, com 200 Hz entre os dois tons, pouco o bastante para que o canal os trate quase igual. Como uma razão entre dois ruídos ainda elege um vencedor, a mediana das cinco razões abaixo de 1,3 rejeita o símbolo.
+A 5×2-FSK votada compara dentro de cada par, a 100 símbolos por segundo, com 200 Hz entre os dois tons, pouco o bastante para que o canal os trate quase igual. Como uma razão entre dois ruídos ainda elege um dos tons, o caminho sem correção descarta o símbolo quando a mediana das cinco razões fica abaixo de 1,3.
 
-Os dez tons foram escolhidos contra harmônicos cruzados: nenhum harmônico de um acorde cai sobre um tom do outro.
+Alto-falante e microfone distorcem, e a distorção fabrica harmônicos dos tons transmitidos. Um harmônico que caia sobre um tom do outro acorde é energia a favor do bit errado, e os dez tons foram escolhidos para que isso não aconteça.
 
 Nas duas formas de cinco pares o modulador divide a amplitude por cinco, e cada tom parte 14 dB abaixo do que partiria sozinho.
 
-A 16-FSK devolve essa potência com um tom por vez: dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, quatro bits por símbolo e os valores em código Gray. O receptor mede a energia de cada tom, divide pelo piso corrente daquela frequência e elege o maior, conforme (2).
+A 16-FSK soa um tom por vez, que recebe portanto toda a amplitude disponível: dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, quatro bits por símbolo e os valores em código Gray. O receptor mede a energia de cada tom, divide pelo piso corrente daquela frequência e elege o maior, conforme (2).
 
 $$\hat{s} = \arg\max_k \frac{E_k}{P_k} \tag{2}$$
 
@@ -363,9 +363,9 @@ Nela, $E_k$ é a energia no tom $k$ e $P_k$ é a média corrente dessa energia, 
 
 O relógio das três formas de 100 bauds vem de uma malha de adiantamento e atraso: a cada símbolo o receptor pontua três janelas deslocadas de um oitavo de símbolo, e corrige o instante do seguinte em um trinta e dois avos.
 
-As primeiras 72 amostras de 480 são descartadas como guarda, 15% do símbolo, e a decisão se faz sobre as 408 restantes, já livres da cauda do símbolo anterior.
+As primeiras 72 amostras de 480, 1,5 ms, são descartadas como guarda, e a decisão se faz sobre as 408 restantes, onde a energia do símbolo anterior já decaiu.
 
-O preâmbulo é alternado, porque a malha trava em transições, e a rajada fecha com cauda ociosa, sem a qual o último byte fica preso.
+O preâmbulo é alternado, porque a malha trava em transições, e a transmissão fecha com uma sequência ociosa: o demodulador mantém pouco mais de um símbolo em memória, e sem ela o último byte não chega a ser decidido.
 
 Na 16-FSK a saída é a verossimilhança logarítmica de cada bit do símbolo, do inglês *log-likelihood ratio* (LLR), dada por (3).
 
@@ -373,7 +373,7 @@ $$\Lambda_j = \max_{b_j(v)=1} \ln \frac{E_{g(v)}}{P_{g(v)}} - \max_{b_j(v)=0} \l
 
 Nela, $v$ percorre os dezesseis valores de quatro bits, $b_j(v)$ é o bit $j$ de $v$, $g(v)$ é o tom que o código Gray atribui a $v$, e $E$ e $P$ são os de (2).
 
-Esse fluxo sobe sem enquadramento, e começar um símbolo antes ou depois troca os quatro bits altos de cada byte pelos baixos. Quem resolve isso é a camada de enlace.
+A camada física entrega uma sequência contínua de confianças, sem nenhuma marca de onde um byte começa. Como cada símbolo carrega quatro bits, ou meio byte, começar a leitura um símbolo antes ou depois troca as duas metades de todos os bytes. O começo certo é encontrado pela palavra de referência de 31 bits que precede o bloco codificado, correlacionada contra o sinal dos valores recebidos.
 
 ## 4 CAMADA DE ENLACE
 
@@ -405,17 +405,17 @@ Nela, $c_j$ é o $j$-ésimo bit que o ramo emitiria, $L_j$ é a verossimilhança
 
 A redundância por repetição replica o bloco e o decodificador soma as cópias, pois observações independentes do mesmo bit se somam. Os dois lados têm de concordar nela, já que a divergência é indetectável e se lê como canal ruim.
 
-Um entrelaçador por transposição de matriz, com profundidade 16, vem depois da repetição e não antes, para que as cópias de um bit caiam distantes no tempo. Na 5×2-FSK multicanal a cópia $r$ do bit $i$ vai ainda para o par $(i+r)$ módulo o número de pares, pois ladrilhar o bloco poria todas as cópias no mesmo par, derrubadas juntas por um nulo do pente.
+Um entrelaçador por transposição de matriz, com profundidade 16, vem depois da repetição e não antes, para que as cópias de um bit caiam distantes no tempo.
 
-O bloco é localizado por uma palavra de referência de 31 bits, que viaja sem codificação à frente dele, achada por correlação sobre as verossimilhanças, nunca por contagem de símbolos, que escorrega enquanto o relógio ajusta. É a mesma correlação que resolve o alinhamento de símbolo da 16-FSK.
+O bloco é localizado por uma palavra de referência de 31 bits, que viaja sem codificação à frente dele, achada por correlação contra o sinal dos valores recebidos, e não por contagem de símbolos: o número de amostras que a malha consome em cada símbolo muda enquanto ela corrige, e a contagem acumula deslocamento ao longo do bloco. É a mesma correlação que resolve o alinhamento de símbolo da 16-FSK.
 
 Acima do bloco corrigido, o arquivo vai em pacotes de doze bytes de guia, um byte de sincronismo, número de sequência, comprimento, carga de até 255 bytes e dois bytes de verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC).
 
-O corpo e o CRC são somados a uma sequência pseudoaleatória fixa, dependente da posição e idêntica nas duas pontas, o que desfaz padrões repetidos que privariam o relógio de transições.
+O corpo e o CRC são somados a uma sequência pseudoaleatória fixa, dependente da posição e idêntica nas duas pontas, que desfaz padrões repetidos capazes de privar o relógio de transições. No caminho codificado o efeito é indireto, pois esses bytes ainda passam pelo codificador e pelo entrelaçador antes de virar som.
 
 A retransmissão automática, do inglês *automatic repeat request* (ARQ), é dirigida pelo receptor: ele pede um pacote, espera a resposta chegar e só então pede o seguinte, e descarta o áudio capturado antes de o pedido sair. São até quatro tentativas por pacote, o que não chega vira zeros, que preservam o deslocamento dos bytes seguintes, e um CRC de 32 bits sobre o arquivo decide se ele vale.
 
-Acima disso a aplicação vê uma porta serial virtual, sem detecção de erro nenhuma: o modem é a linha burra que o ecossistema serial espera, e quem corrige está abaixo dela.
+Há ainda um caminho paralelo, sem correção: a 2-FSK em 8N1 exposta à aplicação como porta serial virtual, para que o modem se comporte como a linha serial comum que os programas existentes já sabem usar. Ali um byte corrompido chega corrompido, e o bloco corrigido descrito acima não passa por esse caminho.
 
 ## 5 RESULTADOS EXPERIMENTAIS
 
@@ -495,7 +495,7 @@ Essas sombras posicionam os tons. Os dezesseis ocupam de 888 a 3325 Hz espaçado
 O nível ao longo da faixa também não é uniforme. Medido pela mesma varredura em passos de 74 Hz, varia 23,7 dB entre o melhor e o pior ponto, com até 9,4 dB entre pontos vizinhos.
 
 
-Depois que a varredura termina o som não cessa junto. O nível cai cerca de 36 dB ao longo de meio segundo e só alcança o piso da sala por volta de 0,8 s. É esse prolongamento que o intervalo de guarda descarta no início de cada símbolo.
+Depois que a varredura termina o som não cessa junto. O nível cai cerca de 36 dB ao longo de meio segundo e só alcança o piso da sala por volta de 0,8 s. É contra esse prolongamento que existe o intervalo de guarda descartado no início de cada símbolo.
 
 A 5×2-FSK votada reparte a decisão entre cinco pares de tons. Cinco frequências soam a cada símbolo, uma por par, cada par decide pelo tom que chegou mais forte, e a maioria dos cinco dá o bit. São cem símbolos por segundo, um bit por símbolo, com os primeiros 15% de cada símbolo descartados como guarda.
 
@@ -557,9 +557,9 @@ A frase sobre o que fica para a versao final esta no fim, como o comentario ante
 corrida por condicao, que a propria secao 5 declara.
 -->
 
-Construímos um modem acústico que leva bytes de um computador a outro por som audível, com alto-falante e microfone comuns, e o expusemos à aplicação como uma porta serial. A camada física entrega a verossimilhança de cada bit e a de enlace repara o que o ar estraga, e é essa divisão que faz o enlace funcionar: das dezesseis frequências chegam entre 5,9% e 9,6% dos bits codificados trocados, e o código absorve até 10%. Dentro dessa margem o enlace entregou 11,3 bytes por segundo com todos os blocos íntegros, e um arquivo de 1334 bytes chegou byte a byte idêntico.
+Construímos um modem acústico que leva bytes de um computador a outro por som audível, com alto-falante e microfone comuns, e o expusemos à aplicação como uma porta serial. A camada física entrega a confiança de cada bit e a camada de enlace corrige os que chegam trocados. Na 16-FSK, entre 5,9% e 9,6% dos bits codificados chegaram trocados, e mesmo assim todos os blocos foram decodificados sem erro. Nessa condição o enlace entregou 11,3 bytes por segundo com todos os blocos íntegros, e um arquivo de 1334 bytes chegou idêntico ao enviado.
 
-Esses números valem para uma sala e duas máquinas, e só depois de a cadeia analógica ser linearizada, o que faz do nível de operação um parâmetro a medir em cada instalação e não uma constante do projeto. Das quatro formas de transmissão construídas, duas foram medidas nessa cadeia, e refazer a 2-FSK nela fica para a versão final. Fica também medir o reenvio com mais de uma corrida por condição, que aqui mostra a falha por pacote baixa sem chegar a medi-la.
+Esses números valem para uma sala, duas máquinas e uma cadeia analógica sem saturação. Das quatro formas de transmissão construídas, duas foram medidas nessa condição, a 5×2-FSK votada e a 16-FSK. A 2-FSK e a 5×2-FSK multicanal só têm medidas anteriores à correção da cadeia, e refazê-las fica para a versão final.
 
 ## DECLARAÇÃO DE USO DE INTELIGÊNCIA ARTIFICIAL GENERATIVA
 

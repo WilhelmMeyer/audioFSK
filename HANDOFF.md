@@ -348,6 +348,20 @@ a tabela e uma coluna de zeros -- vale medir assim ou atacar a causa antes?" A
 causa foi atacada e cedeu: com a caixa em 0.20 sao 8 blocos de 9 em `fecrep 1`.
 Blocos inteiros voltaram a discriminar e a campanha pode seguir a regua normal.
 
+**O mapeamento Gray da 16-FSK esta invertido, e e defeito de uma linha.**
+`MaryModulator` poe o valor `v` no tom de indice `_GRAY[v]`, isto e, aplica o
+codificador Gray ao VALOR em vez de ao INDICE DO TOM. Conferido nos dezesseis
+tons: dos quinze pares de tons vizinhos, doze diferem em um bit e tres diferem
+em dois (pares 3-4, 7-8 e 11-12). No sentido certo, tom de indice `k` levando o
+valor `_GRAY[k]`, os quinze pares diferem em um bit. O ganho e pequeno e real:
+a confusao mais provavel do canal e entre tons vizinhos, e hoje ela custa dois
+bits em um quinto dos casos.
+
+**Nao corrigir antes da submissao.** Trocar o sentido muda a camada fisica, e
+todas as gravacoes de `resultados/` foram feitas com o mapeamento atual; a
+pontuacao offline delas deixaria de fechar. A troca pede recampanha, ou pelo
+menos repontuar com o mapeamento antigo preservado para as gravacoes velhas.
+
 **Duas coisas de codigo, nenhuma no caminho critico:**
 
 - Re-medir o conserto do piso nos dois regimes de nivel antes de mudar o
