@@ -8,7 +8,9 @@ Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do rep
 
 **Enquadramento, decidido em 2026-09-05: didático.** O artigo apresenta o sistema, compara brevemente com outros meios de transmissão, avalia o problema do canal acústico e propõe uma solução para este caso. Não pretende substituir outro meio nem reivindicar melhoria sobre a literatura.
 
-**O modelo do evento manda na estrutura.** Lido em 2026-09-05 de `Modelo de artigo - VII SIMECA.docx`. Seções numeradas obrigatórias, nesta ordem: 1 INTRODUÇÃO, 2 FUNDAMENTAÇÃO TEÓRICA, 3 METODOLOGIA, 4 RESULTADOS E DISCUSSÕES, 5 CONSIDERAÇÕES FINAIS. Só os títulos 2 e 3 podem ser trocados. Não numeradas e também obrigatórias: AGRADECIMENTOS, FINANCIAMENTO, DECLARAÇÃO DE USO DE INTELIGÊNCIA ARTIFICIAL GENERATIVA, CONFLITO DE INTERESSES, REFERÊNCIAS. Legenda de figura abaixo do elemento, de tabela acima. ORCID obrigatório para todos os autores, até seis.
+**ESTRUTURA EM VIGOR, decisão do autor em 2026-09-07: seis seções, e a numeração do modelo foi dispensada.** 1 INTRODUÇÃO, 2 PRINCÍPIO DE FUNCIONAMENTO (2.1 o meio, 2.2 as quatro formas), 3 CAMADA FÍSICA, 4 CAMADA DE ENLACE, 5 RESULTADOS EXPERIMENTAIS, 6 CONSIDERAÇÕES FINAIS. Não há seção de metodologia nem de bancada, também por decisão do autor: a 2 apresenta o sistema rapidamente, as 3 e 4 dão o princípio de funcionamento sem adiantar resultado, e o sentido do enlace e o auxílio do cabo serial entram em duas frases na abertura da 5. O que o modelo pede, e que este artigo não cumpre, está registrado no parágrafo seguinte; os dois parágrafos abaixo dele descrevem mapeamentos que **não valem mais** e ficam como histórico da decisão.
+
+**O modelo do evento, para constar.** Lido em 2026-09-05 de `Modelo de artigo - VII SIMECA.docx`. Seções numeradas obrigatórias, nesta ordem: 1 INTRODUÇÃO, 2 FUNDAMENTAÇÃO TEÓRICA, 3 METODOLOGIA, 4 RESULTADOS E DISCUSSÕES, 5 CONSIDERAÇÕES FINAIS. Só os títulos 2 e 3 podem ser trocados. Não numeradas e também obrigatórias: AGRADECIMENTOS, FINANCIAMENTO, DECLARAÇÃO DE USO DE INTELIGÊNCIA ARTIFICIAL GENERATIVA, CONFLITO DE INTERESSES, REFERÊNCIAS. Legenda de figura abaixo do elemento, de tabela acima. ORCID obrigatório para todos os autores, até seis.
 
 **O sumário aprovado cai nesse molde por subdivisão, sem perder decisão nenhuma:** "O meio" vira 2.3, dentro da fundamentação teórica, e continua abaixo da física como teoria do canal; "Camada física" vira 3.1; "Camada de enlace" vira 3.2; a bancada e o método viram 3.3, que é a metodologia que o modelo pede; os resultados viram 4; as considerações viram 5. A seção 3 se chama "O MODEM ACÚSTICO E O MÉTODO DE MEDIÇÃO". A fundamentação teórica recolhe os conceitos de terceiros que antes disputavam espaço com o que construímos: símbolo e baud, 8N1 e camadas (2.1), o princípio M-ário e a detecção (2.2), o meio (2.3), código convolucional, Viterbi, CRC e ARQ (2.4).
 
@@ -42,7 +44,7 @@ Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do rep
 - `monta.sh` e `monta.cmd`: invocadores finos do `monta.py`, um para Linux e macOS, outro para Windows. Só escolhem o interpretador. **Não duplicar lógica neles**, pela mesma razão que a tabela de comandos do `console.py` é única. Aceitam `--verifica`, `--sem-figuras`. Rode de qualquer pasta.
 - `MONTAGEM.md`: instruções de montagem para quem não trabalha neste repositório todo dia, inclusive no Windows. É o arquivo a apontar quando alguém pergunta como gerar o docx.
 - `simeca-md/`: o conversor, **versionado dentro deste repositório** (decisão do autor, 2026-09-06, revendo a de mantê-lo como submódulo). Quem clona o audioFSK já tem tudo para montar o artigo, sem passo de submódulo e sem depender de o clone ter sido feito de um jeito específico, que era o que atrapalhava o segundo autor no Windows. A cópia veio de `github.com/WilhelmMeyer/simeca-md` em `0daa5246a85192bb50f56e03f86f679e0e396ff6`; o preço é que ela não recebe mais correção de lá nem devolve correção para lá, e a sincronia com o artigo da roda de reação, que usa o mesmo conversor, passou a ser trabalho manual. Correção no conversor se faz aqui e, se valer para os dois artigos, se leva à mão para o outro lado.
-- `figuras/`: figuras do artigo, versionadas (exceção ao `.gitignore` global de `figuras/`). Vazia por enquanto.
+- `figuras/`: **as figuras do artigo, e são elas que valem.** Versionadas, exceção ao `.gitignore` global de `figuras/`. Decisão do autor em 2026-09-07: as cópias homônimas em `../resultados/<campanha>/figuras/` foram feitas para conferência rápida da campanha e **não servem para o artigo**, então divergir delas é esperado e não é defeito. A figura do artigo se regenera pelo script da campanha e se ajusta aqui; nada é copiado de volta por obrigação.
 - `artigo_modem.docx`, `artigo_modem.pdf`: saídas, ignoradas pelo git.
 
 ## Resultados
@@ -78,7 +80,11 @@ Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas
 
 ## Meta de extensão
 
-**4 a 10 laudas, pelo modelo do evento.** As 5 laudas do plano anterior eram suposição nossa, não exigência. Cerca de 750 palavras por lauda, figura ou tabela vale 150 a 250. Orçamento revisto no cabeçalho do `artigo_modem.md`, para 6 laudas: resumo 200, introdução 550, fundamentação 1250, metodologia 1100, resultados 900, considerações 200, mais seis a oito figuras ou tabelas. O rascunho de 2026-09-05 está acima disso, com 878 na introdução e 1982 na fundamentação, e projeta cerca de 9 laudas; cabe no teto e o corte natural, se o autor quiser encurtar, é a 2.4. O resumo aprovado tem exatamente 300 palavras, que é o teto do modelo, e traz dois-pontos duas vezes contra a regra de um por parágrafo.
+**4 a 10 laudas pelo modelo, e o alvo do autor é no máximo 7**, fixado em 2026-09-07. Cerca de 750 palavras por lauda, figura ou tabela vale 150 a 250.
+
+**Estado em 2026-09-07, comentários descontados:** resumo 311, seção 1 com 396, 2.1 com 622, 2.2 com 559, 3 com 877, 4 com 958, 5 acima de 2100 com as legendas, mais dez elementos gráficos, o que já passa de 10 páginas no PDF com quatro seções por escrever. O orçamento antigo, por seção, não tem linha para as seções 3 e 4 e não descreve mais o artigo.
+
+**O corte vem depois, decisão do autor em 2026-09-07: primeiro completar, depois encurtar.** Ainda faltam a 6, os agradecimentos, o financiamento, a declaração de uso de IAG e o conflito de interesses. Quando o corte vier, o de maior retorno é a redescrição de mecanismo que a 2.2 e a 3 fazem em dobro, anotada no comentário da 3.
 
 ## Processo de trabalho
 
