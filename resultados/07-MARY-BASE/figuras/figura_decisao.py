@@ -1,9 +1,9 @@
 """Figura do artigo: a decisao da 16-FSK em um simbolo.
 
-Espectro da janela em que o receptor decidiu um simbolo, com os dezesseis
-tons no mesmo eixo: o transmitido e os quinze calados. A curva mostra a banda
-inteira; atras dela, uma barra fina em cada tom mostra o numero que a decisao
-usa, que e a energia daquele tom acima do piso corrente dele.
+Os dezesseis tons na janela em que o receptor decidiu um simbolo: o
+transmitido e os quinze calados. Em cima, a energia medida em cada tom e o
+piso corrente dele; embaixo, a mesma medida contada do proprio piso, que e o
+numero que a decisao usa.
 
     ./venv/bin/python resultados/07-MARY-BASE/figuras/figura_decisao.py [--stem S] [--simbolo K] [--out PNG]
 
@@ -13,10 +13,12 @@ do segundo colocado e a margem anotada. Foi para isso que o piso entrou na
 figura: o canal e um pente, o ruido de fundo varia de tom para tom, e comparar
 alturas absolutas nao e o que o receptor faz.
 
-A curva e a FFT da mesma janela que o detector mediu, mesma amostra inicial e
-mesmo comprimento, sem intervalo de guarda e sem janelamento, porque e assim
-que `MaryDemodulator._energies` mede. Os dezesseis pontos nao sao lidos da
-curva: sao as energias que o detector calculou.
+A linha liga os dezesseis pontos medidos, e nao e a FFT densa da janela. A
+FFT densa foi tentada: com 408 amostras e sem janelamento, cada tom vira um
+montinho de 118 Hz de largura com covas fundas dos dois lados, que e o formato
+da janela e nao o canal, e ocupa a figura falando de uma coisa que a decisao
+nao olha. O detector le dezesseis numeros por simbolo, tirados de
+`MaryDemodulator._energies`, e sao esses que a figura desenha.
 
 O simbolo desenhado por padrao nao e escolhido a mao. E o simbolo do trecho
 das outras duas figuras cuja margem esta mais perto da mediana do bloco, entre
@@ -38,7 +40,6 @@ from comum import (CERTO, CONTORNO, CURVA, ERRADO, GRADE, LARGURA,
 
 NOME = '16fsk-decisao.png'
 TRECHO = (290, 320)      # o mesmo das outras duas figuras
-NFFT = 8192
 
 
 def db(v):
@@ -93,13 +94,6 @@ def main():
     k = args.simbolo if args.simbolo is not None else tipico(a, margem_bloco,
                                                              *TRECHO)
     i0, i1 = a.janela(k)
-    seg = a.amostras[i0:i1]
-
-    # Sem janelamento e com o mesmo comprimento do detector, para que os
-    # dezesseis pontos caiam sobre a curva em vez de serem uma segunda medida
-    # ao lado dela. O preenchimento com zeros e so resolucao de desenho.
-    espectro = db(np.abs(np.fft.rfft(seg, n=NFFT)) ** 2)
-    freq = np.fft.rfftfreq(NFFT, 1.0 / a.fs)
 
     energia, piso, norma = db(a.energia(k)), db(a.piso(k)), a.norma(k)
     ordem = np.argsort(norma)
@@ -123,8 +117,14 @@ def main():
              else (ERRADO if alturas[i_t] > 0 else NEGATIVO)
              for i_t in range(len(MARY_TONES))]
 
-    faixa = (freq >= min(MARY_TONES) - 300) & (freq <= max(MARY_TONES) + 300)
-    ax.plot(freq[faixa], espectro[faixa], color=CURVA, linewidth=0.6, zorder=2)
+    # Os dezesseis pontos medidos ligados por retas, e nao a FFT densa da
+    # janela. A FFT densa foi tentada e desenha um montinho de 118 Hz de
+    # largura em cada tom, com covas fundas entre eles: e o formato de uma
+    # janela de 408 amostras sem janelamento, nao o canal, e ocupa a figura
+    # falando de uma coisa que a decisao nao olha. O detector le dezesseis
+    # numeros, e e isso que a linha liga. Ela cai sobre o topo de cada barra
+    # por construcao, e tem a mesma forma da linha do piso, que ja era isso.
+    ax.plot(MARY_TONES, energia, color=CURVA, linewidth=1.0, zorder=2)
     ax.vlines(MARY_TONES, piso, energia, color=cores, linewidth=2.2, zorder=3)
     ax.plot(MARY_TONES, piso, color=GRADE, linewidth=0.8,
             linestyle=(0, (3, 2)), zorder=4)
@@ -134,7 +134,7 @@ def main():
     ax.set_ylabel('Energia na janela\nde decisão (dB)')
     ax.legend(handles=[
         Line2D([], [], color=CURVA, linewidth=1.0,
-               label='Espectro da janela'),
+               label='Energia medida, tom a tom'),
         Line2D([], [], color=GRADE, linewidth=0.8, linestyle=(0, (3, 2)),
                label='Piso corrente de cada tom'),
     ], loc='lower left', bbox_to_anchor=(0.0, 1.01), frameon=False, ncols=2,
@@ -151,11 +151,18 @@ def main():
     # duas barras, e so aqui as duas alturas sao comparaveis a olho.
     xv, xs = MARY_TONES[detectado], MARY_TONES[segundo]
     x_seta = (xv + xs) / 2
-    bx.plot([xv, xs], [alturas[detectado]] * 2, color='0.15', linewidth=0.6,
-            linestyle=(0, (1, 2)), zorder=4)
+    # Uma linha de chamada por barra, e nao so pela mais alta: a flecha mede
+    # a distancia entre duas alturas, entao as duas precisam estar marcadas
+    # ou ela parece medir de um valor ate coisa nenhuma.
+    for x_tom, altura in ((xv, alturas[detectado]), (xs, alturas[segundo])):
+        bx.plot(sorted((x_tom, x_seta)), [altura, altura], color='0.15',
+                linewidth=0.6, linestyle=(0, (1, 2)), zorder=4)
+    # `shrinkA`/`shrinkB` em zero: o padrao recua alguns pontos em cada ponta
+    # e a flecha fica sem encostar nas duas linhas que ela liga.
     bx.annotate('', xy=(x_seta, alturas[detectado]),
                 xytext=(x_seta, alturas[segundo]),
-                arrowprops=dict(arrowstyle='<->', linewidth=0.9, color='0.15'))
+                arrowprops=dict(arrowstyle='<->', linewidth=0.9, color='0.15',
+                                shrinkA=0, shrinkB=0), zorder=5)
     bx.annotate(f"{virgula(margem)} dB",
                 xy=(x_seta + 60, (alturas[detectado] + alturas[segundo]) / 2),
                 ha='left', va='center', fontsize=8.5)

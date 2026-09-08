@@ -133,10 +133,23 @@ em vez de um espectrograma.
 **As duas partilham `figura_tons.desenha` e `figura_tons.legenda`**, para que
 nao possam divergir em nada que nao seja o que cada uma tem a dizer.
 
-**A figura da decisao tem dois paineis alinhados na frequencia.** Em cima o
-espectro da janela, com a FFT como curva e uma barra em cada tom na altura que
-o detector mediu, mais o piso corrente. Embaixo a mesma medida contada do
-proprio piso de cada tom, que e a grandeza que decide. As barras tem a mesma
+**A figura da decisao tem dois paineis alinhados na frequencia.** Em cima a
+energia medida em cada tom, com os dezesseis pontos ligados por retas, mais o
+piso corrente. Embaixo a mesma medida contada do proprio piso de cada tom, que
+e a grandeza que decide.
+
+**Nao ha FFT densa da janela, e ela foi tentada.** Com 408 amostras e sem
+janelamento, cada tom vira um montinho de 118 Hz de largura com covas fundas
+dos dois lados. Isso e o formato da janela de medida, nao o canal, e ocupa a
+figura falando de uma coisa que a decisao nao olha; o detector le dezesseis
+numeros por simbolo. Janela de Hann so na curva foi tentada tambem e e pior:
+alisa os montes mas tira a curva de cima dos pontos medidos, entao a linha
+deixa de passar pelo topo das barras e vira uma segunda medida ao lado delas.
+Ligar os dezesseis pontos por retas nao tem nenhum dos dois problemas, cai
+sobre o topo de cada barra por construcao e tem a mesma forma da linha do
+piso. **Isto diverge do padrao da camada de cinco pares**, que mantem a FFT
+como curva; ali a decisao e outra e a divergencia e decisao do usuario,
+tomada em 2026-09-07 olhando as tres variantes. As barras tem a mesma
 espessura e as mesmas cores nos dois paineis, porque sao os mesmos dezesseis
 tons na mesma janela e duas cores para o mesmo tom fariam a figura parecer
 falar de duas coisas; o que muda de um painel para o outro e de onde a barra e
