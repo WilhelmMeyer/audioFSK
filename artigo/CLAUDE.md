@@ -82,9 +82,11 @@ Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas
 
 **4 a 10 laudas pelo modelo, e o alvo do autor é no máximo 7**, fixado em 2026-09-07. Cerca de 750 palavras por lauda, figura ou tabela vale 150 a 250.
 
-**Estado em 2026-09-07, ao fim do dia, comentários descontados:** resumo 321, seção 1 com 396, seção 2 com 1200 (2.1 e 2.2), seção 3 com 831, seção 4 com 902, seção 5 com 1863 de prosa mais 415 de legendas, conflito de interesses 15 e referências 114. São 6057 palavras de texto mais nove figuras e uma tabela, ou seja **10,1 a 11,4 laudas** pela conversão acima, com a 6 e as três seções obrigatórias ainda por escrever. Passou do teto de 10 do modelo e está 3 a 4 laudas acima do alvo de 7. O orçamento antigo, por seção, não tem linha para as seções 3 e 4 e não descreve mais o artigo.
+**Estado em 2026-09-07, depois do orçamento por seção, comentários descontados:** resumo 321, seção 1 com 396, seção 2 com 903, seção 3 com 502, seção 4 com 554, seção 5 com 2904, conflito de interesses 15 e referências 178. São **5773 palavras, dez figuras e três tabelas**, ou seja **10,3 a 12,0 laudas** pela conversão acima, com a 6 e as três seções obrigatórias ainda por escrever.
 
-**O maior peso é gráfico, e é onde o corte rende mais:** os dez elementos valem 1500 a 2500 palavras, de 2 a 3,3 laudas. Duas duplas mostram a mesma coisa duas vezes, a 4 e a 6 (espectrograma com a leitura do receptor por cima, uma no preâmbulo e outra na carga) e a 7 e a 9 (a legenda da 9 diz "o mesmo trecho" da 7). Depois delas vem a redescrição de mecanismo que a 2.2 e a 3 fazem em dobro, que são onze fatos repetidos e cerca de 500 palavras.
+**Orçamento por seção, decisão do autor em 2026-09-07:** 900 palavras para a 2, 500 para a 3 e 550 para a 4, e as três estão dentro. Não há alvo fixado para a 5, que sozinha vale de 4,9 a 6,3 laudas com os treze elementos gráficos, e é ela que decide se o artigo cabe nas 7 do alvo.
+
+**O peso gráfico é o maior item isolado:** treze elementos valem de 1950 a 3250 palavras, de 2,6 a 4,3 laudas. Duas duplas de figuras mostram a mesma coisa duas vezes, a 4 e a 6 (espectrograma com a leitura do receptor por cima, uma no preâmbulo e outra na carga) e a 7 e a 9 (a legenda da 9 diz "o mesmo trecho" da 7).
 
 **O corte vem depois, decisão do autor em 2026-09-07: primeiro completar, depois encurtar.** Ainda faltam a 6, os agradecimentos, o financiamento, a declaração de uso de IAG e o conflito de interesses. Quando o corte vier, o de maior retorno é a redescrição de mecanismo que a 2.2 e a 3 fazem em dobro, anotada no comentário da 3.
 
