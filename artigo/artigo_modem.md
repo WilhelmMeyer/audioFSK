@@ -350,15 +350,15 @@ doze diferem em um bit e tres diferem em dois (os pares de indice 3-4, 7-8 e 11-
 confusoes". Esta secao nao repete a afirmacao.
 -->
 
-A camada física entrega ao enlace a verossimilhança de cada bit, e acima dela ninguém vê amostra nem frequência.
+A camada física entrega ao enlace a verossimilhança de cada bit.
 
 A 2-FSK usa os dois tons do padrão Bell 202 a 1200 símbolos por segundo, e sai do modulador com fase contínua na troca de tom, pois reiniciar a fase a cada símbolo cria degraus que espalham energia para fora da banda. Cada byte vai em 8N1, com partida em 0, os oito bits do menos significativo em diante e parada em 1.
 
 A detecção é por atraso e produto. Um passa-faixa Butterworth de quarta ordem entre 800 e 2600 Hz limpa o sinal, que é multiplicado por uma cópia de si mesmo atrasada de sete amostras, um quarto de período em 1700 Hz, e um passa-baixa de quarta ordem em 1800 Hz filtra o produto. O resultado é positivo para um tom e negativo para o outro, e a decisão é o seu sinal.
 
-Os dois filtros e a linha de atraso guardam estado entre blocos, pois recomeçá-los poria um transitório em cada fronteira e destruiria os bits ali.
+Os dois filtros e a linha de atraso guardam estado entre blocos, sem o que haveria um transitório em cada fronteira.
 
-Abaixo de um limite absoluto de banda base o receptor força marca em vez de decidir. Como o produto vai com o quadrado da amplitude, esse silenciador é quadrático, e um sinal fraco não chega errado, não chega, com o medidor ainda acusando energia na banda.
+Abaixo de um limite absoluto de banda base o receptor força marca em vez de decidir. Como o produto vai com o quadrado da amplitude, esse silenciador é quadrático: um sinal fraco não chega errado, simplesmente não chega, com o medidor ainda acusando energia na banda.
 
 A fraqueza está na comparação com zero. Um canal que atenue 2200 Hz mais que 1200 Hz desloca a média do produto e enviesa toda decisão no mesmo sentido, sem que o receptor perceba.
 
@@ -370,7 +370,7 @@ O voto sozinho decide também em sala vazia, pois uma razão entre dois ruídos 
 
 Os dez tons foram escolhidos contra harmônicos cruzados. A distorção do alto-falante e do microfone fabrica harmônicos, e nenhum segundo ou terceiro harmônico de um acorde cai sobre um tom do outro, onde serviria de prova a favor do símbolo errado.
 
-Nas duas formas de cinco pares o pico que o alto-falante aceita é fixo e os cinco tons têm de caber juntos nele, então o modulador divide a amplitude por cinco e cada tom parte 14 dB abaixo do que partiria sozinho. A perda é anterior a qualquer decisão e o receptor não a recupera.
+Nas duas formas de cinco pares o pico que o alto-falante aceita é fixo e os cinco tons têm de caber juntos nele, então o modulador divide a amplitude por cinco e cada tom parte 14 dB abaixo do que partiria sozinho, perda que nenhuma decisão recupera.
 
 A 16-FSK devolve essa potência ao pôr um único tom no ar por vez, com toda a amplitude disponível. São dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, com os valores em código Gray para que confundir um tom com o vizinho custe um bit e não quatro, o que vale em doze dos quinze pares vizinhos.
 
@@ -386,17 +386,17 @@ O relógio de símbolo das três formas de 100 bauds vem de uma malha de adianta
 
 Dentro da janela escolhida, as primeiras 72 amostras de 480 são descartadas como intervalo de guarda, 15% do símbolo, e a decisão se faz sobre as 408 restantes. É no início que a cauda do símbolo anterior ainda está na sala, e alargar a guarda custa a resolução em frequência que separa um tom do vizinho.
 
-O preâmbulo é alternado, pois a malha trava em transições e um preâmbulo constante não lhe ensina nada, e a rajada fecha com uma cauda ociosa, pois o demodulador guarda pouco mais de um símbolo e sem ela o último byte fica preso ali.
+O preâmbulo é alternado, porque a malha trava em transições, e a rajada fecha com uma cauda ociosa, sem a qual o último byte fica preso no demodulador.
 
 Na 16-FSK a saída não é o bit e sim a verossimilhança logarítmica de cada bit do símbolo, do inglês *log-likelihood ratio* (LLR), dada por (3).
 
 $$\Lambda_j = \max_{b_j(v)=1} \ln \frac{E_{g(v)}}{P_{g(v)}} - \max_{b_j(v)=0} \ln \frac{E_{g(v)}}{P_{g(v)}} \tag{3}$$
 
-Nela, $v$ percorre os dezesseis valores de quatro bits, $b_j(v)$ é o bit $j$ de $v$, $g(v)$ é o tom que o código Gray atribui a $v$, e $E$ e $P$ são os de (2). O sinal de $\Lambda_j$ é a decisão dura e o módulo é a confiança nela, que o demodulador já calcula para eleger o vencedor e antes descartava.
+Nela, $v$ percorre os dezesseis valores de quatro bits, $b_j(v)$ é o bit $j$ de $v$, $g(v)$ é o tom que o código Gray atribui a $v$, e $E$ e $P$ são os de (2). O sinal de $\Lambda_j$ é a decisão dura e o módulo é a confiança nela, que o demodulador já calcula para eleger o vencedor.
 
 Esse fluxo sobe sem enquadramento algum, e começar um símbolo antes ou depois troca os quatro bits altos de cada byte pelos baixos. Quem resolve isso é a camada de enlace.
 
-Um número fica de fora do projeto da camada, o nível com que o sinal parte. Ele depende do alto-falante, do microfone e da distância entre eles, uma cadeia saturada entrega distorção que decisão nenhuma recupera, e por isso ele é medido em vez de escolhido, como os resultados mostram.
+Um número fica de fora do projeto da camada, o nível com que o sinal parte. Ele depende do alto-falante, do microfone e da distância entre eles, e uma cadeia saturada entrega distorção que decisão nenhuma recupera, então ele é medido, como os resultados mostram.
 
 ## 4 CAMADA DE ENLACE
 
@@ -414,9 +414,9 @@ FEC, CRC e ARQ sao apresentados por extenso aqui porque, no corpo do artigo, e a
 cada um; o resumo os apresenta a parte, como o modelo do evento pede.
 -->
 
-O canal entrega uma fração dos bits errada, e detectar o dano apenas o denuncia. Pedir de novo só converge quando a chance de o bloco chegar limpo já é alta, e é ela que falta. Os bits têm de ser reparáveis onde caem.
+O canal entrega uma fração dos bits errada, e detectar o dano apenas o denuncia. Pedir de novo só converge quando a chance de o bloco chegar limpo já é alta, e os bits têm de ser reparáveis onde caem.
 
-Dentro do bloco não há enquadramento 8N1, em que um bit de partida ou de parada corrompido desloca todos os bytes seguintes. O bloco de tamanho fixo não tem o que deslocar, o que remove o modo de falha em vez de atenuá-lo.
+Dentro do bloco não há enquadramento 8N1, em que um bit de partida ou de parada corrompido desloca todos os bytes seguintes. O bloco de tamanho fixo não tem o que deslocar.
 
 A correção antecipada de erros, do inglês *forward error correction* (FEC), é um código convolucional de comprimento de restrição 7, com polinômios geradores 171, 133 e 165 em octal, três bits codificados por bit de entrada. Seis bits de cauda zerados o fecham no estado zero, de onde o decodificador parte.
 
@@ -424,7 +424,7 @@ O decodificador é um Viterbi de decisão suave. Cada bit chega como uma verossi
 
 $$\mu = \sum_{j=1}^{n} (2c_j - 1) L_j \tag{4}$$
 
-Nela, $c_j$ é o $j$-ésimo bit que o ramo emitiria, $L_j$ é a verossimilhança recebida na mesma posição e $n$ é o número de bits codificados por passo. Um bit duvidoso quase não move $\mu$, e o percurso segue os bits em que o receptor está seguro. O bit incerto cede ao certo.
+Nela, $c_j$ é o $j$-ésimo bit que o ramo emitiria, $L_j$ é a verossimilhança recebida na mesma posição e $n$ é o número de bits codificados por passo. Um bit duvidoso quase não move $\mu$, e o percurso segue os bits em que o receptor está seguro.
 
 A redundância por repetição replica o bloco codificado e o decodificador soma as cópias, pois observações independentes do mesmo bit se somam no domínio da verossimilhança. Os resultados medem o que ela compra neste enlace.
 
@@ -434,11 +434,11 @@ Na 5×2-FSK multicanal a independência exige um mapa próprio, pois o bloco cod
 
 O bloco é localizado por uma palavra de referência de 31 bits, que viaja sem codificação à frente dele e é achada por correlação sobre o sinal das verossimilhanças, nunca por contagem de símbolos. O relógio consome números diferentes de amostras enquanto ajusta, o início do bloco escorrega ao longo do preâmbulo, e um bloco atrasado de um bit decodifica em nada.
 
-É a mesma correlação que resolve o alinhamento de símbolo da 16-FSK, em que começar cedo ou tarde troca os quatro bits altos de cada byte pelos baixos. Na 5×2-FSK multicanal ela se faz sobre a média dos pares, um valor por símbolo, pois um par parado num nulo responde sempre o mesmo.
+É a mesma correlação que resolve o alinhamento de símbolo da 16-FSK. Na 5×2-FSK multicanal ela se faz sobre a média dos pares, um valor por símbolo, pois um par parado num nulo responde sempre o mesmo.
 
 Duas varreduras de tom de 700 a 3400 Hz, de 80 ms cada, cercam o quadro, separadas dele por 30 ms de silêncio e recuperadas por filtro casado. A primeira dá o instante em que o quadro começa, e o intervalo entre as duas, dividido pelos símbolos que abrange, dá o período de símbolo, aceito enquanto ficar a 2% do nominal.
 
-São varreduras e não estalos, pois o estalo tem a mesma detectabilidade com fator de crista pior, e esta camada já opera com pouca folga de pico contra a saturação. Elas fixam a amostra inicial e o período, e quem acha o bit segue sendo a palavra de referência.
+São varreduras e não estalos, pois o estalo tem a mesma detectabilidade com fator de crista pior, e esta camada já opera com pouca folga de pico contra a saturação. Quem acha o bit segue sendo a palavra de referência.
 
 Os picos se ordenam por posição, nunca por altura, porque as duas varreduras são idênticas e o canal decide qual chega mais forte.
 
@@ -454,7 +454,7 @@ A retransmissão automática, do inglês *automatic repeat request* (ARQ), é pa
 
 São até quatro tentativas por pacote, cada uma escutando pelo tempo de ar do quadro mais uma margem antes de decodificar o que ouviu.
 
-O que não chega é preenchido com zeros, que preservam o deslocamento dos bytes seguintes, pois omitir o pacote arruinaria tudo depois do buraco. Um CRC de 32 bits sobre o arquivo inteiro decide se ele vale.
+O que não chega é preenchido com zeros, que preservam o deslocamento dos bytes seguintes. Um CRC de 32 bits sobre o arquivo inteiro decide se ele vale.
 
 Acima disso a aplicação vê uma porta serial virtual, com dez bytes alternados e um marcador antes de cada rajada. Essa linha não tem detecção de erro nenhuma, de propósito, para que o modem seja a linha burra que o ecossistema serial espera, e quem corrige está abaixo dela.
 
