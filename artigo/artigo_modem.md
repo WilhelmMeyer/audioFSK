@@ -345,10 +345,10 @@ Figura 1 - Piso de ruído do microfone receptor com o enlace parado, média de q
 
 Na banda inteira esse piso fica em −52,3 dBFS e, sob os dezesseis tons, vai de −67,6 a −94,8 dBFS. Os tons não recebem o mesmo tratamento, e a diferença é da sala, não do sistema.
 
-A Figura 2 mostra o que o detector mede enquanto a máquina transmissora emite um tom de 1700 Hz, em três curvas na mesma escala: as dezesseis sondas durante o tom, as mesmas sondas com a sala parada, e um seno sintético de 1700 Hz analisado do mesmo jeito. O tom chega 47,4 dB acima das sondas que não receberam nada e 13,0 dB acima da segunda sonda mais alta.
+A Figura 2 mostra o que o detector da 16-FSK mede enquanto a máquina transmissora emite um tom de 1700 Hz, que é o sexto dos dezesseis tons dessa forma. São três curvas na mesma escala: as dezesseis sondas durante o tom, as mesmas sondas com a sala parada, e um seno sintético de 1700 Hz analisado do mesmo jeito. O tom chega 47,4 dB acima das sondas que não receberam nada e 13,0 dB acima da segunda sonda mais alta.
 
 ![](figuras/deteccao-tom.png "0.95")
-Figura 2 - Nível nas dezesseis sondas do detector com um tom de 1700 Hz transmitido, comparado com a sala parada e com um seno sintético analisado na mesma janela. O seno não passou por transdutor nem por sala: o alargamento em torno do pico é da janela de análise, não do canal.
+Figura 2 - Nível nas dezesseis sondas do detector da 16-FSK com um tom de 1700 Hz transmitido, comparado com a sala parada e com um seno sintético analisado na mesma janela. O seno não passou por transdutor nem por sala: o alargamento em torno do pico é da janela de análise, não do canal.
 
 A curva do seno sintético quase se sobrepõe à medida, e o que sobra entre as duas é o que a cadeia e a sala acrescentaram.
 
