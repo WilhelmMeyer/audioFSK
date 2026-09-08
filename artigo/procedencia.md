@@ -54,6 +54,8 @@ Da varredura A→B, recalculados hoje sobre `resultados/03-CH-CHIRP-A2B/gravacao
 
 **O "12 a 20 dB" contradiz a própria varredura e o próprio comentário da seção**, que já registra que os melhores pontos ficam entre 4,1 e 4,4 kHz. Medido, a faixa de 4000 a 4500 Hz está apenas 1,8 dB abaixo da faixa útil. Essa frase atravessou três reescritas nesta sessão sem ser conferida, e é o erro que esta auditoria achou.
 
+**Resolvido em 2026-09-07.** Os quatro números saíram da 2.1 ao acertá-la com a seção 4: os dois que não se sustentavam por serem falsos, e os dois que se conferiam por medirem com outra régua o que a seção 4 já mede com a dela. A 2.1 ficou qualitativa nesses pontos e manda para a 4; a banda passou a ser a que os tons ocupam, 700 a 3325 Hz, que se confere em `modem.py`. Sobra por conferir só o que a seção 4 afirma, que veio da outra máquina com as pastas de `resultados/` a reboque.
+
 **Contexto que pesa:** a máquina remota declarou sem lastro, no comentário da seção 4, a banda de 550 a 3500 Hz, o colapso acima de 4 kHz e o descarte do ultrassom. A auditoria dá razão a ela quanto ao colapso acima de 4 kHz.
 
 ## Como refazer a conferência dos números da 2.1
@@ -83,6 +85,6 @@ print(np.median(deg), np.percentile(deg, 90), deg.max())
 
 ## O que fica pendente
 
-- Decidir o "13 dB" e o "12 a 20 dB" da 2.1. O primeiro vira "chega a mais de 10 dB" ou sai; o segundo não tem como ficar como está.
-- Resolver as quatro contradições entre a 2.1 e a seção 4, listadas no comentário da 2.1.
+- Decidir a frase da seção 4 que diz "Dez frequências soam ao mesmo tempo" e "Dez tons simultâneos precisam dividir o mesmo pico". Soam cinco, uma por par, e o modulador divide por cinco: são os 14 dB que a 2.2 cita. A 2.2 está certa e a seção 4 não, e a correção é de uma palavra em dois lugares.
+- Decidir o "onde a decisão do receptor precisa de apenas 1,3 dB" da seção 4. O 1,3 é `MFSK_PRESENCE_MIN`, razão de energia entre vencedor e perdedor (`modem.py`, linha 296), e razão não é decibel: 1,3 são 1,1 dB. E ele é o critério de presença da 5×2-FSK votada, não do detector de dezesseis sondas que a Figura 2 mostra, cuja decisão é o maior entre dezesseis. A 2.2 diz "a razão entre vencedor e perdedor passe de 1,3", que está certo.
 - `figura_canal.py` lendo FLAC, e `soundfile` instalado, sem o que nenhum número da 2.1 se reconfere.

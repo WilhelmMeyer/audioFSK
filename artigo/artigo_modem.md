@@ -53,8 +53,12 @@ ESTADO DO TEXTO (2026-09-07, depois do merge das duas maquinas). O artigo esta s
   SECAO 4: a versao remota, redigida do fim para o comeco, com tres figuras que moram nas pastas 01, 02 e
   03 do sentido A2B.
   SECOES 3 e 5: como a versao remota as deixou, a redigir.
-  ATENCAO: ha contradicoes abertas entre a 2.1 e a secao 4, listadas no comentario da 2.1. Resolver antes
-  de montar.
+  As quatro contradicoes entre a 2.1 e a secao 4 foram fechadas em 2026-09-07, a pedido do autor e sempre
+  mexendo na 1 e na 2: a secao 4 e a regua. O historico de cada uma esta no comentario da 2.1.
+  ATENCAO, e o unico ponto aberto: a secao 4 diz "Dez frequencias soam ao mesmo tempo" e "Dez tons
+  simultaneos precisam dividir o mesmo pico". Soam CINCO, uma por par, e o modulador divide por cinco
+  (`out / len(tones)` em MFSKModulator._symbol), que sao os 14 dB que a 2.2 cita. A 2.2 esta certa e a 4
+  nao; nao foi corrigida porque a instrucao era mexer so na 1 e na 2.
 -->
 
 # Transmissão de dados por som audível entre dois computadores: o canal acústico medido e um modem para ele
@@ -132,7 +136,7 @@ O mesmo princípio vale no ar, e Lopes e Aguiar (2001) já observavam por que qu
 
 O ar, porém, não é o par de fios. O som viaja mais de 87000 vezes mais devagar que a onda eletromagnética, de modo que as reflexões da sala se espalham por dezenas de milissegundos, e o multipercurso em ambiente fechado é a maior degradação dos esquemas acústicos publicados (PUTZ *et al.*, 2026). Na mesma revisão, de 31 estudos e mais de 11000 transmissões em aparelhos reais, os produtos comerciais entregam de 10 a 200 bits por segundo, que é a ordem de grandeza a esperar do meio.
 
-Apresentamos um modem acústico que leva bytes de um computador a outro por som audível, com alto-falante e microfone comuns, e que se expõe à aplicação como uma porta serial. Partimos das duas frequências do Bell 202 e chegamos a dezesseis tons com correção de erros, porque cada forma anterior falhou no ar por uma razão que medimos. Verificamos o conjunto entre duas máquinas na mesma sala, transferindo um arquivo inteiro pelo ar.
+Apresentamos um modem acústico que leva bytes de um computador a outro por som audível, com alto-falante e microfone comuns, e que se expõe à aplicação como uma porta serial. Partimos das duas frequências do Bell 202 e chegamos a dezesseis tons com correção de erros, e cada passo respondeu a um limite que medimos no ar. Verificamos o conjunto entre duas máquinas na mesma sala, transferindo um arquivo inteiro pelo ar.
 
 ## 2 PRINCÍPIO DE FUNCIONAMENTO
 
@@ -189,43 +193,47 @@ e no estouro. As frases exatas de origem estao em referencias.md.
 O eco continua entrando como PROPRIEDADE DO MEIO e o paragrafo fecha pela negativa, dizendo que esta sala
 nao tem cauda mensuravel. Nao virou dificuldade vencida, que os resultados desmentiriam.
 
-=== CONTRADICOES COM A SECAO 4, ABERTAS NO MERGE DE 2026-09-07 ===
-A secao 4 chegou da outra maquina, redigida do fim para o comeco sobre as pastas de resultados/, e discorda
-desta 2.1 em quatro pontos. O autor decidiu manter as duas como estao e acertar depois. Listadas aqui para
-serem achadas; NAO corrigir sem decisao do autor, porque cada uma pode cair para qualquer um dos lados.
+=== CONTRADICOES COM A SECAO 4, FECHADAS EM 2026-09-07 ===
+Decisao do autor: a secao 4 e a regua, e o acerto se faz na 1 e na 2. As quatro estao resolvidas; o que
+cada uma dizia esta abaixo, para nao ser reescrito por engano.
 
-1. A CAUDA, e esta e a grave. A 2.1 diz "nesta bancada a cauda nao e mensuravel, o sinal para no piso de
-   ruido". A secao 4 mediu o contrario: "o nivel nao cai de uma vez e sim cerca de 50 dB ao longo de meio
-   segundo", e dedica um paragrafo a ela. A secao 4 tambem e honesta sobre a origem, dizendo que uma
-   gravacao so nao separa a reverberacao da sala do comportamento da caixa sem fio e do codec dela. Do
-   jeito que esta, o artigo afirma e nega a mesma coisa em duas secoes.
-2. BANDA 550-3500 Hz E O DESCARTE DO ULTRASSOM. O comentario da secao 4 diz que ambos ficaram de fora "por
-   falta de lastro", herdados de uma medicao tom a tom que nunca virou pasta. A 2.1 continua afirmando os
-   dois, e o ultrassom ocupa um paragrafo inteiro dela.
-3. EXCURSAO DE NIVEL NA BANDA. A 2.1 diz 28 dB entre o melhor e o pior ponto, em bins de 50 Hz na faixa de
-   550 a 3500 Hz. A secao 4 diz 23,7 dB, em passos de 74 Hz na faixa dos dezesseis tons. Sao medidas
-   diferentes e podem conviver, mas o leitor ve dois numeros para a mesma ideia sem saber que reguas mudam.
-4. DEGRAU ENTRE VIZINHOS. A 2.1 da mediana 2,5 dB e maximo 13 dB a 50 Hz de resolucao; a secao 4 da "ate
-   9,4 dB entre pontos vizinhos" a 74 Hz. Mesmo caso do item 3.
+1. A CAUDA. A 2.1 dizia "nesta bancada a cauda nao e mensuravel, o sinal para no piso de ruido". A secao 4
+   mediu o contrario e a 2.1 cedeu: agora diz que o som nao cessa junto com a fonte e manda para a 4, que
+   mede sem atribuir a origem. Vale saber o que a 4 mediu, porque nao e a banda de trabalho: em
+   5600-6400 Hz, onde a rampa da varredura terminou, com janela de 512 amostras, cerca de 50 dB em meio
+   segundo, chegando ao piso da sala por volta de 0,8 s (resultados/03-CH-CHIRP-A2B/figuras/COMO-REFAZER.md,
+   item 3). O "no measurable reverberation" do CLAUDE.md da raiz veio de outra medida, sobre burst na banda
+   de trabalho, e ganhou a ressalva la.
+2. BANDA 550-3500 Hz. A 2.1 afirmava a banda e o nivel "12 a 20 dB" acima dela; os dois sairam. No lugar
+   ficam os 700 a 3325 Hz que os tons de fato ocupam, que se conferem em modem.py e nao em varredura
+   nenhuma. O ULTRASSOM FICOU, e de proposito: aquele paragrafo se apoia so em PUTZ et al. (2026) e na
+   absorcao do ar, nao em medicao desta bancada, e a regra de estilo manda dizer o que ficou fora e por que.
+3. EXCURSAO DE NIVEL. Os 28 dB da 2.1, em bins de 50 Hz, sairam. A excursao fica com a secao 4 e com a
+   regua dela, 23,7 dB em passos de 74 Hz na faixa dos dezesseis tons. Duas reguas para a mesma ideia era
+   o problema, e uma frase qualitativa na 2.1 com o numero na 4 resolve sem perder nada.
+4. DEGRAU ENTRE VIZINHOS. Mesmo tratamento: sairam a mediana de 2,5 dB e o maximo de 13 dB (este ultimo
+   nao se reconferia, procedencia.md mede 10,6 dB e mostra que o extremo depende de onde a analise comeca).
+   A 2.1 diz que vizinhos chegam a diferir varios decibeis, a 4 da o "ate 9,4 dB".
 
-E uma omissao, que nao e contradicao: a secao 4 mostra que o PISO DE RUIDO nao e plano, se concentra abaixo
-de 2 kHz e cai cerca de 25 dB entre 2000 e 2900 Hz. A 2.1 so diz que o canal "nao e silencioso". Se a 2.1
-sobreviver como esta, vale uma frase dizendo que o ruido tambem tem forma. -->
+A omissao tambem foi fechada: a 2.1 ganhou um paragrafo dizendo que o piso de ruido tem forma e mandando
+para a 4, que mede a concentracao na metade inferior da banda. -->
 
 
 Transmitir pelo ar é converter a sequência de amostras em variação de pressão, deixá-la atravessar a sala a 343 m/s e reconvertê-la em amostras do outro lado. Entre um conversor e outro estão o amplificador, o alto-falante, o ar, as superfícies que refletem e o microfone. Esse canal não é plano, não é linear e não é silencioso.
 
 O ruído do ambiente ocupa parte significativa da mesma banda, vindo do tráfego, de máquinas, da fala e do próprio manuseio dos aparelhos, em componentes tanto contínuos quanto em rajada (PUTZ *et al.*, 2026).
 
-Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Colocamos os tons entre 550 e 3500 Hz, onde a resposta medida varia 28 dB entre o melhor e o pior ponto. Acima disso o nível cai de 12 a 20 dB.
+Esse ruído também não é plano ao longo da banda. A seção 4 mede a forma dele nesta sala, concentrado na metade inferior, de modo que dois tons de frequências diferentes não disputam com o mesmo fundo.
+
+Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Colocamos os tons entre 700 e 3325 Hz, dentro dessa região, e mesmo ali a resposta está longe de ser plana, como a seção 4 mede.
 
 O ultrassom atrai porque a sala fica silenciosa acima da banda da fala e a transmissão não incomoda quem está por perto. A amostragem usual de 44,1 ou 48 kHz fecha a banda abaixo de 22 kHz, exigir inaudibilidade a reduz a menos de 4 kHz, e nessa faixa o hardware de áudio é fortemente seletivo (PUTZ *et al.*, 2026). A absorção do ar cresce com a frequência e encurta o alcance, e por isso o ultrassom fica fora deste trabalho.
 
 Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo percurso que fez. Uma cópia atrasada reforça o som direto nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso, e o cancela naquelas em que essa diferença vale meio período. Como a condição depende da frequência, a resposta do canal é um pente de máximos e nulos alternados, e a geometria da sala fixa o espaçamento entre eles.
 
-O degrau entre vizinhos a 50 Hz de resolução tem mediana de 2,5 dB e chega a 13 dB, e a posição dos nulos muda quando alguém se move. Lopes e Aguiar (2001) já apontavam essas reflexões como a razão de não se confiar em muitos níveis de amplitude no ar.
+Frequências separadas por algumas dezenas de hertz chegam assim a diferir vários decibéis, e a posição dos nulos muda quando alguém se move. Lopes e Aguiar (2001) já apontavam essas reflexões como a razão de não se confiar em muitos níveis de amplitude no ar.
 
-As mesmas reflexões, vistas no tempo, são a reverberação. Depois que a fonte cala o som persiste enquanto as ondas ainda percorrem a sala perdendo energia a cada superfície, e enquanto essa cauda dura a energia de um símbolo invade o seguinte. Em ambiente fechado o espalhamento chega a dezenas de milissegundos, absorvido por intervalo de guarda (PUTZ *et al.*, 2026). Nesta bancada a cauda não é mensurável, mas o projeto a antecipa porque outra sala pode tê-la.
+As mesmas reflexões, vistas no tempo, são a reverberação. Depois que a fonte cala o som persiste enquanto as ondas ainda percorrem a sala perdendo energia a cada superfície, e enquanto essa cauda dura a energia de um símbolo invade o seguinte. Em ambiente fechado o espalhamento chega a dezenas de milissegundos, absorvido por intervalo de guarda (PUTZ *et al.*, 2026). Nesta bancada o som também não cessa junto com a fonte, e a seção 4 mede o que sobra depois de uma varredura, sem isolar a origem entre a sala, o alto-falante sem fio e o codec dele.
 
 A cadeia analógica também não é linear. O cone do alto-falante tem excursão limitada e o amplificador, tensão limitada, então os picos são achatados quando o nível cresce, e o microfone comprime do mesmo modo na outra ponta. A energia retirada dos picos reaparece como harmônicos e intermodulação, parte deles dentro da própria banda de trabalho, onde nenhum filtro os separa do sinal. Passado esse ponto, subir o nível piora a recepção.
 
