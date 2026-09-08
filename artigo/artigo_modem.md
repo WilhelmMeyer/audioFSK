@@ -312,7 +312,7 @@ A polaridade alterna ao longo da banda, de modo que os dois acordes ficam com fr
 
 A 5×2-FSK multicanal usa os mesmos dez tons com um bit distinto em cada par, cinco bits por símbolo. O limite das duas formas de cinco pares é potência, pois o pico que o alto-falante aceita é fixo e cada um dos cinco tons sai 14 dB abaixo do que sairia sozinho.
 
-A 16-FSK devolve essa potência. São dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, e exatamente um soa por vez, quatro bits por símbolo, com vizinhos em código Gray para que a confusão do canal custe um bit e não quatro.
+A 16-FSK devolve essa potência. São dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, e exatamente um soa por vez, quatro bits por símbolo, com os valores em código Gray para que confundir um tom com o vizinho custe um bit e não quatro, o que vale em doze dos quinze pares vizinhos.
 
 A tarefa do detector é decidir quais frequências estão presentes, sem informação de fase (LOPES; AGUIAR, 2001). O receptor mede a energia de cada tom, divide pelo piso corrente daquele tom e elege o maior, conforme (2).
 
@@ -450,9 +450,11 @@ Acima disso a aplicação vê uma porta serial virtual, com dez bytes alternados
 Redigido a partir de 2026-09-07, do fim para o comeco. Campanhas escolhidas com o autor: 01, 02 e 03 para o
 canal; 04, 05, 06 e 07 para as quatro formas; 07 para linearidade; 08 para ganho; 11 para potencia; 12-13
 para deriva de relogio e quadro longo; 14 para redundancia; 15 para arquivo; 08-A2B, 16 e 17 para as duas
-direcoes. Podada em 2026-09-07 a pedido do autor, lendo a secao por si so: 2164 para 1668 palavras. Saiu
-justificativa de metodo, comentario sobre o proprio texto e repeticao entre paragrafo e legenda; ficaram
-todos os numeros e todas as figuras. Dois erros de fato foram corrigidos na mesma passagem, os dois
+direcoes. Podada em 2026-09-07 a pedido do autor, lendo a secao por si so, em duas passagens: 2164 para 1668 e daí
+para 1536 palavras. Saiu justificativa de metodo, comentario sobre o proprio texto, mecanismo generico onde
+havia medida, e a repeticao entre paragrafo e legenda, que na segunda passagem foi o grosso: a legenda
+passa a dar a chave de leitura da figura e o numero fica no paragrafo, uma vez so. Ficaram todos os numeros
+e todas as figuras, conferidos um a um nas duas passagens. Dois erros de fato foram corrigidos na mesma passagem, os dois
 conferidos em modem.py e nao contra outra secao: soam CINCO tons por simbolo e nao dez (`out / len(tones)`
 em MFSKModulator._symbol divide por cinco), e saiu o "precisa de apenas 1,3 dB", que era MFSK_PRESENCE_MIN,
 razao de energia de 1,3 (ou seja 1,1 dB) e criterio de outra camada que nao a da Figura 2.
@@ -472,16 +474,14 @@ A Figura 2 mostra o que o detector da 16-FSK mede enquanto a máquina transmisso
 ![](figuras/deteccao-tom.png "0.95")
 Figura 2 - Nível nas dezesseis sondas do detector da 16-FSK com um tom de 1700 Hz transmitido, comparado com a sala parada e com um seno sintético analisado na mesma janela. O seno não passou por transdutor nem por sala: o alargamento em torno do pico é da janela de análise, não do canal.
 
-A curva do seno sintético quase se sobrepõe à medida, e o que sobra entre as duas é o que a cadeia e a sala acrescentaram.
-
 A Figura 3 mostra a gravação de uma varredura de 300 a 6000 Hz em seis segundos. As diagonais acima da varredura principal são o segundo e o terceiro harmônico, 30,5 e 42,2 dB abaixo da fundamental, frequências que ninguém transmitiu e que dentro da banda de trabalho são indistinguíveis de sinal. Os riscos verticais em 3,6 s e entre 4,2 e 4,4 s atravessam várias frequências no mesmo instante, e são sons da sala durante a gravação.
 
 ![](figuras/varredura.png "0.95")
-Figura 3 - Espectrograma de uma varredura de 300 a 6000 Hz gravada pelo microfone receptor, com janela de 4096 amostras (11,7 Hz por bin). As diagonais tracejadas marcam o segundo e o terceiro harmônico gerados pela cadeia; o recorte mostra a crista contra a separação de 162 Hz entre tons vizinhos da 16-FSK; os riscos verticais em 3,6 e 4,2 s são ruído da sala, não sinal.
+Figura 3 - Espectrograma de uma varredura de 300 a 6000 Hz gravada pelo microfone receptor, com janela de 4096 amostras (11,7 Hz por bin). O recorte mostra a crista contra a separação de 162 Hz entre tons vizinhos da 16-FSK.
 
 Depois que a varredura acaba o nível não cai de uma vez, e sim cerca de 50 dB ao longo de meio segundo. O desligamento do transmissor leva 10 ms, então não é ele, e uma única gravação não separa a reverberação da sala do alto-falante sem fio e do seu codec. É contra essa cauda que existe o intervalo de guarda descartado no início de cada símbolo.
 
-O nível ao longo da banda também não é uniforme. Na faixa ocupada pelos dezesseis tons, medida pela mesma varredura em passos de 74 Hz, o nível varia 23,7 dB entre o melhor e o pior ponto, com diferenças de até 9,4 dB entre pontos vizinhos. A resposta alterna máximos e nulos, e a posição deles depende da geometria da sala e muda quando alguém se move.
+O nível ao longo da banda também não é uniforme. Na faixa ocupada pelos dezesseis tons, medida pela mesma varredura em passos de 74 Hz, o nível varia 23,7 dB entre o melhor e o pior ponto, com diferenças de até 9,4 dB entre pontos vizinhos.
 
 A primeira forma de transmissão medida reparte a decisão entre cinco pares de tons. Dez frequências formam os cinco pares e cinco delas soam a cada símbolo, uma por par, e cada par decide pelo tom que chegou mais forte; a maioria dos cinco dá o bit.
 
@@ -495,21 +495,21 @@ A polaridade alterna de propósito. Nos pares de 700, 1540 e 2380 Hz o tom mais 
 A Figura 5 mostra a decisão em dois símbolos. Medimos a energia nas dez frequências dentro da janela de decisão, e quem decide é a comparação dentro de cada par, nunca o nível absoluto. No símbolo de cima os cinco pares votaram 0, e o bit era 0. No de baixo o bit era 1, o par de 700 e 900 Hz votou 0, e os outros quatro fizeram o bit sair certo.
 
 ![](figuras/5x2fsk-espectro-dos-acordes.png "0.95")
-Figura 5 - Espectro medido na janela de decisão de dois símbolos, um com bit 0 e outro com bit 1, com as barras marcando a energia nas dez frequências que o detector compara. No símbolo de baixo o par mais grave vota contra o bit transmitido e a maioria decide mesmo assim.
+Figura 5 - Espectro medido na janela de decisão de dois símbolos, um com bit 0 e outro com bit 1, com as barras marcando a energia nas dez frequências que o detector compara.
 
 Ao longo do bloco, a taxa de acerto de cada par isolado vai de 74,0% a 86,1%. O que separa um tom presente de um ausente também não é uniforme na banda: 8,6 a 9,0 dB nos pares do meio, 6,6 dB no par de 700 Hz e 2,7 dB no de 2380 Hz, consequência do piso de ruído da Figura 1. Reunidos, os cinco pares levam o acerto a 87,7%.
 
 A Figura 6 mostra o mesmo mecanismo sobre os dados: trinta símbolos consecutivos em que todos os bits saem certos, e ainda assim em vinte e dois deles ao menos um par votou contra os demais.
 
 ![](figuras/5x2fsk-votacao-nos-dados.png "0.95")
-Figura 6 - Trinta símbolos consecutivos da carga transmitida, com a leitura do receptor sobreposta ao espectrograma. Todos os bits saem certos; os marcadores em vermelho são os pares que votaram contra o bit transmitido, presentes em vinte e dois dos trinta símbolos.
+Figura 6 - Trinta símbolos consecutivos da carga transmitida, com a leitura do receptor sobreposta ao espectrograma. Os marcadores em vermelho são os pares que votaram contra o bit transmitido.
 
 Antes da correção de erros, 88,1% dos 2340 bits do bloco chegaram certos. Com ela, os 48 bytes enviados chegaram idênticos, e a cadeia recebida é a mesma que saiu da outra máquina, `HPdp14v7rxCu9tyxbhaEWN2DnsHi4LdGhQeAN0MPo4uVpv62`.
 
-A segunda forma de transmissão medida troca a redundância por densidade. Dezesseis frequências entre 888 e 3325 Hz se revezam, exatamente uma soando por vez, e qual delas soou nomeia quatro bits. A taxa de símbolos é a mesma, cem por segundo, e cada símbolo vale quatro vezes mais. Frequências vizinhas recebem códigos que diferem em um único bit, porque são as que o canal confunde. A Figura 7 mostra trinta símbolos consecutivos, com um único tom aceso a cada dez milissegundos.
+A segunda forma de transmissão medida troca a redundância por densidade. Dezesseis frequências entre 888 e 3325 Hz se revezam, exatamente uma soando por vez, e qual delas soou nomeia quatro bits. A taxa de símbolos é a mesma, cem por segundo. Frequências vizinhas recebem códigos que diferem em um único bit em doze dos quinze pares, porque são as que o canal confunde. A Figura 7 mostra trinta símbolos consecutivos, com um único tom aceso a cada dez milissegundos.
 
 ![](figuras/16fsk-tons.png "0.95")
-Figura 7 - Trinta símbolos consecutivos da carga, com o espectrograma ao fundo e o tom detectado marcado sobre cada símbolo. Um único tom soa por vez, entre os dezesseis marcados no eixo, e nos trinta símbolos deste trecho o tom detectado é o transmitido.
+Figura 7 - Trinta símbolos consecutivos da carga, com o espectrograma ao fundo e o tom detectado marcado sobre cada símbolo, entre os dezesseis do eixo. Neste trecho o tom detectado é o transmitido nos trinta.
 
 Com um tom por vez, toda a potência que o alto-falante aceita vai para ele. Cinco tons simultâneos dividem o mesmo pico e cada um sai com uma fração dele.
 
@@ -522,10 +522,10 @@ Figura 8 - Decisão em um símbolo. Em cima, o espectro na janela de decisão, a
 
 O piso não é o mesmo em toda a banda: entre o tom de piso mais alto e o de piso mais baixo há 6,9 dB, tomada a mediana ao longo do bloco, o que reproduz o ruído da Figura 1. A margem sobre o segundo colocado, no símbolo da figura, é de 8,0 dB, próxima da mediana de 7,9 dB do bloco, que varia entre 2,6 e 12,6 dB entre o primeiro e o último decil.
 
-As duas máquinas não compartilham relógio. A Figura 9 sobrepõe ao mesmo trecho as fronteiras que o receptor de fato usou e a grade de passo constante que o período nominal daria. O símbolo nominal tem 480 amostras e o receptor consumiu entre 420 e 585 ao longo do trecho, com mediana em 480, e o afastamento em relação à grade regular chega a 1,88 ms, com mediana de 0,63 ms. O relógio é recuperado do próprio sinal, não contado a partir do início.
+As duas máquinas não compartilham relógio. A Figura 9 sobrepõe ao mesmo trecho as fronteiras que o receptor de fato usou e a grade de passo constante que o período nominal daria. O símbolo nominal tem 480 amostras e o receptor consumiu entre 420 e 585 ao longo do trecho, com mediana em 480, e o afastamento em relação à grade regular chega a 1,88 ms, com mediana de 0,63 ms.
 
 ![](figuras/16fsk-enquadramento.png "0.95")
-Figura 9 - O mesmo trecho, com as fronteiras de símbolo que o receptor usou e a grade de passo nominal. Acima do quadro, os quatro bits enviados em cada símbolo, já codificados e entrelaçados, e não os bytes da mensagem. As fronteiras medidas se afastam da grade regular em até 1,88 ms.
+Figura 9 - O mesmo trecho, com as fronteiras de símbolo que o receptor usou e a grade de passo nominal. Acima do quadro, os quatro bits enviados em cada símbolo, já codificados e entrelaçados, e não os bytes da mensagem.
 
 Nas três gravações desta forma de transmissão, os 48 bytes chegaram íntegros. Antes da correção de erros, o tom detectado coincidiu com o transmitido em 72,5% a 89,5% dos símbolos, e 85,2% a 94,5% dos bits chegaram certos.
 
