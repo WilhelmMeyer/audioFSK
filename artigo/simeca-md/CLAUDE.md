@@ -8,6 +8,7 @@ Conversor de markdown para docx no formato de um modelo do Word, e do docx para 
 
 - Só biblioteca padrão do Python, versão mínima 3.11 (por causa do `tomllib`). Exceção: `win32com`, opcional, importado dentro de `try`, só para gerar PDF via Word.
 - pandoc e LibreOffice são externos e opcionais: detectados em tempo de execução, nunca embarcados no repositório (tamanho e licença GPL). Instalação sempre pelo gerenciador de pacotes do usuário, com confirmação.
+- No Windows a detecção não pode se apoiar só no PATH nem no `isatty()`. O PATH de um processo já em execução não é reescrito pelo instalador, então o pandoc recém-instalado continua invisível ao `which` e é procurado também nas pastas do instalador. E o dispositivo `NUL` é de caractere, logo passa no teste de terminal: a pergunta de instalação precisa tratar `EOFError`, ou a montagem chamada por um script morre em traceback no lugar da mensagem que explica o que falta.
 - Âncora de parágrafo é o texto marcador do modelo, nunca `w14:paraId`: o Word reescreve esse identificador ao salvar, e o modelo é editado no Word.
 - Geometria (largura de coluna, margens, colunas) é medida do `sectPr` do modelo, nunca constante no código.
 - A saída preserva o pacote docx do modelo byte a byte, exceto `word/document.xml`, `word/_rels/document.xml.rels` e as imagens acrescentadas em `word/media/`.
