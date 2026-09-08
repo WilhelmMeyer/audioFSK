@@ -239,7 +239,7 @@ Um alto-falante e um microfone de uso geral respondem bem na banda da fala e per
 
 O ultrassom atrai porque a sala fica silenciosa acima da banda da fala e a transmissão não incomoda quem está por perto. A amostragem usual de 44,1 ou 48 kHz fecha a banda abaixo de 22 kHz, exigir inaudibilidade a reduz a menos de 4 kHz, e nessa faixa o hardware de áudio é seletivo (PUTZ *et al.*, 2026). A absorção do ar cresce com a frequência e encurta o alcance, e por isso o ultrassom fica fora deste trabalho.
 
-Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo percurso que fez. Uma cópia atrasada reforça o som direto nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso, e o cancela naquelas em que essa diferença vale meio período. Como a condição depende da frequência, a resposta do canal é um pente de máximos e nulos alternados, e a geometria da sala fixa o espaçamento entre eles.
+Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo percurso que fez. Uma cópia atrasada reforça o som direto nas frequências cujo período cabe um número inteiro de vezes na diferença de percurso, e o cancela naquelas em que essa diferença vale meio período. Como a condição depende da frequência, a resposta do canal é um pente de máximos e nulos alternados, e a geometria da sala fixa o espaçamento entre eles (KUTTRUFF, 2016).
 
 Frequências separadas por algumas dezenas de hertz chegam assim a diferir vários decibéis, e a posição dos nulos muda quando alguém se move. Lopes e Aguiar (2001) já apontavam essas reflexões como a razão de não se confiar em muitos níveis de amplitude no ar.
 
@@ -312,7 +312,7 @@ TEXTO DA 2.3 RETIRADA, para restaurar quando o autor pedir:
   receptor, transmissor sem estado. A aplicacao ve uma porta serial virtual."
 -->
 
-Chamamos M-ária a modulação de ordem $M$, em que cada símbolo é um tom escolhido entre $M$ frequências e carrega $\log_2 M$ bits, e a taxa de bits é o produto de (1).
+Chamamos M-ária a modulação de ordem $M$, em que cada símbolo é um tom escolhido entre $M$ frequências e carrega $\log_2 M$ bits (PROAKIS; SALEHI, 2008), e a taxa de bits é o produto de (1).
 
 $$R_b = R_s \log_2 M \tag{1}$$
 
@@ -322,9 +322,11 @@ A 2-FSK usa os dois tons do padrão Bell 202, 1200 e 2200 Hz, e um bit por símb
 
 A 5×2-FSK multicanal usa os mesmos dez tons com um bit distinto em cada par, cinco bits por símbolo. A 16-FSK acende um tom entre dezesseis, quatro bits por símbolo.
 
-A tarefa do detector é decidir quais frequências estão presentes, sem informação de fase (LOPES; AGUIAR, 2001). Nas três formas de mais de dois tons ele não compara com um limiar, e sim uma frequência com outra, e é isso que torna a decisão indiferente à amplitude com que o som chegou.
+A tarefa do detector é decidir quais frequências estão presentes, sem informação de fase, que é a detecção não coerente (PROAKIS; SALEHI, 2008; LOPES; AGUIAR, 2001). Nas três formas de mais de dois tons ele não compara com um limiar, e sim uma frequência com outra, e é isso que torna a decisão indiferente à amplitude com que o som chegou.
 
-Nenhuma dessas formas entrega todos os bits certos sobre este canal, e por isso o sistema tem uma segunda camada. Os dados vão em blocos de tamanho fixo protegidos por correção de erros, cada bloco é localizado no fluxo por uma palavra de referência, e acima dele o arquivo é partido em pacotes com verificação, pedidos um a um pelo receptor.
+Nenhuma dessas formas entrega todos os bits certos sobre este canal, e por isso o sistema tem uma segunda camada. Os dados vão em blocos de tamanho fixo protegidos por um código convolucional, decodificado pelo algoritmo de Viterbi (VITERBI, 1967), e cada bloco é localizado no fluxo por uma palavra de referência.
+
+Acima do bloco o arquivo é partido em pacotes com soma de verificação, pedidos um a um pelo receptor e reenviados enquanto a soma não fechar, que é o arranjo pare-e-espere dos protocolos de enlace (TANENBAUM; WETHERALL, 2011).
 
 A camada física entrega ao enlace a verossimilhança de cada bit, e não o bit, de modo que o corretor recebe também a confiança de cada decisão. Acima das duas a aplicação vê uma porta serial virtual.
 
@@ -690,7 +692,13 @@ ABNT autor-data, ordem alfabetica, uma referencia por linha. Nenhuma foi inventa
 - CRC, ARQ, pare-e-espere, HDLC (2.4)
 - codigos convolucionais, Viterbi, decisao suave, entrelacamento, codigos de repeticao (2.4)
 
-PREENCHIDA em 2026-09-07. So as quatro fontes efetivamente CITADAS no corpo entram, em ordem alfabetica,
+PREENCHIDA em 2026-09-07, com quatro fontes, e AMPLIADA para oito no mesmo dia. As quatro que entraram
+depois sustentam conceito de terceiros que o artigo usava sem creditar: KUTTRUFF no filtro pente da 2.1,
+PROAKIS e SALEHI no principio M-ario e na deteccao nao coerente da 2.2, VITERBI e TANENBAUM na
+apresentacao da segunda camada, tambem na 2.2. Todas entram na 2, nunca na 3, na 4 ou na 5, porque a
+decisao de escopo do autor manda a literatura ficar na fundamentacao e dali para a frente o texto se
+sustentar no que construimos e medimos.
+So as fontes efetivamente CITADAS no corpo entram, em ordem alfabetica,
 copiadas de referencias.md, onde cada uma tem a fonte da verificacao. Qualquer outra da lista de
 levantamento viraria referencia listada e nao citada. As secoes 3 e 4 nao citam literatura, por decisao
 de escopo do autor, entao nenhuma entrada nova vem delas.
@@ -698,8 +706,16 @@ de escopo do autor, entao nenhuma entrada nova vem delas.
 
 FINNEGAN, Kenneth W.; BENSON, Bridget. Clarifying the amateur Bell 202 modem. In: **ARRL/TAPR Digital Communications Conference (DCC)**, 33., 2014. Anais [...]. [S.l.]: TAPR, 2014.
 
+KUTTRUFF, Heinrich. **Room acoustics**. 6. ed. Boca Raton: CRC Press, 2016.
+
 LOPES, Cristina Videira; AGUIAR, Pedro M. Q. Aerial acoustic communications. In: **IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)**, 2001, New Paltz. Anais [...]. New Paltz: IEEE, 2001.
 
+PROAKIS, John G.; SALEHI, Masoud. **Digital communications**. 5. ed. Nova York: McGraw-Hill, 2008.
+
 PUTZ, Florentin; FORTMANN, Philipp; FRANK, Jan; HAUGWITZ, Christoph; KUPNIK, Mario; HOLLICK, Matthias. Evaluating acoustic data transmission schemes for ad-hoc communication between nearby smart devices. **ACM Transactions on Internet of Things**, v. 7, n. 1, art. 8, 2026. arXiv:2602.02249.
+
+TANENBAUM, Andrew S.; WETHERALL, David J. **Computer networks**. 5. ed. Boston: Pearson, 2011.
+
+VITERBI, Andrew J. Error bounds for convolutional codes and an asymptotically optimum decoding algorithm. **IEEE Transactions on Information Theory**, v. IT-13, n. 2, p. 260-269, abr. 1967.
 
 WU, Joseph. **A basic guide to the HART protocol**. Dallas: Texas Instruments, nov. 2023. (Application Report SLAAEH0). Disponível em: https://www.ti.com/lit/pdf/slaaeh0.
