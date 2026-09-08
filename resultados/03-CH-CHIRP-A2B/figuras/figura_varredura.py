@@ -32,6 +32,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Rectangle
 from matplotlib.ticker import FuncFormatter, MultipleLocator
 import numpy as np
@@ -60,6 +61,22 @@ SALTO = 512              # 10,7 ms entre colunas
 FAIXA_DB = 75.0          # profundidade da escala abaixo do maximo
 FMAX = 12500.0           # cabe a rampa, o 2o harmonico inteiro e o 3o em parte
 LARGURA = 6.3            # polegadas ~ 16 cm, uma coluna
+
+# Paleta: teal escuro para a serie principal, azul gelo para o que e fundo ou
+# dispersao. Escolha do autor. A figura continua legivel em escala de cinza
+# porque nada e codificado so por cor: cada serie tem marcador e traco
+# proprios, e a cor apenas reforca.
+TEAL = '#0F5257'
+TEAL_MED = '#2E7D82'
+GELO = '#BFDDE4'
+GELO_CLARO = '#E8F2F5'
+
+# A imagem fica em cinza, e a cor entra so nas marcacoes. Um mapa tingido de
+# teal foi tentado e piorou a leitura: os tons claros de gelo comem o meio da
+# escala, que e exatamente onde vivem os harmonicos, 30 e 42 dB abaixo da
+# fundamental. Num espectrograma a cor tem de gastar toda a luminosidade
+# disponivel com o dado.
+MAPA = 'gray_r'
 
 # Dois destinos e uma geracao so. O PNG do artigo e o mesmo arquivo que
 # fica aqui ao lado dos dados: a pasta do artigo carrega apenas figuras, e
@@ -168,7 +185,7 @@ def main():
     topo = float(imagem.max())
 
     fig, ax = plt.subplots(figsize=(LARGURA, 3.8), layout='constrained')
-    im = ax.imshow(imagem, origin='lower', aspect='auto', cmap='gray_r',
+    im = ax.imshow(imagem, origin='lower', aspect='auto', cmap=MAPA,
                    vmin=topo - FAIXA_DB, vmax=topo,
                    extent=(tempos[0], tempos[-1], 0.0, freqs[sel][-1]),
                    interpolation='nearest')
@@ -176,24 +193,46 @@ def main():
     # As diagonais previstas: a fundamental e os harmonicos que a cadeia
     # fabrica. Tracejadas e rotuladas, e desenhadas a partir do instante
     # medido do inicio, nao de um instante suposto.
-    tr = np.array([t0, t0 + dur])
-    for ordem, estilo in ((1, (0, (6, 4))), (2, (0, (4, 3))), (3, (0, (2, 3)))):
-        fr = ordem * np.array([f0, f1])
-        if fr[0] > FMAX:
+    # So os harmonicos levam tracejado, e os dois com o mesmo traco: a
+    # fundamental e a propria rampa, que ja se ve, e uma linha sobre ela lia
+    # como uma quarta diagonal paralela as outras.
+    # Os harmonicos sao apontados de fora, nunca cobertos. Uma linha sobre a
+    # diagonal esconde justamente a energia fraca que a figura existe para
+    # mostrar: a seta para a poucos pixels da faixa e o rotulo fica no vazio
+    # ao lado.
+    # A fundamental entra com a mesma marcacao dos harmonicos: e ela a
+    # frequencia emitida, e sem faixa a figura marcava so o que a cadeia
+    # inventou e deixava sem nome o que foi transmitido.
+    for ordem, texto_xy in ((1, (3.05, 620.0)), (2, (7.3, 8600.0)),
+                            (3, (3.35, 11500.0))):
+        fa, fb = ordem * f0, ordem * f1
+        if fa > FMAX:
             continue
-        ax.plot(tr, np.minimum(fr, FMAX), linestyle=estilo, linewidth=0.9,
-                color='0.25' if ordem == 1 else '0.15')
-        # O rotulo vai na ponta da diagonal, onde ela sai da figura ou
-        # termina: no meio ele cai sobre a propria energia que rotula.
-        frac = min(1.0, (FMAX - fr[0]) / (fr[1] - fr[0])) * 0.94
-        nome = ('varredura' if ordem == 1
-                else f'{ordem}º harmônico')
-        ax.annotate(nome,
-                    xy=(t0 + frac * dur, fr[0] + frac * (fr[1] - fr[0])),
-                    xytext=(-4, -12 if ordem == 3 else 8),
-                    textcoords='offset points',
-                    ha='right', fontsize=8.5, color='black',
-                    bbox=dict(boxstyle='round,pad=0.18', facecolor='white',
+        fim = dur if fb <= FMAX else dur * (FMAX - fa) / (fb - fa)
+        # A area, e nao a linha: uma faixa clara acompanhando a diagonal, larga
+        # o bastante para conter a energia do harmonico e clara o bastante para
+        # nao apaga-la. A linha tracejada de antes passava exatamente por cima
+        # do que a figura existe para mostrar.
+        tt = np.linspace(t0, t0 + fim, 64)
+        ff = fa + (fb - fa) * (tt - t0) / dur
+        meia = 420.0
+        ax.fill_between(tt, ff - meia, ff + meia, facecolor=TEAL, alpha=0.13,
+                        edgecolor='none', zorder=2)
+        ax.plot(tt, ff - meia, color=TEAL, linewidth=0.6, alpha=0.55, zorder=2)
+        ax.plot(tt, ff + meia, color=TEAL, linewidth=0.6, alpha=0.55, zorder=2)
+        # O rotulo aponta para a borda da faixa, nunca para dentro dela.
+        frac = 0.35 if ordem == 1 else 0.72
+        # Para a fundamental o rotulo vem por baixo: acima dela estao as duas
+        # faixas dos harmonicos.
+        lado = -meia if ordem == 1 else meia
+        alvo = (t0 + frac * fim, fa + (fb - fa) * frac * fim / dur + lado)
+        nome = ('varredura emitida' if ordem == 1 else f'{ordem}º harmônico')
+        ax.annotate(nome, xy=alvo, xytext=texto_xy,
+                    ha='center', va='center', fontsize=8.5, color='black',
+                    arrowprops=dict(arrowstyle='->', linewidth=0.9,
+                                    color=TEAL, shrinkA=2, shrinkB=6,
+                                    mutation_scale=9),
+                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
                               edgecolor='none', alpha=0.85))
 
     # O recorte existe porque a figura inteira nao consegue mostrar a
@@ -209,27 +248,31 @@ def main():
     # largura da crista e nao a inclinacao dela.
     jan_t, jan_f = 0.05, 200.0
     vizinhos = [f for f in MARY_TONES if abs(f - fz) < jan_f]
-    zi = ax.inset_axes([0.10, 0.55, 0.28, 0.36])
-    # Escala mais curta so no recorte: com os 75 dB da figura inteira o piso
-    # da sala vira um cinza que engrossa a crista aos olhos.
-    zi.imshow(imagem, origin='lower', aspect='auto', cmap='gray_r',
-              vmin=topo - 45.0, vmax=topo,
+    # A escala do recorte e local. Referida ao maximo global, que e o pico da
+    # rampa perto de 6 kHz, uma janela curta deixaria o recorte inteiro
+    # branco: a crista ali chega uns 30 dB abaixo daquele pico.
+    fatia_t = (tempos >= tz - jan_t) & (tempos <= tz + jan_t)
+    fatia_f = (freqs[sel] >= fz - jan_f) & (freqs[sel] <= fz + jan_f)
+    local = float(imagem[np.ix_(fatia_f, fatia_t)].max())
+
+    zi = ax.inset_axes([0.64, 0.05, 0.26, 0.25])
+    zi.imshow(imagem, origin='lower', aspect='auto', cmap=MAPA,
+              vmin=local - 26.0, vmax=local,
               extent=(tempos[0], tempos[-1], 0.0, freqs[sel][-1]),
               interpolation='nearest')
     zi.set_xlim(tz - jan_t, tz + jan_t)
     zi.set_ylim(fz - jan_f, fz + jan_f)
     for f in vizinhos:
-        zi.axhline(f, color='0.25', linewidth=0.8, linestyle=(0, (3, 2)))
+        zi.axhline(f, color=TEAL, linewidth=0.9, linestyle=(0, (3, 2)))
     zi.set_xticks([])
     zi.set_yticks(vizinhos)
     zi.set_yticklabels([f"{f:.0f}" for f in vizinhos], fontsize=7)
     zi.tick_params(length=2, pad=1)
-    zi.set_title(f'recorte de {virgula(2 * jan_t, 2)} s '
-                 f'({virgula(sep_tons(), 0)} Hz entre tracejados)',
-                 fontsize=7.0, pad=2)
+    zi.set_title(f'recorte de {virgula(2 * jan_t, 2)} s, tracejados '
+                 f'{virgula(sep_tons(), 0)} Hz', fontsize=7.0, pad=2)
     for lado in zi.spines.values():
         lado.set_linewidth(0.8)
-    ax.indicate_inset_zoom(zi, edgecolor='black', linewidth=0.8, alpha=1.0)
+    ax.indicate_inset_zoom(zi, edgecolor=TEAL, linewidth=0.8, alpha=1.0)
 
     ax.set_xlim(0, len(samples) / fs)
     ax.set_ylim(0, FMAX)

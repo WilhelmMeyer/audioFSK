@@ -340,6 +340,49 @@ Figura 3 - Espectrograma de uma varredura de 300 a 6000 Hz gravada pelo microfon
 A cauda de meio segundo merece cuidado. O desligamento do transmissor leva 10 ms, então ela não vem dele, e uma única gravação não separa a reverberação da sala do comportamento do alto-falante sem fio e do seu codec. Registramos o que foi medido no receptor, sem atribuir a origem. Ela importa porque o intervalo de guarda descartado no início de cada símbolo existe justamente para que o final de um símbolo não seja lido junto com o começo do seguinte.
 
 O nível ao longo da banda também não é uniforme. Na faixa ocupada pelos dezesseis tons, medida pela mesma varredura em passos de 74 Hz, o nível varia 23,7 dB entre o melhor e o pior ponto, com diferenças de até 9,4 dB entre pontos vizinhos. O som chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo seu percurso, e cópias atrasadas somam em fase em algumas frequências e se opõem em outras. A resposta resultante alterna máximos e nulos ao longo da banda, e a posição deles depende da geometria e muda quando alguém se move.
+
+A primeira forma de transmissão medida sobre esse canal reparte a decisão entre cinco pares de tons. Dez frequências soam ao mesmo tempo, agrupadas em cinco pares, e cada par carrega o mesmo bit: dentro do par, o tom mais forte diz qual é o bit, e a maioria dos cinco decide. A taxa é de cem símbolos por segundo, um bit por símbolo. O receptor descarta os primeiros 15% de cada símbolo como guarda e mede os 8,5 ms restantes. A Figura 4 mostra a abertura da transmissão, em que os bits se alternam, e nela os dois acordes se revezam a cada dez milissegundos.
+
+![](figuras/5x2fsk-alternancia.png "0.95")
+Figura 4 - Trecho alternado que abre a transmissão, com o espectrograma ao fundo e a leitura do receptor por cima. Cada coluna é um símbolo e cada marcador é o tom que venceu o seu par, com a forma dizendo que bit ele significa. A polaridade alterna ao longo da banda, de modo que os dois acordes ocupam frequências entrelaçadas e não metades separadas do espectro.
+
+A polaridade alterna de propósito. Nos pares de 700, 1540 e 2380 Hz o tom mais grave significa 0, e nos pares de 1120 e 1960 Hz significa 1, de modo que os dois acordes ficam entrelaçados na banda e têm quase a mesma frequência média. Um canal que favoreça as frequências altas ou as baixas favorece igualmente os dois símbolos, e não empurra a decisão para um lado.
+
+A Figura 5 mostra a decisão símbolo a símbolo, em dois instantes. Em cada um deles medimos a energia nas dez frequências dentro da janela de decisão, e o que decide é a comparação dentro de cada par, nunca o nível absoluto. No símbolo de cima os cinco pares votaram 0 e o bit transmitido era 0. No de baixo o bit era 1, o par de 700 e 900 Hz votou 0, e os outros quatro fizeram o bit sair certo.
+
+![](figuras/5x2fsk-espectro-dos-acordes.png "0.95")
+Figura 5 - Espectro medido na janela de decisão de dois símbolos, um com bit 0 e outro com bit 1, com as barras marcando a energia nas dez frequências que o detector compara. No símbolo de baixo o par mais grave vota contra o bit transmitido e a maioria decide mesmo assim.
+
+Esse voto contrário não é acidente raro. Medida ao longo do bloco, a taxa de acerto de cada par isolado vai de 74,0% a 86,1%, e nenhum deles serviria sozinho. O que separa um tom presente de um ausente também não é uniforme na banda: são 8,6 a 9,0 dB nos pares do meio, contra 6,6 dB no par de 700 Hz e apenas 2,7 dB no de 2380 Hz, o que é consequência direta do piso de ruído medido na Figura 1. Reunidos, os cinco pares levam o acerto a 87,7%.
+
+A Figura 6 mostra o mesmo mecanismo sobre os dados. São trinta símbolos consecutivos em que todos os bits saem certos, e ainda assim em vinte e dois deles ao menos um par votou contra os demais. A votação está trabalhando o tempo todo, e não apenas quando o resultado final estaria em risco.
+
+![](figuras/5x2fsk-votacao-nos-dados.png "0.95")
+Figura 6 - Trinta símbolos consecutivos da carga transmitida, com a leitura do receptor sobreposta ao espectrograma. Todos os bits saem certos; os marcadores em vermelho são os pares que votaram contra o bit transmitido, presentes em vinte e dois dos trinta símbolos.
+
+Antes da correção de erros, 88,1% dos 2340 bits do bloco chegaram certos. Com ela, os 48 bytes enviados chegaram idênticos, sem nenhum byte errado, e a cadeia recebida é a mesma que saiu da outra máquina, `HPdp14v7rxCu9tyxbhaEWN2DnsHi4LdGhQeAN0MPo4uVpv62`.
+
+A segunda forma de transmissão medida troca a redundância por densidade. Em vez de dez tons simultâneos carregando um bit, dezesseis frequências entre 888 e 3325 Hz se revezam, exatamente uma soando por vez, e qual delas soou nomeia quatro bits. A taxa de símbolos é a mesma, cem por segundo, mas cada símbolo vale quatro vezes mais. Frequências vizinhas recebem códigos que diferem em um único bit, porque tons vizinhos são os que o canal confunde, e assim a confusão mais provável custa um bit em vez de quatro. A Figura 7 mostra trinta símbolos consecutivos, com um único tom aceso a cada dez milissegundos.
+
+![](figuras/16fsk-tons.png "0.95")
+Figura 7 - Trinta símbolos consecutivos da carga, com o espectrograma ao fundo e o tom detectado marcado sobre cada símbolo. Um único tom soa por vez, entre os dezesseis marcados no eixo, e nos trinta símbolos deste trecho o tom detectado é o transmitido.
+
+Com um tom por vez, toda a potência que o alto-falante aceita vai para ele. Dez tons simultâneos precisam dividir o mesmo pico, e cada um sai com uma fração dele; um tom sozinho leva o pico inteiro. É a mesma escolha de sempre entre redundância e alcance, e aqui ela aparece como quatro bits por símbolo em vez de um.
+
+A decisão é escolher o maior entre dezesseis, e não comparar dois. Isso levanta um problema que a comparação dentro do par não tinha: um tom pode chegar forte porque foi transmitido ou porque a sala favorece aquela frequência. O receptor resolve dividindo a energia de cada tom pelo piso corrente daquela frequência antes de comparar. Como cada tom fica calado em quinze símbolos de cada dezesseis, a média de longo prazo de cada frequência é o próprio ruído naquele ponto da banda, e nunca o sinal. A Figura 8 mostra as duas grandezas em um símbolo: em cima o espectro medido e o piso de cada tom, embaixo a diferença entre os dois, que é o que decide.
+
+![](figuras/16fsk-decisao.png "0.95")
+Figura 8 - Decisão em um símbolo. Em cima, o espectro na janela de decisão, a energia medida em cada um dos dezesseis tons e o piso corrente de cada um. Embaixo, a energia de cada tom contada do próprio piso, que é a grandeza comparada; o tom transmitido, de 2512 Hz, fica 8,0 dB acima do segundo colocado.
+
+Essa correção não é cosmética, porque o piso não é o mesmo em toda a banda. Entre o tom de piso mais alto e o de piso mais baixo há 6,9 dB de diferença, tomada a mediana ao longo do bloco, o que reproduz o ruído medido na Figura 1. Sem dividir, um tom sentado numa região silenciosa da banda concorreria em desvantagem permanente. A margem sobre o segundo colocado, no símbolo da figura, é de 8,0 dB, próxima da mediana de 7,9 dB do bloco, que varia entre 2,6 e 12,6 dB entre o primeiro e o último decil.
+
+Falta situar cada símbolo no tempo, e as duas máquinas não compartilham relógio. A Figura 9 sobrepõe ao mesmo trecho as fronteiras que o receptor de fato usou e a grade de passo constante que o período nominal daria. As duas não coincidem. O símbolo nominal tem 480 amostras e o receptor consumiu entre 420 e 585 ao longo do trecho, com mediana em 480, e o afastamento em relação à grade regular chega a 1,88 ms, com mediana de 0,63 ms. O relógio de símbolo é recuperado do próprio sinal, símbolo a símbolo, e não contado a partir do início.
+
+![](figuras/16fsk-enquadramento.png "0.95")
+Figura 9 - O mesmo trecho, com as fronteiras de símbolo que o receptor usou e a grade de passo nominal. Acima do quadro, os quatro bits enviados em cada símbolo, já codificados e entrelaçados, e não os bytes da mensagem. As fronteiras medidas se afastam da grade regular em até 1,88 ms.
+
+Nas três gravações desta forma de transmissão, os 48 bytes chegaram íntegros. Antes da correção de erros, o tom detectado coincidiu com o transmitido em 72,5% a 89,5% dos símbolos, e 85,2% a 94,5% dos bits chegaram certos.
+
 ## 5 CONSIDERAÇÕES FINAIS
 
 <!-- A redigir por ultimo. Inclui a frase sobre o que ficou para a versao final por prazo, entre elas

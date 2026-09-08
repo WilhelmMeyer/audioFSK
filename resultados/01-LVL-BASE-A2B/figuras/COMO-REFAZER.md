@@ -37,7 +37,7 @@ Faixa util desenhada como 550-3500 Hz, a mesma do `CLAUDE.md` da raiz, e nao
 os 550-3600 Hz que o `HEADER.md` desta campanha rotula: entre 3500 e 3600 Hz
 nao ha nada acima de -90 dBFS e as duas medianas coincidem em 0,1 dB.
 
-As dezesseis sondas do detector aparecem no rodape da figura com a largura
-que elas realmente escutam, `fs / (samples_per_tone - guard)`, lida do
-proprio `MaryDemodulator`. Quanto essa largura separa um tom de um nao tom
-esta em `resultados/02-LVL-TONE-A2B/figuras/`.
+Os dezesseis tons da 16-FSK aparecem como tracos no rodape, lidos de
+`modem.MARY_TONES`, e o tom de referencia de 1700 Hz desce pontilhado ate a
+base para ser lido junto do traco do tom que ele mede. Quanto o piso sob eles
+separa um tom de um nao tom esta em `resultados/02-LVL-TONE-A2B/figuras/`.
