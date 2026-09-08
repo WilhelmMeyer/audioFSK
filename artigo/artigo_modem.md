@@ -478,17 +478,17 @@ Os ensaios usam duas máquinas na mesma sala, cada uma com alto-falante e microf
 A Figura 1 mostra o ruído da sala com o enlace parado, média de quatro gravações de oito segundos em janelas de 50 Hz. O piso não é plano: concentra-se abaixo de 2 kHz e varia 27 dB sob os dezesseis tons da 16-FSK, de −67,6 a −94,8 dBFS. Comparar níveis absolutos entre tons leria essa diferença como sinal, e por isso cada tom é medido contra o próprio piso.
 
 ![](figuras/piso-ruido.png "0.95")
-Figura 1 - Piso de ruído do microfone receptor com o enlace parado, média de quatro gravações de 8 s em janelas de 50 Hz. A faixa cinza são os extremos entre as gravações e as marcas no rodapé são os dezesseis tons da 16-FSK.
+Figura 1 - Piso de ruído com o enlace parado, média de quatro gravações de 8 s. A faixa cinza são os extremos entre elas e as marcas no rodapé, os dezesseis tons.
 
 A Figura 2 mostra o que o detector da 16-FSK mede enquanto a máquina transmissora emite um tom de 1700 Hz, o sexto dos dezesseis. O tom chega 47,4 dB acima das sondas que não receberam nada e 13,0 dB acima da segunda mais alta, que é a saia do próprio tom espalhada pela janela de 408 amostras. Um seno sintético analisado na mesma janela, sem transdutor e sem sala, reproduz esse alargamento, então ele é da medida e não do canal.
 
 ![](figuras/deteccao-tom.png "0.95")
-Figura 2 - Nível nas dezesseis sondas do detector da 16-FSK com um tom de 1700 Hz transmitido, comparado com a sala parada e com um seno sintético analisado na mesma janela. O seno não passou por transdutor nem por sala, então o alargamento em torno do pico é da janela de análise.
+Figura 2 - Nível nas dezesseis sondas com um tom de 1700 Hz transmitido, contra a sala parada e um seno sintético. O alargamento do pico é da janela de análise.
 
 A Figura 3 mostra uma varredura de 300 a 6000 Hz gravada em seis segundos, e nela o alargamento reaparece como duas diagonais. São o segundo e o terceiro harmônico, em mediana 30,5 e 42,2 dB abaixo da fundamental, frequências que ninguém transmitiu e que dentro da banda de trabalho são indistinguíveis de sinal.
 
 ![](figuras/varredura.png "0.95")
-Figura 3 - Espectrograma de uma varredura de 300 a 6000 Hz gravada pelo microfone receptor, com janela de 4096 amostras (11,7 Hz por bin). As duas diagonais acima da varredura são o segundo e o terceiro harmônico, e os riscos verticais em 3,6 s e entre 4,2 e 4,4 s são sons da sala.
+Figura 3 - Varredura de 300 a 6000 Hz, em janela de 4096 amostras. As diagonais são o segundo e o terceiro harmônico, e os riscos verticais são sons da sala.
 
 Essas sombras posicionam os tons. Os dezesseis ocupam de 888 a 3325 Hz espaçados de 162 Hz, quase uma oitava e meia, então o segundo harmônico de seis deles cai a menos de 76 Hz de outro tom e o terceiro de dois deles a menos de 12 Hz. A sombra fica 30,5 dB abaixo da fundamental contra os 47,4 dB de margem do tom transmitido, e consome margem sem decidir o símbolo.
 
@@ -504,7 +504,7 @@ A polaridade alterna ao longo da banda. Nos pares de 700, 1540 e 2380 Hz o tom m
 A Figura 4 mostra a energia nas dez frequências em dois símbolos da carga, e quem decide é a comparação dentro de cada par, nunca o nível absoluto. Em trinta símbolos consecutivos da mesma transmissão todos os bits saíram certos, e em vinte e dois deles ao menos um par votou contra os demais.
 
 ![](figuras/5x2fsk-espectro-dos-acordes.png "0.95")
-Figura 4 - Espectro na janela de decisão de dois símbolos, um com bit 0 e outro com bit 1, com as barras nas dez frequências que o detector compara.
+Figura 4 - Espectro na janela de decisão de dois símbolos, um com bit 0 e outro com bit 1, nas dez frequências que o detector compara.
 
 Cada par isolado acerta de 74,0% a 86,1% dos bits. Reunidos pela maioria chegam a 87,7%, e a decisão suave, que conserva a confiança que o voto descarta, leva a 88,1% dos 2340 bits do bloco. Com a correção de erros os 48 bytes chegaram idênticos.
 
@@ -515,13 +515,13 @@ Com um tom por vez toda a potência que o alto-falante aceita vai para ele, onde
 As Figuras 5 a 7 mostram trinta símbolos da carga, a decisão em um deles e o enquadramento do mesmo trecho. O tom transmitido fica 8,0 dB acima do segundo colocado, contra uma mediana de 7,9 dB ao longo do bloco. As duas máquinas não compartilham relógio, e o receptor corrige o passo em quinze amostras das 480 nominais a cada símbolo.
 
 ![](figuras/16fsk-tons.png "0.95")
-Figura 5 - Trinta símbolos consecutivos da carga, com o tom detectado marcado sobre cada um entre os dezesseis do eixo. Neste trecho o detectado é o transmitido nos trinta.
+Figura 5 - Trinta símbolos da carga, com o tom detectado marcado sobre cada um. Aqui o detectado é o transmitido nos trinta.
 
 ![](figuras/16fsk-decisao.png "0.95")
-Figura 6 - Decisão em um símbolo. Em cima, o espectro na janela de decisão e o piso corrente de cada tom. Embaixo, a energia de cada tom contada do próprio piso, que é a grandeza comparada.
+Figura 6 - Decisão em um símbolo. Em cima, o espectro e o piso corrente de cada tom. Embaixo, a energia contada do próprio piso, que é o que se compara.
 
 ![](figuras/16fsk-enquadramento.png "0.95")
-Figura 7 - O mesmo trecho, com as fronteiras de símbolo que o receptor usou e a grade de passo nominal. Acima do quadro, os quatro bits enviados em cada símbolo, já codificados e entrelaçados.
+Figura 7 - O mesmo trecho, com as fronteiras de símbolo que o receptor usou e a grade de passo nominal.
 
 Nas três gravações válidas os 48 bytes chegaram íntegros. Antes da correção de erros o tom detectado coincidiu com o transmitido em 72,5% a 89,5% dos símbolos, e 85,2% a 94,5% dos bits chegaram certos.
 
@@ -532,7 +532,7 @@ Para cada bit da mensagem o transmissor emite três, calculados a partir dele e 
 A Figura 8 acompanha três bits da mensagem até as posições onde eles foram transmitidos. Cada bit que entra no codificador faz sair três, e o entrelaçamento os afasta, de modo que as três posições ficam a setenta e três bits uma da outra e nenhuma perturbação curta atinge mais de uma. No primeiro bit as três chegaram certas e confiantes. No segundo uma delas chegou trocada, com módulo 0,31 contra 3,34 da mais forte. No terceiro duas das três chegaram trocadas, ambas rentes ao zero. Os três bits saíram corretos.
 
 ![](figuras/fec-rastro.png "0.95")
-Figura 8 - Os três bits emitidos quando um bit da mensagem entra no codificador, seguidos até a posição em que foram transmitidos e até a verossimilhança com que chegaram. Losango marca o que chegou trocado. Abaixo, a distribuição do módulo da verossimilhança nos 69 bits trocados e nos 1101 que conferem, sobre a mesma transmissão de 48 bytes.
+Figura 8 - Os três bits emitidos por um bit da mensagem, seguidos até a verossimilhança com que chegaram, com losango no que chegou trocado. Abaixo, o módulo da verossimilhança nos 69 trocados e nos 1101 que conferem.
 
 Sobre esses 48 bytes, que ocupam 1170 bits no ar, sessenta e nove chegaram trocados, 5,9%, e a mensagem saiu idêntica. O painel inferior mostra por quê: os trocados chegaram com módulo médio de 0,83 contra 2,47 nos que conferem, ou seja, o erro se concentra onde o demodulador já tinha pouca certeza, e é essa diferença que o decodificador usa. O decodificador não decide cada bit olhando apenas as três posições da figura, e sim escolhe o caminho inteiro que melhor explica o bloco; as três posições são por onde aquele bit entrou nessa conta.
 
@@ -547,12 +547,12 @@ Um bloco corrigido não é ainda um arquivo. Os dados são partidos em pacotes c
 <!--
 Redigida 2026-09-07, dois paragrafos por decisao do autor. O primeiro e o que foi feito e o que ele
 entrega, o segundo e o que limita esses numeros e o que ficou por medir.
-Nenhum numero novo: todos vem da secao 5. Os 5,9% a 9,6% e o limite de 10% sao a ponte entre as
-Tabelas 1 e 2; os 11,3 B/s com quatro blocos de quatro sao a primeira linha da Tabela 1; o arquivo de
-1334 bytes e a Tabela 3; a linearizacao da cadeia e o paragrafo do ganho, da campanha 08.
+Nenhum numero novo: todos vem da secao 5, onde as tres tabelas foram dissolvidas em prosa no corte de
+2026-09-08. Os 5,9% a 9,6% contra o limite de 10% sao a campanha 14 lida contra a simulacao da 18, os
+11,3 B/s sao a repeticao 1 da 14, o arquivo de 1334 bytes e a 15 e a linearizacao da cadeia e a 08.
 A frase sobre o que fica para a versao final esta no fim, como o comentario anterior pedia: refazer a
 2-FSK na cadeia atual, item 4 de "O que falta medir" no HANDOFF.md, e medir o reenvio com mais de uma
-corrida por condicao, que a propria secao 5 declara como limite da Tabela 3.
+corrida por condicao, que a propria secao 5 declara.
 -->
 
 Construímos um modem acústico que leva bytes de um computador a outro por som audível, com alto-falante e microfone comuns, e o expusemos à aplicação como uma porta serial. A camada física entrega a verossimilhança de cada bit e a de enlace repara o que o ar estraga, e é essa divisão que faz o enlace funcionar: das dezesseis frequências chegam entre 5,9% e 9,6% dos bits codificados trocados, e o código absorve até 10%. Dentro dessa margem o enlace entregou 11,3 bytes por segundo com todos os blocos íntegros, e um arquivo de 1334 bytes chegou byte a byte idêntico.
