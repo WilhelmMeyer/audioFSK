@@ -84,10 +84,11 @@ Titulo: objeto + problema + solucao, tom didatico, sem promessa de melhoria. Max
 
 <!--
 nome | ORCID | filiacao | e-mail. Modelo exige ORCID de TODOS os autores, com o link correto.
-Linha 1: o proprio Winderson preenche ORCID, campus e e-mail.
+Linha 1: nome completo e e-mail preenchidos pelo autor em 2026-09-07. FALTAM o ORCID, que o modelo
+exige de todos, e o campus, que a linha 2 traz e esta nao ("IFPR, Campus Jacarezinho" contra "IFPR").
 -->
 
-1. Winderson | | IFPR | 
+1. Winderson Nascimento Da Cruz | | IFPR | windersoncruz00@gmail.com
 2. Jefferson Wilhelm Meyer Soares | 0000-0003-3372-9298 | IFPR, Campus Jacarezinho | jefferson.soares@ifpr.edu.br
 
 **DOI:** https://doi.org/10.5281/zenodo.XXX
