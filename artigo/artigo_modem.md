@@ -53,13 +53,6 @@ ESTADO DO TEXTO (2026-09-07, depois do merge das duas maquinas). O artigo esta s
   SECAO 4: a versao remota, redigida do fim para o comeco, com tres figuras que moram nas pastas 01, 02 e
   03 do sentido A2B.
   SECOES 3 e 5: como a versao remota as deixou, a redigir.
-  ORCAMENTO, 2026-09-07: o autor fixou 900 palavras para a 2, 500 para a 3 e 550 para a 4, e as tres
-  foram reescritas para caber. A 2 perdeu o que a 3 diz melhor (deteccao por atraso e produto, os
-  200 Hz do par, o 1,3 de presenca, os 14 dB, a guarda, o preambulo e o relogio), a 3 perdeu o que a
-  2.2 apresenta e as varreduras de sincronismo viraram uma frase na 4. Numeros que sairam do artigo
-  inteiro, e nao so' de uma secao: 1620 e 1660 Hz (as medias dos dois acordes, cujo fato sobrevive na
-  secao 5 sem os numeros), 44,1 kHz (a outra taxa de amostragem, com 48 kHz mantido) e 3400 Hz (o topo
-  das varreduras de sincronismo).
   As quatro contradicoes entre a 2.1 e a secao 5 foram fechadas em 2026-09-07, a pedido do autor e sempre
   mexendo na 1 e na 2: a secao 5 e a regua. O historico de cada uma esta no comentario da 2.1.
   ABERTO, depois da poda da secao 5 em 2026-09-07, que corrigiu de passagem os dois erros de fato que
@@ -210,7 +203,7 @@ e no estouro. As frases exatas de origem estao em referencias.md.
 O eco continua entrando como PROPRIEDADE DO MEIO e o paragrafo fecha pela negativa, dizendo que esta sala
 nao tem cauda mensuravel. Nao virou dificuldade vencida, que os resultados desmentiriam.
 
-=== CONTRADICOES COM A SECAO DE RESULTADOS (a 4 de entao, a 5 de hoje), FECHADAS EM 2026-09-07 ===
+=== CONTRADICOES COM A SECAO 4, FECHADAS EM 2026-09-07 ===
 Decisao do autor: a secao 5 e a regua, e o acerto se faz na 1 e na 2. As quatro estao resolvidas; o que
 cada uma dizia esta abaixo, para nao ser reescrito por engano.
 
@@ -235,31 +228,48 @@ cada uma dizia esta abaixo, para nao ser reescrito por engano.
 A omissao tambem foi fechada: a 2.1 ganhou um paragrafo dizendo que o piso de ruido tem forma e mandando
 para a 4, que mede a concentracao na metade inferior da banda. -->
 
+
 Transmitir pelo ar é converter a sequência de amostras em variação de pressão, deixá-la atravessar a sala a 343 m/s e reconvertê-la em amostras do outro lado. Entre um conversor e outro estão o amplificador, o alto-falante, o ar, as superfícies que refletem e o microfone. Esse canal não é plano, não é linear e não é silencioso.
 
-O ruído do ambiente ocupa a mesma banda, vindo do tráfego, de máquinas, da fala e do manuseio dos aparelhos (PUTZ *et al.*, 2026). Ele também não é plano: os resultados o medem concentrado na metade inferior da banda, de modo que dois tons não disputam com o mesmo fundo.
+O ruído do ambiente ocupa a mesma banda, vindo do tráfego, de máquinas, da fala e do próprio manuseio dos aparelhos, em componentes tanto contínuos quanto em rajada (PUTZ *et al.*, 2026).
 
-Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Colocamos os tons entre 700 e 3325 Hz, e mesmo ali a resposta está longe de ser plana, como os resultados mostram.
+Esse ruído também não é plano ao longo da banda. Os resultados medem a forma dele nesta sala, concentrado na metade inferior, de modo que dois tons de frequências diferentes não disputam com o mesmo fundo.
+
+Um alto-falante e um microfone de uso geral respondem bem na banda da fala e perdem eficiência nos extremos. Colocamos os tons entre 700 e 3325 Hz, dentro dessa região, e mesmo ali a resposta está longe de ser plana, como os resultados mostram.
 
 O ultrassom fica fora deste trabalho. Exigir inaudibilidade reduz a banda a menos de 4 kHz, onde o hardware de áudio é seletivo (PUTZ *et al.*, 2026), e a absorção do ar cresce com a frequência e encurta o alcance.
 
-Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões, cada uma atrasada pelo percurso que fez. Uma cópia atrasada reforça o som direto em certas frequências e o cancela em outras, conforme a diferença de percurso, e a resposta do canal é um pente de máximos e nulos que a geometria da sala fixa.
+Dentro da banda o sinal chega ao microfone pelo caminho direto e pelas reflexões nas superfícies da sala, cada uma atrasada pelo percurso que fez. Uma cópia atrasada reforça o som direto em certas frequências e o cancela em outras, conforme a diferença de percurso, e a resposta do canal é um pente de máximos e nulos que a geometria da sala fixa (KUTTRUFF, 2016).
 
-Frequências separadas por dezenas de hertz chegam a diferir vários decibéis, e a posição dos nulos muda quando alguém se move. Lopes e Aguiar (2001) já apontavam essas reflexões como a razão de não se confiar em muitos níveis de amplitude no ar.
+Frequências separadas por algumas dezenas de hertz chegam assim a diferir vários decibéis, e a posição dos nulos muda quando alguém se move. Lopes e Aguiar (2001) já apontavam essas reflexões como a razão de não se confiar em muitos níveis de amplitude no ar.
 
 As mesmas reflexões, vistas no tempo, são a reverberação, e enquanto a cauda dura a energia de um símbolo invade o seguinte. Em ambiente fechado o espalhamento chega a dezenas de milissegundos, absorvido por intervalo de guarda (PUTZ *et al.*, 2026). Nesta bancada o som também não cessa junto com a fonte, e os resultados medem o que sobra sem isolar a origem.
 
-A cadeia analógica também não é linear. O cone do alto-falante e o amplificador achatam os picos quando o nível cresce, e o microfone comprime do mesmo modo na outra ponta. A energia retirada dos picos reaparece como harmônicos e intermodulação dentro da própria banda de trabalho, onde nenhum filtro os separa do sinal, e passado esse ponto subir o nível piora a recepção.
+A cadeia analógica também não é linear. O cone do alto-falante tem excursão limitada e o amplificador, tensão limitada, então os picos são achatados quando o nível cresce, e o microfone comprime do mesmo modo na outra ponta. A energia retirada dos picos reaparece como harmônicos e intermodulação, parte deles dentro da própria banda de trabalho, onde nenhum filtro os separa do sinal. Passado esse ponto, subir o nível piora a recepção.
 
 O estouro não é particularidade desta bancada. Putz *et al.* (2026) mediram distorção não linear na maioria dos aparelhos acima de cerca de 75% do volume máximo.
 
 Disso decorrem duas exigências. A decisão do receptor não pode depender da amplitude absoluta de nenhum tom, e o nível de operação tem de ser encontrado por medição.
 
-### 2.2 As quatro formas de transmissão
+### 2.2 O sistema em duas camadas
 
 <!--
-REESCRITA 2026-09-07, a pedido do autor: descrever melhor o nosso trabalho, como modulamos e como
-detectamos cada uma das quatro formas. Titulo novo; era "Modulacao", que nao dizia que a secao e sobre
+NIVELADA 2026-09-07, decisao do autor, e esta e a doutrina desta subsecao: a secao 2 e a acustica e a
+IDEIA GERAL, sem entrar no especifico, e a 2.2 e o unico lugar que integra o todo antes de o artigo se
+partir em duas camadas. O especifico e das secoes 3 e 4. Titulo mudou de "As quatro formas de
+transmissao" para "O sistema em duas camadas", porque a subsecao passa a apresentar tambem o enlace,
+que antes nao aparecia em lugar nenhum da secao 2 depois que a 2.3 foi recolhida.
+DESCEU PARA A SECAO 3, por ser mecanismo: o demodulador de atraso e produto da 2-FSK, a polaridade
+alternada com as medias de 1620 e 1660 Hz, o criterio de presenca de 1,3, os 14 dB do acorde, os
+dezesseis tons com o espacamento e o codigo Gray, a equacao (2) com o piso corrente, e o paragrafo do
+relogio, da guarda e do preambulo. A equacao (2) MUDOU DE LUGAR e nao de numero, entao a numeracao das
+equacoes segue 1 na 2.2, 2 e 3 na 3, e 4 na 4.
+FICOU AQUI: a definicao de M-aria com a equacao (1), as quatro formas em uma frase cada, a tarefa do
+detector com a citacao de LOPES e AGUIAR, a existencia da segunda camada e o que ela faz, e a fronteira
+entre as duas, que e a verossimilhanca por bit.
+
+A versao anterior desta subsecao foi REESCRITA em 2026-09-07, antes da nivelacao: descrever melhor o
+nosso trabalho, como modulamos e como detectamos cada uma das quatro formas. Titulo novo; era "Modulacao", que nao dizia que a secao e sobre
 as quatro formas que construimos. O termo "quatro formas de transmissao" e o vocabulario ja fixado no
 CLAUDE.md desta pasta.
 A 2.3, "Sincronismo e correcao de erros", foi RETIRADA por decisao do autor em 2026-09-07, "por
@@ -300,25 +310,23 @@ TEXTO DA 2.3 RETIRADA, para restaurar quando o autor pedir:
   receptor, transmissor sem estado. A aplicacao ve uma porta serial virtual."
 -->
 
-Chamamos M-ária a modulação de ordem $M$, em que cada símbolo é um tom escolhido entre $M$ frequências e carrega $\log_2 M$ bits, e a taxa de bits é o produto de (1).
+Chamamos M-ária a modulação de ordem $M$, em que cada símbolo é um tom escolhido entre $M$ frequências e carrega $\log_2 M$ bits (PROAKIS; SALEHI, 2008), e a taxa de bits é o produto de (1).
 
 $$R_b = R_s \log_2 M \tag{1}$$
 
 Nela, $R_b$ é a taxa de bits, $R_s$ é a taxa de símbolos em bauds e $M$ é o número de frequências. Subir $M$ é o caminho para subir $R_b$, com a taxa de símbolos presa pela banda e pelas reflexões. Construímos quatro formas, e o que muda entre elas é quanto a decisão depende da amplitude. Elas ocupam as duas famílias que Lopes e Aguiar (2001) já haviam formulado, a de um tom por símbolo e a de $k$ tons simultâneos.
 
-A 2-FSK usa os dois tons do padrão Bell 202, 1200 e 2200 Hz, a 1200 símbolos por segundo, com os bytes em 8N1. A decisão é o sinal de um discriminador, e um canal que atenue um tom mais que o outro enviesa todas elas no mesmo sentido.
+A 2-FSK usa os dois tons do padrão Bell 202, 1200 e 2200 Hz, e um bit por símbolo. A 5×2-FSK votada soa cinco pares de tons a cada símbolo, todos carregando o mesmo bit, e a maioria decide.
 
-A 5×2-FSK votada troca esse limiar por comparação. Cinco pares de tons carregam o mesmo bit a 100 símbolos por segundo, cada par vota no tom que chegou mais forte, e a maioria decide. Como o voto é uma razão, multiplicar o sinal por qualquer fator não muda o resultado.
+A 5×2-FSK multicanal usa os mesmos dez tons com um bit distinto em cada par, cinco bits por símbolo. A 16-FSK acende um tom entre dezesseis, quatro bits por símbolo.
 
-A 5×2-FSK multicanal usa os mesmos dez tons com um bit distinto em cada par, cinco bits por símbolo. O limite das duas formas de cinco pares é potência: o pico que o alto-falante aceita é fixo e os cinco tons têm de caber juntos nele.
+A tarefa do detector é decidir quais frequências estão presentes, sem informação de fase, que é a detecção não coerente (PROAKIS; SALEHI, 2008; LOPES; AGUIAR, 2001). Nas três formas de mais de dois tons ele não compara com um limiar, e sim uma frequência com outra, e é isso que torna a decisão indiferente à amplitude com que o som chegou.
 
-A 16-FSK devolve essa potência. São dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, e exatamente um soa por vez, quatro bits por símbolo, com os valores em código Gray para que confundir um tom com o vizinho custe um bit e não quatro, o que vale em doze dos quinze pares vizinhos.
+Nenhuma dessas formas entrega todos os bits certos sobre este canal, e por isso o sistema tem uma segunda camada. Os dados vão em blocos de tamanho fixo protegidos por um código convolucional, decodificado pelo algoritmo de Viterbi (VITERBI, 1967), e cada bloco é localizado no fluxo por uma palavra de referência.
 
-A tarefa do detector é decidir quais frequências estão presentes, sem informação de fase (LOPES; AGUIAR, 2001). O receptor mede a energia de cada tom, divide pelo piso corrente daquele tom e elege o maior, conforme (2).
+Acima do bloco o arquivo é partido em pacotes com soma de verificação, pedidos um a um pelo receptor e reenviados enquanto a soma não fechar, que é o arranjo pare-e-espere dos protocolos de enlace (TANENBAUM; WETHERALL, 2011).
 
-$$\hat{s} = \arg\max_k \frac{E_k}{P_k} \tag{2}$$
-
-Nela, $E_k$ é a energia no tom $k$ e $P_k$ é a média corrente dessa energia. Como cada tom fica em silêncio quinze símbolos em dezesseis, essa média é o piso de ruído naquela frequência, e um tom caído num nulo passa a ser comparado com o próprio nulo.
+A camada física entrega ao enlace a verossimilhança de cada bit, e não o bit, de modo que o corretor recebe também a confiança de cada decisão. Acima das duas a aplicação vê uma porta serial virtual.
 
 ## 3 CAMADA FÍSICA
 
@@ -342,33 +350,35 @@ doze diferem em um bit e tres diferem em dois (os pares de indice 3-4, 7-8 e 11-
 confusoes". Esta secao nao repete a afirmacao.
 -->
 
-A 2-FSK sai do modulador com fase contínua na troca de tom. A detecção é por atraso e produto: um passa-faixa Butterworth de quarta ordem entre 800 e 2600 Hz limpa o sinal, que é multiplicado por uma cópia de si mesmo atrasada de sete amostras, um quarto de período em 1700 Hz, e um passa-baixa em 1800 Hz filtra o produto, positivo para um tom e negativo para o outro, e a decisão é o seu sinal.
+A 2-FSK usa os dois tons do padrão Bell 202 a 1200 símbolos por segundo, sai do modulador com fase contínua e leva cada byte em 8N1.
 
-Abaixo de um limite de banda base o receptor força marca em vez de decidir. Esse silenciador é quadrático, porque o produto vai com o quadrado da amplitude.
+A detecção é por atraso e produto: um passa-faixa Butterworth de quarta ordem entre 800 e 2600 Hz limpa o sinal, multiplicado por uma cópia de si mesmo atrasada de sete amostras, um quarto de período em 1700 Hz, e um passa-baixa em 1800 Hz filtra o produto, positivo para um tom e negativo para o outro. A decisão é o seu sinal, e a fraqueza está aí: um canal que atenue um tom mais que o outro enviesa todas elas no mesmo sentido.
 
-Na 5×2-FSK votada os dois tons de cada par distam 200 Hz, pouco o bastante para que o canal os trate quase igual. Como uma razão entre dois ruídos ainda elege um vencedor, a mediana das cinco razões abaixo de 1,3 rejeita o símbolo.
+A 5×2-FSK votada compara dentro de cada par, a 100 símbolos por segundo, com 200 Hz entre os dois tons, pouco o bastante para que o canal os trate quase igual. Como uma razão entre dois ruídos ainda elege um vencedor, a mediana das cinco razões abaixo de 1,3 rejeita o símbolo.
 
-Os dez tons foram escolhidos contra harmônicos cruzados: nenhum segundo ou terceiro harmônico de um acorde cai sobre um tom do outro.
+Os dez tons foram escolhidos contra harmônicos cruzados: nenhum harmônico de um acorde cai sobre um tom do outro.
 
-Nas duas formas de cinco pares o modulador divide a amplitude por cinco, e cada tom parte 14 dB abaixo do que partiria sozinho. A 16-FSK devolve essa potência ao pôr um tom por vez no ar.
+Nas duas formas de cinco pares o modulador divide a amplitude por cinco, e cada tom parte 14 dB abaixo do que partiria sozinho.
 
-O piso corrente de (2) é uma média exponencial de fator 0,02 da energia de cada tom, atualizada sem o tom de maior energia do símbolo, para que o piso não persiga o sinal que mede.
+A 16-FSK devolve essa potência com um tom por vez: dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, quatro bits por símbolo e os valores em código Gray. O receptor mede a energia de cada tom, divide pelo piso corrente daquela frequência e elege o maior, conforme (2).
 
-O relógio das três formas de 100 bauds vem de uma malha de adiantamento e atraso: a cada símbolo o receptor pontua três janelas deslocadas de um oitavo de símbolo, fica com a de melhor contraste e corrige o instante do seguinte em um trinta e dois avos.
+$$\hat{s} = \arg\max_k \frac{E_k}{P_k} \tag{2}$$
 
-As primeiras 72 amostras de 480 são descartadas como guarda, 15% do símbolo, e a decisão se faz sobre as 408 restantes, porque é no início que a cauda do símbolo anterior ainda está na sala. Alargar a guarda custa resolução em frequência.
+Nela, $E_k$ é a energia no tom $k$ e $P_k$ é a média corrente dessa energia, com fator 0,02 e sem o tom de maior energia do símbolo. Como cada tom fica em silêncio quinze símbolos em dezesseis, essa média é o piso de ruído naquela frequência.
 
-O preâmbulo é alternado, porque a malha trava em transições, e a rajada fecha com cauda ociosa, sem a qual o último byte fica preso no demodulador.
+O relógio das três formas de 100 bauds vem de uma malha de adiantamento e atraso: a cada símbolo o receptor pontua três janelas deslocadas de um oitavo de símbolo, e corrige o instante do seguinte em um trinta e dois avos.
 
-Na 16-FSK a saída não é o bit e sim a verossimilhança logarítmica de cada bit do símbolo, do inglês *log-likelihood ratio* (LLR), dada por (3).
+As primeiras 72 amostras de 480 são descartadas como guarda, 15% do símbolo, e a decisão se faz sobre as 408 restantes, onde a cauda do símbolo anterior já não está.
+
+O preâmbulo é alternado, porque a malha trava em transições, e a rajada fecha com cauda ociosa, sem a qual o último byte fica preso.
+
+Na 16-FSK a saída é a verossimilhança logarítmica de cada bit do símbolo, do inglês *log-likelihood ratio* (LLR), dada por (3).
 
 $$\Lambda_j = \max_{b_j(v)=1} \ln \frac{E_{g(v)}}{P_{g(v)}} - \max_{b_j(v)=0} \ln \frac{E_{g(v)}}{P_{g(v)}} \tag{3}$$
 
-Nela, $v$ percorre os dezesseis valores de quatro bits, $b_j(v)$ é o bit $j$ de $v$, $g(v)$ é o tom que o código Gray atribui a $v$, e $E$ e $P$ são os de (2). O sinal é a decisão dura, o módulo é a confiança.
+Nela, $v$ percorre os dezesseis valores de quatro bits, $b_j(v)$ é o bit $j$ de $v$, $g(v)$ é o tom que o código Gray atribui a $v$, e $E$ e $P$ são os de (2).
 
 Esse fluxo sobe sem enquadramento, e começar um símbolo antes ou depois troca os quatro bits altos de cada byte pelos baixos. Quem resolve isso é a camada de enlace.
-
-Fica de fora do projeto da camada o nível com que o sinal parte, que depende do alto-falante, do microfone e da distância, e por isso é medido.
 
 ## 4 CAMADA DE ENLACE
 
@@ -547,23 +557,55 @@ Nas três gravações válidas desta forma, os 48 bytes chegaram íntegros. São
 
 Com a cadeia analógica já linear, o nível deixa de ser alavanca. Variar o ganho do transmissor por um fator de quatro, de 1,00 a 0,25, não moveu a recuperação, e as doze gravações leram de 96% a 98% dos bits em toda a faixa. O mesmo corte de nível, feito antes de corrigir a saturação, é o que separou uma gravação íntegra de três de todas as três, e é por isso que o nível se mede em vez de se escolher.
 
-Nenhuma das duas formas entrega todos os bits certos, e nenhuma precisa. Na 16-FSK, 85,2% a 94,5% dos bits chegam corretos, e na 5×2-FSK, 88,1%, gravadas em cadeias eletroacústicas diferentes e por isso não comparáveis entre si. É a correção de erros da camada de enlace que transforma essa taxa em bloco íntegro.
+Nenhuma das duas formas entrega todos os bits certos, e nenhuma precisa. As duas foram gravadas em cadeias eletroacústicas diferentes e não se comparam entre si. É a correção de erros da camada de enlace que transforma essas taxas em bloco íntegro.
 
-Medimos o efeito da repetição em doze gravações, quatro para cada valor, com todo o resto fixo. A Tabela 1 reúne o resultado.
+A Figura 10 acompanha uma transmissão de 48 bytes por dentro da correção. Esses 48 bytes viram 1170 bits no ar, porque cada bit de entrada sai como três e seis bits de cauda fecham o codificador.
 
-Tabela 1 - Repetição do bloco codificado, quatro gravações por ponto, carga de 48 bytes.
+A primeira faixa é o que foi transmitido e a segunda o que chegou, uma verossimilhança por bit, com o sinal dizendo o bit decidido e o módulo dizendo a confiança. A terceira marca só as posições em que o recebido discorda do transmitido, 69 delas, 5,9% dos bits.
+
+![](figuras/fec-correcao.png "0.95")
+Figura 10 - Correção de erros sobre uma transmissão de 48 bytes, do bit transmitido ao byte decodificado. Dos 1170 bits codificados, 69 chegaram trocados e a mensagem saiu idêntica. No recorte ampliado, os losangos vermelhos são os bits errados; note que quase todos ficam rentes ao zero, enquanto os que conferem se afastam dele. A faixa cinza no segundo painel marca o trecho ampliado.
+
+O quarto painel amplia cerca de cem bits do trecho destacado, um a um, e mostra o que a faixa inteira esconde. Os bits errados aparecem quase todos junto do zero, isto é, o demodulador os entregou com pouca confiança, enquanto os certos ficam longe dele. Logo abaixo, os 48 bytes decodificados, idênticos aos que saíram da outra máquina.
+
+O painel de baixo conta o mesmo sobre o bloco inteiro. Nos bits errados o módulo médio da verossimilhança é 0,83, contra 2,47 nos que conferem, e a mesma separação aparece nas quatro gravações desta condição.
+
+O erro se concentra onde o demodulador já tinha pouca certeza, e é essa certeza que o decodificador usa para escolher entre caminhos. Decidir o bit antes de decodificar jogaria fora exatamente a informação que distingue o bit duvidoso do confiável.
+
+A redundância é o parâmetro que o operador escolhe, e ela se paga em tempo de ar. Medimos as três opções em doze gravações, quatro por ponto, com todo o resto fixo.
+
+Tabela 1 - Repetição do bloco codificado sobre o enlace real, quatro gravações por ponto e carga de 48 bytes. O tempo de ar é o quadro inteiro, com preâmbulo, e a taxa útil são os 48 bytes divididos por ele. Bits certos é a fração dos bits codificados que chegou correta antes de decodificar, no melhor alinhamento.
 
 | Repetição | Tempo de ar | Taxa útil | Bits certos | Blocos íntegros |
 |---|---|---|---|---|
 | 1 | 4,26 s | 11,3 B/s | 92,2% | 4 de 4 |
 | 2 | 7,19 s | 6,7 B/s | 91,9% | 4 de 4 |
-| 4 | 13,04 s | 3,7 B/s | 84,9% | 4 de 4 |
+| 4 | 13,04 s | 3,7 B/s | 92,1% | 4 de 4 |
 
-Os doze blocos chegaram íntegros. Repetir o bloco não melhorou nada que a coluna de blocos consiga mostrar, e custou o triplo do tempo de ar entre a primeira linha e a última. Sobre este canal a taxa um terço sem repetição já basta, e o tempo economizado vale mais gasto em mais dados.
+A coluna de bits certos é o canal e praticamente não se move, porque repetir o bloco não melhora o que chega, apenas dá ao decodificador mais cópias do mesmo bit. A coluna de tempo de ar é o preço, e ele triplica entre a primeira linha e a última.
 
-O que a repetição compra aparece em uma gravação só, e é a cauda e não a média. Uma das quatro gravações com repetição quatro leu apenas 63,2% dos bits, ou seja, mais de um terço deles errados, e ainda assim entregou os 48 bytes corretos. Nenhuma gravação com repetição um ou dois chegou perto desse nível de erro, então a bancada não mostrou o caso simétrico, mas o mecanismo está demonstrado: a redundância é reserva para o momento ruim, não ajuste de rotina.
+Os doze blocos chegaram íntegros, então nesta sala a redundância não comprou nada e custou o triplo. A taxa um terço sozinha já basta, e o tempo economizado vale mais gasto em mais dados.
 
-É também por causa dessa única gravação que a média de bits da última linha é mais baixa, e sem ela as três condições empatam.
+Numa das gravações com repetição quatro a busca automática de alinhamento não alcança o início do quadro, que nessa condição é mais longo que a janela de busca, e a leitura crua sai em 63,2%. Relida no alinhamento correto ela dá 92,2%, e é esse valor que entra na tabela.
+
+As doze gravações chegaram, então, entre 5,9% e 9,6% de bits codificados errados, e todas foram decodificadas sem erro. Nenhuma delas foi difícil o bastante para separar as três condições, e o valor da repetição tem de ser procurado onde a taxa de erro é maior.
+
+Simulamos então o decodificador sozinho, sem ar e sem hardware, injetando erros de bit independentes num bloco de 64 bytes e subindo a taxa de erro até o bloco deixar de sair íntegro.
+
+Tabela 2 - Simulação, não medida no ar. Fração de bits codificados errados até a qual o bloco de 64 bytes ainda chega íntegro, com 200 transmissões por ponto. A primeira coluna de resultado é o ponto em que as 200 saem inteiras e a segunda, o ponto em que 90% saem.
+
+| Variante do código | Todos os blocos íntegros | 90% dos blocos íntegros |
+|---|---|---|
+| Taxa um meio, decisão abrupta | abaixo de 2% | 4% |
+| Taxa um meio, decisão suave | 5% | 9% |
+| Taxa um terço, decisão suave | 10% | 14% |
+| Taxa um terço, decisão suave, repetição 2 | 19% | 23% |
+
+A decisão suave é a linha que mais rende, e não custa nada, porque a verossimilhança é um número que o demodulador já calculou para decidir. Na mesma taxa de código ela leva a tolerância de menos de 2% para 5%.
+
+As duas tabelas se leem juntas pela mesma grandeza. O enlace entrega entre 5,9% e 9,6% de bits codificados errados, e a taxa um terço com decisão suave, terceira linha da Tabela 2, entrega todos os blocos até 10%. É por isso que os doze blocos chegaram íntegros, e é essa margem estreita que a repetição alargaria, de 10% para 19%, se a sala fosse pior.
+
+Duas ressalvas fecham a leitura da Tabela 2. As quatro linhas não gastam o mesmo tempo de ar, então a comparação entre elas é de robustez e não de eficiência, e os erros simulados são independentes, de modo que ela não exercita o entrelaçamento, que existe contra erro agrupado.
 
 A 2-FSK e a 5×2-FSK multicanal não foram remedidas nesta cadeia. A primeira nunca entregou mensagem pelo ar e a segunda gasta os mesmos dez tons sem a proteção do voto, de modo que as duas formas medidas aqui são as que cobrem os dois extremos do compromisso entre robustez e densidade.
 
@@ -571,7 +613,7 @@ Um bloco corrigido não é ainda um arquivo. Acima do bloco os dados são partid
 
 Transferimos uma imagem de 1334 bytes por esse caminho, em duas condições, mudando apenas o tamanho da carga de cada pacote.
 
-Tabela 2 - Transferência de um arquivo de 1334 bytes, uma corrida por condição.
+Tabela 3 - Transferência de um arquivo de 1334 bytes pelo enlace real, uma corrida por condição. A coluna de pacotes traz os que chegaram sobre os que o arquivo exige, o tempo é a transferência inteira, com os pedidos e as esperas, e a taxa útil são os 1334 bytes divididos por ele.
 
 | Carga por pacote | Pacotes | Tempo | Taxa útil | Retransmissões | Arquivo |
 |---|---|---|---|---|---|
@@ -584,7 +626,7 @@ O pacote maior amortiza o preâmbulo, que cada pacote paga uma vez, e rende 6% a
 
 A taxa do arquivo é menor que a do bloco na Tabela 1, 6,8 contra 11,3 bytes por segundo, e a diferença não é perda no ar: é o preâmbulo de cada pacote, o cabeçalho, a verificação e o intervalo entre confirmar um pacote e pedir o próximo.
 
-Cada linha da Tabela 2 é uma transferência única. Nenhuma retransmissão em vinte e um pacotes diz que a taxa de falha por pacote está bem abaixo de um em vinte e um, mas não a mede.
+Cada linha da Tabela 3 é uma transferência única. Nenhuma retransmissão em vinte e um pacotes diz que a taxa de falha por pacote está bem abaixo de um em vinte e um, mas não a mede.
 
 ## 6 CONSIDERAÇÕES FINAIS
 
@@ -628,7 +670,13 @@ ABNT autor-data, ordem alfabetica, uma referencia por linha. Nenhuma foi inventa
 - CRC, ARQ, pare-e-espere, HDLC (2.4)
 - codigos convolucionais, Viterbi, decisao suave, entrelacamento, codigos de repeticao (2.4)
 
-PREENCHIDA em 2026-09-07. So as quatro fontes efetivamente CITADAS no corpo entram, em ordem alfabetica,
+PREENCHIDA em 2026-09-07, com quatro fontes, e AMPLIADA para oito no mesmo dia. As quatro que entraram
+depois sustentam conceito de terceiros que o artigo usava sem creditar: KUTTRUFF no filtro pente da 2.1,
+PROAKIS e SALEHI no principio M-ario e na deteccao nao coerente da 2.2, VITERBI e TANENBAUM na
+apresentacao da segunda camada, tambem na 2.2. Todas entram na 2, nunca na 3, na 4 ou na 5, porque a
+decisao de escopo do autor manda a literatura ficar na fundamentacao e dali para a frente o texto se
+sustentar no que construimos e medimos.
+So as fontes efetivamente CITADAS no corpo entram, em ordem alfabetica,
 copiadas de referencias.md, onde cada uma tem a fonte da verificacao. Qualquer outra da lista de
 levantamento viraria referencia listada e nao citada. As secoes 3 e 4 nao citam literatura, por decisao
 de escopo do autor, entao nenhuma entrada nova vem delas.
@@ -636,8 +684,16 @@ de escopo do autor, entao nenhuma entrada nova vem delas.
 
 FINNEGAN, Kenneth W.; BENSON, Bridget. Clarifying the amateur Bell 202 modem. In: **ARRL/TAPR Digital Communications Conference (DCC)**, 33., 2014. Anais [...]. [S.l.]: TAPR, 2014.
 
+KUTTRUFF, Heinrich. **Room acoustics**. 6. ed. Boca Raton: CRC Press, 2016.
+
 LOPES, Cristina Videira; AGUIAR, Pedro M. Q. Aerial acoustic communications. In: **IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)**, 2001, New Paltz. Anais [...]. New Paltz: IEEE, 2001.
 
+PROAKIS, John G.; SALEHI, Masoud. **Digital communications**. 5. ed. Nova York: McGraw-Hill, 2008.
+
 PUTZ, Florentin; FORTMANN, Philipp; FRANK, Jan; HAUGWITZ, Christoph; KUPNIK, Mario; HOLLICK, Matthias. Evaluating acoustic data transmission schemes for ad-hoc communication between nearby smart devices. **ACM Transactions on Internet of Things**, v. 7, n. 1, art. 8, 2026. arXiv:2602.02249.
+
+TANENBAUM, Andrew S.; WETHERALL, David J. **Computer networks**. 5. ed. Boston: Pearson, 2011.
+
+VITERBI, Andrew J. Error bounds for convolutional codes and an asymptotically optimum decoding algorithm. **IEEE Transactions on Information Theory**, v. IT-13, n. 2, p. 260-269, abr. 1967.
 
 WU, Joseph. **A basic guide to the HART protocol**. Dallas: Texas Instruments, nov. 2023. (Application Report SLAAEH0). Disponível em: https://www.ti.com/lit/pdf/slaaeh0.

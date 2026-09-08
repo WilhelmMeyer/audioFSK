@@ -25,8 +25,11 @@ ONDE CADA UMA E CITADA (atualizado 2026-09-07, depois de citar tambem na 2.1 e n
     (um tom por simbolo e k tons simultaneos), e no detector, pela tarefa de decidir presenca sem fase.
   PUTZ et al. (2026): introducao P4; 2.1 quatro vezes, no ultrassom, no eco, no estouro e no ruido do
     ambiente.
-Nenhuma fonte nao lida foi citada. PROAKIS e SALEHI, KUTTRUFF, TANENBAUM, LIN e COSTELLO, VITERBI e
-FORNEY continuam so levantados; se algum entrar no texto, abrir o livro antes.
+PROAKIS e SALEHI, KUTTRUFF, TANENBAUM e VITERBI passaram a ser citados na secao 2, quatro fontes que
+ate aqui estavam so levantadas. A pasta referencias-pdf/ guarda apenas as fontes abertas durante a
+redacao, nao e o registro do que foi lido: nao ter PDF ali nao quer dizer que a fonte nao foi lida, e
+essas quatro obras foram lidas pelo autor (decisao de 2026-09-07, que corrige a premissa anterior
+deste comentario). Continuam so levantadas LIN e COSTELLO, e FORNEY.
 Quatro fontes foram LIDAS no PDF, nao no resumo, e cada uma deu uma frase a um paragrafo da
 introducao: FINNEGAN e BENSON (2014), WU (2023), LOPES e AGUIAR (2001), PUTZ et al. (2026). As demais
 continuam so com dado bibliografico conferido.
@@ -61,14 +64,14 @@ arquivo. -->
 | 4 | FIELDCOMM GROUP, especificação HART | A norma. Fixa o Bell 202 como camada física do HART, 1200 bps sobre a malha de 4 a 20 mA. É o que torna o Bell 202 um padrão vivo, não uma peça de museu. | não citada | fechado, exige cadastro |
 | 5 | WU, TI SLAAEH0 | Guia do HART por quem fabrica o modem. Frequências, enquadramento, a lógica de superpor o digital ao analógico sem perturbá-lo. Fonte primária acessível para os números do Bell 202 no HART. | Introdução P2 | `ti-slaaeh0-hart.pdf` |
 | 6 | FINNEGAN; BENSON (2014), TAPR DCC | Demodulação do Bell 202 e a distinção entre o Bell 202 original da AT&T e o uso amador sobre AX.25, com NRZI. Trata do discriminador de frequência, que é o detector da nossa 2-FSK. | Introdução P1, e só ali | `finnegan-benson-2014-bell202.pdf` |
-| 7 | KUTTRUFF (2016), *Room acoustics* | Livro-texto de acústica de salas. Coloração por filtro pente a partir da soma de reflexões, que é o fenômeno da seção 2.1, e reverberação, que era o da antiga 2.3. | não citada | livro |
+| 7 | KUTTRUFF (2016), *Room acoustics* | Livro-texto de acústica de salas. Coloração por filtro pente a partir da soma de reflexões, que é o fenômeno da seção 2.1, e reverberação, que era o da antiga 2.3. | seção 2.1, no filtro pente | livro |
 | 8 | LEE *et al.* (2015), INFOCOM | Adota chirp por resolver multipercurso em canal seletivo em frequência, e chega a 16 bps com alcance de até 25 m. É a literatura por trás das nossas varreduras de sincronismo, e mostra que a ideia é de terceiros e anterior. | não citada | fechado, IEEE Xplore 7218629 |
 | 9 | MATSUOKA; NAKASHIMA; YOSHIMURA (2008), MMM | OFDM acústico embutido em áudio comum, substituindo a faixa alta do sinal por portadoras, com alcance de cerca de 3 m. É o OFDM acústico citado na introdução como ferramenta do campo que não adotamos. | não citada | fechado, Springer |
 | 10 | GETREUER *et al.* (2018), IEEE Trans. Multimedia | Espalhamento espectral mais MFSK em 18,5 a 20 kHz, 84 bps, componente da plataforma Nearby do Google. Prova que o quase-ultrassom funciona quando o transdutor responde lá em cima, o que sustenta a nossa recusa dele por limitação de hardware, e não de princípio. | não citada | fechado, IEEE Xplore 8080245 |
-| 11 | PROAKIS; SALEHI (2008), *Digital communications* | Livro-texto. Detecção não coerente de M-FSK e a relação entre M, taxa de símbolos e taxa de bits da equação da seção 2.2. | não citada | livro |
+| 11 | PROAKIS; SALEHI (2008), *Digital communications* | Livro-texto. Detecção não coerente de M-FSK e a relação entre M, taxa de símbolos e taxa de bits da equação da seção 2.2. | seção 2.2, duas vezes (princípio M-ário e detecção não coerente) | livro |
 | 12 | GERGANOV (2021), ggwave | Software, não artigo. Faz exatamente o que a nossa 16-FSK faz, divide o dado em pedaços de 4 bits e manda um tom por pedaço, com Reed-Solomon por cima, e entrega 8 a 16 bytes por segundo. Mesma ordem de grandeza dos 11 B/s medidos aqui, o que dá uma âncora externa ao resultado. | não citada | repositório aberto |
-| 13 | TANENBAUM; WETHERALL, *Redes de computadores* | Livro-texto. CRC, pare-e-espere, ARQ e HDLC, que é a comparação feita ao dizer que segmentação e reenvio são enlace, não transporte. Preferir a tradução brasileira. | não citada | livro |
-| 14 | VITERBI (1967), IEEE Trans. Inf. Theory | O artigo do algoritmo. Limites de erro para códigos convolucionais e o decodificador assintoticamente ótimo. | não citada | fechado; ver Forney (1973) |
+| 13 | TANENBAUM; WETHERALL, *Redes de computadores* | Livro-texto. CRC, pare-e-espere, ARQ e HDLC, que é a comparação feita ao dizer que segmentação e reenvio são enlace, não transporte. Preferir a tradução brasileira. | seção 2.2, na apresentação da camada de enlace | livro |
+| 14 | VITERBI (1967), IEEE Trans. Inf. Theory | O artigo do algoritmo. Limites de erro para códigos convolucionais e o decodificador assintoticamente ótimo. | seção 2.2, na apresentação da camada de enlace | fechado; ver Forney (1973) |
 | 15 | FORNEY (1973), Proc. IEEE | A exposição que tornou o algoritmo de Viterbi padrão, e a leitura mais didática dos dois. | não citada | `forney-1973-viterbi.pdf` |
 | 16 | LIN; COSTELLO (2004), *Error control coding* | Livro-texto. Decisão suave e entrelaçamento, que são os dois pontos da seção 2.4 que Viterbi e Forney sozinhos não cobrem. | não citada | livro |
 
