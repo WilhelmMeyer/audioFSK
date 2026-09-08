@@ -591,30 +591,42 @@ Nas três gravações válidas desta forma, os 48 bytes chegaram íntegros. São
 
 Com a cadeia analógica já linear, o nível deixa de ser alavanca. Variar o ganho do transmissor por um fator de quatro, de 1,00 a 0,25, não moveu a recuperação, e as doze gravações leram de 96% a 98% dos bits em toda a faixa. O mesmo corte de nível, feito antes de corrigir a saturação, é o que separou uma gravação íntegra de três de todas as três, e é por isso que o nível se mede em vez de se escolher.
 
-Nenhuma das duas formas entrega todos os bits certos, e nenhuma precisa. Na 16-FSK, 85,2% a 94,5% dos bits chegam corretos, e na 5×2-FSK, 88,1%, gravadas em cadeias eletroacústicas diferentes e por isso não comparáveis entre si. É a correção de erros da camada de enlace que transforma essa taxa em bloco íntegro.
+Nenhuma das duas formas entrega todos os bits certos, e nenhuma precisa. As duas foram gravadas em cadeias eletroacústicas diferentes e não se comparam entre si. É a correção de erros da camada de enlace que transforma essas taxas em bloco íntegro.
 
-A Figura 10 mostra a correção agindo sobre uma transmissão. A faixa superior traz os 1170 bits codificados que foram transmitidos, a seguinte o que chegou, com o sinal de cada verossimilhança dizendo o bit decidido e o módulo dizendo a confiança, e a terceira marca só as posições em que o recebido discorda do transmitido. São 69 posições, 5,90% dos bits. Abaixo, os 48 bytes decodificados, idênticos aos que saíram da outra máquina.
+A Figura 10 acompanha uma transmissão de 48 bytes por dentro da correção. Esses 48 bytes viram 1170 bits no ar, porque cada bit de entrada sai como três e seis bits de cauda fecham o codificador.
+
+A primeira faixa é o que foi transmitido e a segunda o que chegou, uma verossimilhança por bit, com o sinal dizendo o bit decidido e o módulo dizendo a confiança. A terceira marca só as posições em que o recebido discorda do transmitido, 69 delas, 5,9% dos bits.
 
 ![](figuras/fec-correcao.png "0.95")
-Figura 10 - Correção de erros sobre uma transmissão de 48 bytes. Dos 1170 bits codificados que chegaram, 69 discordam do transmitido, e ainda assim a mensagem sai idêntica. O painel inferior compara a distribuição do módulo da verossimilhança nos bits errados e nos certos.
+Figura 10 - Correção de erros sobre uma transmissão de 48 bytes, do bit transmitido ao byte decodificado. Dos 1170 bits codificados, 69 chegaram trocados e a mensagem saiu idêntica. No recorte ampliado, os losangos vermelhos são os bits errados; note que quase todos ficam rentes ao zero, enquanto os que conferem se afastam dele. A faixa cinza no segundo painel marca o trecho ampliado.
 
-O painel inferior explica por que isso funciona. Nos bits que chegaram errados o módulo médio da verossimilhança é 0,83, contra 2,47 nos que conferem, e a mesma separação aparece nas quatro gravações desta condição. O erro se concentra onde o demodulador já tinha pouca certeza, e é essa certeza que o decodificador usa para escolher entre caminhos. Decidir o bit antes de decodificar jogaria fora exatamente a informação que distingue um bit duvidoso de um confiável.
+O quarto painel amplia cerca de cem bits do trecho destacado, um a um, e mostra o que a faixa inteira esconde. Os bits errados aparecem quase todos junto do zero, isto é, o demodulador os entregou com pouca confiança, enquanto os certos ficam longe dele. Logo abaixo, os 48 bytes decodificados, idênticos aos que saíram da outra máquina.
 
-Medimos o efeito da repetição em doze gravações, quatro para cada valor, com todo o resto fixo. A Tabela 1 reúne o resultado.
+O painel de baixo conta o mesmo sobre o bloco inteiro. Nos bits errados o módulo médio da verossimilhança é 0,83, contra 2,47 nos que conferem, e a mesma separação aparece nas quatro gravações desta condição.
 
-Tabela 1 - Repetição do bloco codificado, quatro gravações por ponto, carga de 48 bytes.
+O erro se concentra onde o demodulador já tinha pouca certeza, e é essa certeza que o decodificador usa para escolher entre caminhos. Decidir o bit antes de decodificar jogaria fora exatamente a informação que distingue o bit duvidoso do confiável.
+
+A redundância é o parâmetro que o operador escolhe, e ela se paga em tempo de ar. Medimos as três opções em doze gravações, quatro por ponto, com todo o resto fixo.
+
+Tabela 1 - Repetição do bloco codificado sobre o enlace real, quatro gravações por ponto e carga de 48 bytes. O tempo de ar é o quadro inteiro, com preâmbulo, e a taxa útil são os 48 bytes divididos por ele. Bits certos é a fração dos bits codificados que chegou correta antes de decodificar, no melhor alinhamento.
 
 | Repetição | Tempo de ar | Taxa útil | Bits certos | Blocos íntegros |
 |---|---|---|---|---|
 | 1 | 4,26 s | 11,3 B/s | 92,2% | 4 de 4 |
 | 2 | 7,19 s | 6,7 B/s | 91,9% | 4 de 4 |
-| 4 | 13,04 s | 3,7 B/s | 84,9% | 4 de 4 |
+| 4 | 13,04 s | 3,7 B/s | 92,1% | 4 de 4 |
 
-Os doze blocos chegaram íntegros. Repetir o bloco não melhorou nada que a coluna de blocos consiga mostrar, e custou o triplo do tempo de ar entre a primeira linha e a última. Sobre este canal a taxa um terço sem repetição já basta, e o tempo economizado vale mais gasto em mais dados.
+A coluna de bits certos é o canal e praticamente não se move, porque repetir o bloco não melhora o que chega, apenas dá ao decodificador mais cópias do mesmo bit. A coluna de tempo de ar é o preço, e ele triplica entre a primeira linha e a última.
 
-As doze gravações chegaram entre 5,9% e 9,6% de bits codificados errados, e as doze foram decodificadas sem erro, de modo que este conjunto não contém nenhuma transmissão difícil o bastante para separar as três condições. O valor da repetição precisa ser procurado onde a taxa de erro é maior, e para isso simulamos o decodificador contra erros de bit independentes.
+Os doze blocos chegaram íntegros, então nesta sala a redundância não comprou nada e custou o triplo. A taxa um terço sozinha já basta, e o tempo economizado vale mais gasto em mais dados.
 
-Tabela 2 - Fração de bits codificados errados até a qual o bloco de 64 bytes chega íntegro, por simulação em ruído gaussiano, 200 transmissões por ponto.
+Numa das gravações com repetição quatro a busca automática de alinhamento não alcança o início do quadro, que nessa condição é mais longo que a janela de busca, e a leitura crua sai em 63,2%. Relida no alinhamento correto ela dá 92,2%, e é esse valor que entra na tabela.
+
+As doze gravações chegaram, então, entre 5,9% e 9,6% de bits codificados errados, e todas foram decodificadas sem erro. Nenhuma delas foi difícil o bastante para separar as três condições, e o valor da repetição tem de ser procurado onde a taxa de erro é maior.
+
+Simulamos então o decodificador sozinho, sem ar e sem hardware, injetando erros de bit independentes num bloco de 64 bytes e subindo a taxa de erro até o bloco deixar de sair íntegro.
+
+Tabela 2 - Simulação, não medida no ar. Fração de bits codificados errados até a qual o bloco de 64 bytes ainda chega íntegro, com 200 transmissões por ponto. A primeira coluna de resultado é o ponto em que as 200 saem inteiras e a segunda, o ponto em que 90% saem.
 
 | Variante do código | Todos os blocos íntegros | 90% dos blocos íntegros |
 |---|---|---|
@@ -623,11 +635,11 @@ Tabela 2 - Fração de bits codificados errados até a qual o bloco de 64 bytes 
 | Taxa um terço, decisão suave | 10% | 14% |
 | Taxa um terço, decisão suave, repetição 2 | 19% | 23% |
 
-Duas leituras saem daí. A decisão suave, que não custa nada porque a verossimilhança é um número que o demodulador já calculou, quase dobra a tolerância a erro na mesma taxa de código. E a repetição de fato aumenta a tolerância, de 10% para 19%, mas o canal medido aqui entrega entre 5,9% e 9,6% de erro e portanto opera dentro da margem da taxa um terço sozinha. A repetição é reserva para uma sala pior, não ajuste de rotina.
+A decisão suave é a linha que mais rende, e não custa nada, porque a verossimilhança é um número que o demodulador já calculou para decidir. Na mesma taxa de código ela leva a tolerância de menos de 2% para 5%.
 
-As linhas da Tabela 2 não gastam o mesmo tempo de ar, e a comparação entre elas é de robustez, não de eficiência. Sendo simulação com erros independentes, ela também não reproduz erros agrupados no tempo, que é contra o que serve o entrelaçamento.
+As duas tabelas se leem juntas pela mesma grandeza. O enlace entrega entre 5,9% e 9,6% de bits codificados errados, e a taxa um terço com decisão suave, terceira linha da Tabela 2, entrega todos os blocos até 10%. É por isso que os doze blocos chegaram íntegros, e é essa margem estreita que a repetição alargaria, de 10% para 19%, se a sala fosse pior.
 
-É também por causa dessa única gravação que a média de bits da última linha é mais baixa, e sem ela as três condições empatam.
+Duas ressalvas fecham a leitura da Tabela 2. As quatro linhas não gastam o mesmo tempo de ar, então a comparação entre elas é de robustez e não de eficiência, e os erros simulados são independentes, de modo que ela não exercita o entrelaçamento, que existe contra erro agrupado.
 
 A 2-FSK e a 5×2-FSK multicanal não foram remedidas nesta cadeia. A primeira nunca entregou mensagem pelo ar e a segunda gasta os mesmos dez tons sem a proteção do voto, de modo que as duas formas medidas aqui são as que cobrem os dois extremos do compromisso entre robustez e densidade.
 
@@ -635,7 +647,7 @@ Um bloco corrigido não é ainda um arquivo. Acima do bloco os dados são partid
 
 Transferimos uma imagem de 1334 bytes por esse caminho, em duas condições, mudando apenas o tamanho da carga de cada pacote.
 
-Tabela 3 - Transferência de um arquivo de 1334 bytes, uma corrida por condição.
+Tabela 3 - Transferência de um arquivo de 1334 bytes pelo enlace real, uma corrida por condição. A coluna de pacotes traz os que chegaram sobre os que o arquivo exige, o tempo é a transferência inteira, com os pedidos e as esperas, e a taxa útil são os 1334 bytes divididos por ele.
 
 | Carga por pacote | Pacotes | Tempo | Taxa útil | Retransmissões | Arquivo |
 |---|---|---|---|---|---|
