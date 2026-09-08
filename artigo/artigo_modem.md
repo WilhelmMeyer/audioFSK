@@ -312,7 +312,7 @@ A polaridade alterna ao longo da banda, de modo que os dois acordes ficam com fr
 
 A 5×2-FSK multicanal usa os mesmos dez tons com um bit distinto em cada par, cinco bits por símbolo. O limite das duas formas de cinco pares é potência, pois o pico que o alto-falante aceita é fixo e cada um dos cinco tons sai 14 dB abaixo do que sairia sozinho.
 
-A 16-FSK devolve essa potência. São dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, e exatamente um soa por vez, quatro bits por símbolo, com vizinhos em código Gray para que a confusão do canal custe um bit e não quatro.
+A 16-FSK devolve essa potência. São dezesseis tons de 888 a 3325 Hz, espaçados 162 Hz, e exatamente um soa por vez, quatro bits por símbolo, com os valores em código Gray para que confundir um tom com o vizinho custe um bit e não quatro, o que vale em doze dos quinze pares vizinhos.
 
 A tarefa do detector é decidir quais frequências estão presentes, sem informação de fase (LOPES; AGUIAR, 2001). O receptor mede a energia de cada tom, divide pelo piso corrente daquele tom e elege o maior, conforme (2).
 
@@ -506,7 +506,7 @@ Figura 6 - Trinta símbolos consecutivos da carga transmitida, com a leitura do 
 
 Antes da correção de erros, 88,1% dos 2340 bits do bloco chegaram certos. Com ela, os 48 bytes enviados chegaram idênticos, e a cadeia recebida é a mesma que saiu da outra máquina, `HPdp14v7rxCu9tyxbhaEWN2DnsHi4LdGhQeAN0MPo4uVpv62`.
 
-A segunda forma de transmissão medida troca a redundância por densidade. Dezesseis frequências entre 888 e 3325 Hz se revezam, exatamente uma soando por vez, e qual delas soou nomeia quatro bits. A taxa de símbolos é a mesma, cem por segundo. Frequências vizinhas recebem códigos que diferem em um único bit, porque são as que o canal confunde. A Figura 7 mostra trinta símbolos consecutivos, com um único tom aceso a cada dez milissegundos.
+A segunda forma de transmissão medida troca a redundância por densidade. Dezesseis frequências entre 888 e 3325 Hz se revezam, exatamente uma soando por vez, e qual delas soou nomeia quatro bits. A taxa de símbolos é a mesma, cem por segundo. Frequências vizinhas recebem códigos que diferem em um único bit em doze dos quinze pares, porque são as que o canal confunde. A Figura 7 mostra trinta símbolos consecutivos, com um único tom aceso a cada dez milissegundos.
 
 ![](figuras/16fsk-tons.png "0.95")
 Figura 7 - Trinta símbolos consecutivos da carga, com o espectrograma ao fundo e o tom detectado marcado sobre cada símbolo, entre os dezesseis do eixo. Neste trecho o tom detectado é o transmitido nos trinta.

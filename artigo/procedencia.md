@@ -83,6 +83,12 @@ deg = np.abs(np.diff(niv[faixa]))
 print(np.median(deg), np.percentile(deg, 90), deg.max())
 ```
 
+## O Gray da 16-FSK: doze dos quinze pares, não os quinze
+
+Conferido em 2026-09-07 sobre `modem.py`. O código faz `idx = _GRAY[v]`, ou seja, põe o valor `v` no tom de índice `gray(v)`. O que garante que tons vizinhos difiram em um bit é o mapeamento inverso, valor `= gray(tom)`. Com o que está no código, três dos quinze pares de tons vizinhos carregam valores a dois bits de distância: 1375 e 1538 Hz (valores 2 e 7), 2025 e 2188 Hz (5 e 15), 2675 e 2838 Hz (13 e 8).
+
+A 2.2 e a seção 5 diziam "um único bit" sem ressalva e passaram a dizer "em doze dos quinze pares". O código não foi tocado: os dois lados do enlace têm de mudar juntos, e isso é decisão do autor. O comentário em `modem.py` também descreve o mapeamento certo, não o que está implementado.
+
 ## O que fica pendente
 
 - Decidir como a seção 5 nomeia as formas. Ela diz "a primeira forma de transmissão medida" e "a segunda", nunca a notação fixa, e a "primeira" dela é a segunda da 2.2, que apresenta as quatro em outra ordem.
