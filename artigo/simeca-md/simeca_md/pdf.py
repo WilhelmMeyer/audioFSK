@@ -1,11 +1,13 @@
 """Geracao de PDF a partir do docx montado, via LibreOffice ou Word."""
 
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import urllib.parse
+import zipfile
 
 MOTOR_LIBREOFFICE = "libreoffice"
 MOTOR_WORD = "word"
@@ -31,6 +33,16 @@ INSTALACAO = {
     "win32": "winget install --id TheDocumentFoundation.LibreOffice",
     "darwin": "brew install --cask libreoffice",
 }
+
+# Onde o LibreOffice procura dicionario de hifenizacao no Linux. Fora do
+# Linux o dicionario vem na extensao que acompanha a propria instalacao,
+# achada a partir do caminho do soffice.
+DIRETORIOS_HIFENIZACAO = (
+    "/usr/share/hyphen",
+    "/usr/share/myspell",
+    "/usr/share/libreoffice/share/extensions",
+    "/usr/lib/libreoffice/share/extensions",
+)
 
 
 def _no_windows():
@@ -212,4 +224,89 @@ def mensagem_sem_motor():
         "O docx foi gerado normalmente e pode ser aberto no Word.\n"
         "Para gerar o PDF, instale o LibreOffice:\n"
         "  " + INSTALACAO[chave]
+    )
+
+
+
+def _idioma_do_docx(docx_path):
+    """Idioma padrao do documento, lido do docDefaults do styles.xml."""
+    try:
+        with zipfile.ZipFile(docx_path) as pacote:
+            estilos = pacote.read("word/styles.xml").decode("utf-8", "replace")
+    except (OSError, KeyError, zipfile.BadZipFile):
+        return ""
+    padroes = re.search(r"<w:docDefaults>.*?</w:docDefaults>", estilos, re.S)
+    if not padroes:
+        return ""
+    idioma = re.search(r'<w:lang[^>]*w:val="([^"]+)"', padroes.group(0))
+    return idioma.group(1) if idioma else ""
+
+
+def _pede_hifenizacao(docx_path):
+    """Diz se o docx liga a hifenizacao automatica no settings.xml."""
+    try:
+        with zipfile.ZipFile(docx_path) as pacote:
+            config = pacote.read("word/settings.xml").decode("utf-8", "replace")
+    except (OSError, KeyError, zipfile.BadZipFile):
+        return False
+    marca = re.search(r"<w:autoHyphenation[^>]*>", config)
+    if not marca:
+        return False
+    valor = re.search(r'w:val="([^"]+)"', marca.group(0))
+    return valor.group(1) not in ("0", "false") if valor else True
+
+
+def _diretorios_de_dicionario():
+    """Diretorios a varrer atras do dicionario de hifenizacao."""
+    diretorios = [d for d in DIRETORIOS_HIFENIZACAO if os.path.isdir(d)]
+    soffice = _executavel_libreoffice()
+    if soffice:
+        programa = os.path.dirname(os.path.realpath(soffice))
+        extensoes = os.path.join(os.path.dirname(programa), "share", "extensions")
+        if os.path.isdir(extensoes):
+            diretorios.append(extensoes)
+    return diretorios
+
+
+def _tem_dicionario_hifenizacao(idioma):
+    """Procura um hyph_<idioma>.dic para o idioma do documento."""
+    prefixo = ("hyph_" + idioma.split("-")[0]).lower()
+    for diretorio in _diretorios_de_dicionario():
+        for _, _, arquivos in os.walk(diretorio):
+            for arquivo in arquivos:
+                nome = arquivo.lower()
+                if nome.startswith(prefixo) and nome.endswith(".dic"):
+                    return True
+    return False
+
+
+def aviso_hifenizacao(docx_path):
+    """Aviso de dicionario de hifenizacao ausente, ou None se nao couber.
+
+    So vale para o LibreOffice: o Word hifeniza com as ferramentas de revisao
+    do proprio Office. Sem o dicionario o LibreOffice nao hifeniza e nao
+    reclama, e o PDF sai com quebras de linha diferentes das de quem tem.
+    """
+    if _tem_word() or not _executavel_libreoffice():
+        return None
+    if not _pede_hifenizacao(docx_path):
+        return None
+    idioma = _idioma_do_docx(docx_path)
+    if not idioma or _tem_dicionario_hifenizacao(idioma):
+        return None
+    if sys.platform.startswith("win") or sys.platform == "darwin":
+        comando = (
+            "instale o dicionario de " + idioma + " pelo Ferramentas > "
+            "Gerenciador de extensoes do LibreOffice\n"
+            "  https://extensions.libreoffice.org/"
+        )
+    else:
+        comando = "sudo apt install hyphen-" + idioma.lower()
+    return (
+        "[AVISO] O modelo pede hifenizacao automatica em " + idioma + ", mas o "
+        "dicionario de hifenizacao nao esta instalado.\n"
+        "O LibreOffice ignora a hifenizacao em silencio, e as quebras de linha "
+        "do PDF saem diferentes das de quem tem o dicionario.\n"
+        "Para instalar:\n"
+        "  " + comando
     )

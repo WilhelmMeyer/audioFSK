@@ -40,6 +40,8 @@ Fora de terminal interativo (CI, script), nunca instala nada: imprime o comando 
 
 **LibreOffice** ou **Microsoft Word**, só para `--pdf`. O PDF sai do docx, por um motor de layout de verdade, não de uma segunda conversão a partir do markdown. Sem motor instalado, o docx sai normalmente e o programa avisa que o PDF não saiu.
 
+**Dicionário de hifenização** do idioma do modelo (`hyphen-pt-br` no Debian e derivados), só se o modelo ligar a hifenização automática e o PDF sair pelo LibreOffice. Sem ele o LibreOffice não hifeniza e não reclama, e o PDF sai com quebras de linha diferentes das da máquina que tem o dicionário; por isso o programa confere antes de converter e mostra o comando de instalação. O Word usa as ferramentas de revisão do próprio Office e não depende disso.
+
 ## Uso
 
 ```sh

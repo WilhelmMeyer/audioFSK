@@ -64,6 +64,10 @@ def main(argv=None):
                 codigo = 1
 
         if args.pdf:
+            aviso = motor_pdf.aviso_hifenizacao(saida)
+            if aviso:
+                print()
+                print(aviso)
             gerado = motor_pdf.gera_pdf(saida)
             if gerado is None:
                 print()

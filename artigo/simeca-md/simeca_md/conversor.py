@@ -87,6 +87,11 @@ def aplica_tamanho(xml, meia_pt):
         rf'<w:r><w:rPr><w:sz w:val="{meia_pt}"/><w:szCs w:val="{meia_pt}"/></w:rPr>\1',
         xml,
     )
+    xml = re.sub(
+        r"<m:r>((?:<m:rPr>.*?</m:rPr>)?)(?!<w:rPr>)",
+        rf'<m:r>\1<w:rPr><w:sz w:val="{meia_pt}"/><w:szCs w:val="{meia_pt}"/></w:rPr>',
+        xml, flags=re.S,
+    )
     return xml
 
 
@@ -520,6 +525,47 @@ def parse_markdown(est, texto):
 # Equacoes (pandoc, uma unica chamada por conversao)
 # ---------------------------------------------------------------------------
 
+BARRA_ACENTO_RE = re.compile(r'<m:acc><m:accPr><m:chr m:val="‾"\s*/></m:accPr>')
+BARRA_PR = '<m:bar><m:barPr><m:pos m:val="top"/></m:barPr>'
+
+
+def fim_da_tag(xml, pos, tag):
+    """Posicao do fechamento que casa com a tag ja aberta antes de pos."""
+    abre, fecha = f"<{tag}>", f"</{tag}>"
+    nivel = 1
+    while True:
+        i = xml.find(fecha, pos)
+        if i < 0:
+            raise RuntimeError(f"tag {tag} sem fechamento no OMML")
+        j = xml.find(abre, pos)
+        if 0 <= j < i:
+            nivel += 1
+            pos = j + len(abre)
+            continue
+        nivel -= 1
+        if nivel == 0:
+            return i
+        pos = i + len(fecha)
+
+
+def corrige_barra(omml):
+    """Troca a barra que o pandoc emite como acento pelo elemento m:bar.
+
+    Para \\bar e \\overline sobre um unico simbolo o pandoc gera m:acc com o
+    caractere U+203E OVERLINE. O Word desenha, o LibreOffice cai num acento
+    agudo. A barra horizontal em OMML e m:bar com m:pos top.
+    """
+    while True:
+        m = BARRA_ACENTO_RE.search(omml)
+        if m is None:
+            return omml
+        fim = fim_da_tag(omml, m.end(), "m:acc")
+        omml = (
+            omml[:m.start()] + BARRA_PR + omml[m.end():fim]
+            + "</m:bar>" + omml[fim + len("</m:acc>"):]
+        )
+
+
 def coleta_latex(blocos):
     ordem = {}
 
@@ -571,7 +617,7 @@ def converte_latex(lista, modo_pandoc="auto"):
             f"{len(lista)} expressoes de LaTeX enviadas ao pandoc, "
             f"{len(blocos)} blocos m:oMath recebidos de volta"
         )
-    return dict(zip(lista, blocos))
+    return dict(zip(lista, [corrige_barra(b) for b in blocos]))
 
 
 # ---------------------------------------------------------------------------

@@ -324,8 +324,57 @@ def teste_erro_svg_malformado(r, tmp, cache):
     r.registra(nome, ok, motivo)
 
 
+def teste_barra_vira_m_bar(r, tmp, cache):
+    nome = "barra de \\bar e \\overline sai como m:bar, nao como acento"
+    texto = EXEMPLO_MD.read_text(encoding="utf-8").replace(
+        r"$\omega_0^2 = mgd/I$",
+        r"$\bar\omega_h$ e $\overline{\omega}_h$ e $\overline{\omega_h}$",
+    )
+    md = copia_exemplo(tmp / "barra", texto)
+    codigo, saida, erro = roda_cli(["-m", str(MODELO_DOCX), str(md)])
+    docx = md.with_suffix(".docx")
+    barras = acentos = -1
+    if docx.exists():
+        with zipfile.ZipFile(docx) as z:
+            doc = z.read("word/document.xml").decode("utf-8")
+        barras = doc.count("<m:bar>")
+        acentos = doc.count('<m:chr m:val="‾"')
+    ok = codigo == 0 and barras == 3 and acentos == 0
+    motivo = "" if ok else (
+        f"codigo={codigo}, m:bar={barras}, acentos={acentos}, erro={erro!r}"
+    )
+    r.registra(nome, ok, motivo)
+
+
+def teste_aviso_hifenizacao(r, tmp, cache):
+    nome = "avisa quando falta o dicionario de hifenizacao e cala quando ha"
+    from simeca_md import pdf as motor_pdf
+
+    docx = cache.get("feliz_saida")
+    if docx is None:
+        r.registra(nome, False, "teste do caminho feliz nao rodou antes")
+        return
+    diretorios = motor_pdf.DIRETORIOS_HIFENIZACAO
+    soffice = motor_pdf._executavel_libreoffice
+    try:
+        motor_pdf._executavel_libreoffice = lambda: "/nao/existe/soffice"
+        motor_pdf.DIRETORIOS_HIFENIZACAO = ()
+        sem = motor_pdf.aviso_hifenizacao(docx)
+        motor_pdf.DIRETORIOS_HIFENIZACAO = (str(tmp / "dicionarios"),)
+        (tmp / "dicionarios").mkdir(exist_ok=True)
+        (tmp / "dicionarios" / "hyph_pt_BR.dic").write_text("", encoding="utf-8")
+        com = motor_pdf.aviso_hifenizacao(docx)
+    finally:
+        motor_pdf.DIRETORIOS_HIFENIZACAO = diretorios
+        motor_pdf._executavel_libreoffice = soffice
+    ok = com is None and sem is not None and "hyphen-pt-br" in sem
+    motivo = "" if ok else f"sem dicionario={sem!r}, com dicionario={com!r}"
+    r.registra(nome, ok, motivo)
+
+
 TESTES = [
     teste_caminho_feliz,
+    teste_barra_vira_m_bar,
     teste_figura_svg,
     teste_erro_svg_malformado,
     teste_erro_svg_sem_png,
@@ -340,6 +389,7 @@ TESTES = [
     teste_erro_modelo_inexistente,
     teste_ida_volta_modelo_reprova_checagem_15,
     teste_sobrescreve_saida_existente,
+    teste_aviso_hifenizacao,
 ]
 
 

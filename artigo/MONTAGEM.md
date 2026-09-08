@@ -36,6 +36,8 @@ No Windows há duas armadilhas em volta disso, e as duas estão tratadas no `sim
 
 **LibreOffice ou Word**, só para o PDF. O caminho de menos atrito é o LibreOffice, um comando e nada mais: `winget install --id TheDocumentFoundation.LibreOffice` no Windows, `sudo apt install libreoffice` no Linux. No Windows há também o Word, que reproduz o modelo com mais fidelidade e por isso vem na frente quando existe, mas ele entra por COM e exige o `pywin32` instalado **no mesmo Python que o `py -3` abre**, isto é `py -3 -m pip install pywin32`. Instalado em outro interpretador, o efeito é o docx sair e o PDF não, sem erro que explique o porquê. Sem nenhum dos dois motores o docx sai normalmente e o programa avisa que o PDF não saiu.
 
+**Dicionário de hifenização do português**, `sudo apt install hyphen-pt-br` no Linux, se o PDF sair pelo LibreOffice. O modelo do SIMECA liga a hifenização automática, e sem o dicionário o LibreOffice simplesmente não hifeniza — sem erro e sem aviso. O efeito é um PDF com quebras de linha diferentes das da máquina que tem o dicionário, o que muda a paginação e é descoberto tarde; por isso o conversor confere antes de converter e mostra o comando. O Word usa as ferramentas de revisão do próprio Office e não depende disso.
+
 ## Se der errado
 
-O conversor é uma cópia de `github.com/WilhelmMeyer/simeca-md`, trazida para cá em 2026-09-06. Corrija-o aqui mesmo, em `artigo/simeca-md`, e avise, porque a cópia lá fora não fica sabendo.
+O conversor é uma cópia de `github.com/WilhelmMeyer/simeca-md`, trazida para cá em 2026-09-06 e sincronizada à mão pela última vez em 2026-09-08. Corrija-o aqui mesmo, em `artigo/simeca-md`, e avise, porque a cópia lá fora não fica sabendo.
