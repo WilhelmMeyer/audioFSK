@@ -482,99 +482,63 @@ que cada correcao reconferiu:
   Notacao fixa: "a primeira forma medida" e "a segunda" viraram 5x2-FSK votada e 16-FSK.
 -->
 
-Os ensaios usam duas máquinas na mesma sala, que chamamos de A e B, cada uma com alto-falante e microfone próprios. Um cabo serial entre elas só automatiza o ensaio, e não conduz dado nenhum da medida: a carga é gerada dos dois lados a partir de uma semente combinada por ele, de modo que os bytes pontuados viajaram só pelo ar.
+Os ensaios usam duas máquinas na mesma sala, A e B, cada uma com alto-falante e microfone próprios. Um cabo serial entre elas só automatiza o ensaio: a carga é gerada dos dois lados a partir de uma semente combinada por ele, e os bytes pontuados viajaram só pelo ar. As Figuras 1 a 3 são do sentido de A para B, e o restante vem do sentido oposto, com o bloco codificado repetido duas vezes.
 
-As Figuras 1 a 3 são do sentido de A para B, gravadas pelo microfone de B. Tudo o mais vem do sentido oposto, e as gravações das Figuras 4 a 9 usaram o bloco codificado repetido duas vezes, que é a redundância varrida na Tabela 1.
-
-Medimos o ruído da sala com o enlace inteiramente parado, quatro gravações de oito segundos pelo microfone da máquina receptora, e a Figura 1 mostra a média delas em janelas de 50 Hz. O ruído não é plano. Concentra-se abaixo de 2 kHz, com máximos em torno de 1300 e 1500 Hz, e cai cerca de 15 dB entre 2000 e 2900 Hz.
+Medimos o ruído da sala com o enlace parado, em quatro gravações de oito segundos. Ele não é plano: concentra-se abaixo de 2 kHz, cai cerca de 15 dB entre 2000 e 2900 Hz, e sob os dezesseis tons vai de −67,6 a −94,8 dBFS, contra −52,3 dBFS na banda inteira. A diferença é da sala, não do sistema.
 
 ![](figuras/piso-ruido.png "0.95")
-Figura 1 - Piso de ruído do microfone receptor com o enlace parado, média de quatro gravações de 8 s em janelas de 50 Hz. A faixa cinza são os extremos entre as gravações e as marcas no rodapé são os dezesseis tons da 16-FSK.
+Figura 1 - Piso de ruído do microfone receptor com o enlace parado, média de quatro gravações de 8 s em janelas de 50 Hz; no rodapé, os dezesseis tons da 16-FSK.
 
-Na banda inteira esse piso fica em −52,3 dBFS e, sob os dezesseis tons, vai de −67,6 a −94,8 dBFS. Os tons não recebem o mesmo tratamento, e a diferença é da sala, não do sistema.
-
-A Figura 2 mostra o que o detector da 16-FSK mede enquanto a máquina transmissora emite um tom de 1700 Hz, que é o sexto dos dezesseis tons dessa forma. São três curvas na mesma escala: as dezesseis sondas durante o tom, as mesmas sondas com a sala parada, e um seno sintético de 1700 Hz analisado do mesmo jeito.
-
-O tom chega 47,4 dB acima das sondas que não receberam nada e 13,0 dB acima da segunda sonda mais alta, que é a saia do próprio tom na janela de 408 amostras e não outro tom transmitido.
+O sinal se destaca desse fundo com folga. Com um tom de 1700 Hz no ar, o sexto dos dezesseis, o detector da 16-FSK o lê 47,4 dB acima das sondas que não receberam nada e 13,0 dB acima da segunda mais alta, que é a saia do próprio tom.
 
 ![](figuras/deteccao-tom.png "0.95")
-Figura 2 - Nível nas dezesseis sondas do detector da 16-FSK com um tom de 1700 Hz transmitido, comparado com a sala parada e com um seno sintético analisado na mesma janela. O seno não passou por transdutor nem por sala: o alargamento em torno do pico é da janela de análise, não do canal.
+Figura 2 - Nível nas dezesseis sondas do detector da 16-FSK com um tom de 1700 Hz transmitido, contra a sala parada e contra um seno sintético analisado na mesma janela.
 
-A Figura 3 mostra a gravação de uma varredura de 300 a 6000 Hz em seis segundos. As diagonais acima da varredura principal são o segundo e o terceiro harmônico, em mediana 30,5 e 42,2 dB abaixo da fundamental ao longo da varredura, frequências que ninguém transmitiu e que dentro da banda de trabalho são indistinguíveis de sinal. Os riscos verticais em 3,6 s e entre 4,2 e 4,4 s atravessam várias frequências no mesmo instante, e são sons da sala durante a gravação.
+Uma varredura de 300 a 6000 Hz mostra o resto. O segundo e o terceiro harmônico saem 30,5 e 42,2 dB abaixo da fundamental, frequências que ninguém transmitiu e que na banda de trabalho não se distinguem de sinal. Na faixa dos dezesseis tons, medida em passos de 74 Hz, o nível varia 23,7 dB, com até 9,4 dB entre pontos vizinhos.
 
 ![](figuras/varredura.png "0.95")
-Figura 3 - Espectrograma de uma varredura de 300 a 6000 Hz gravada pelo microfone receptor, com janela de 4096 amostras (11,7 Hz por bin). O recorte mostra a crista contra a separação de 162 Hz entre tons vizinhos da 16-FSK.
+Figura 3 - Espectrograma de uma varredura de 300 a 6000 Hz gravada pelo microfone receptor, com janela de 4096 amostras; o recorte mostra a crista contra os 162 Hz entre tons vizinhos.
 
-Depois que a varredura acaba o nível não cai de uma vez, e sim cerca de 36 dB ao longo de meio segundo, alcançando o piso da sala por volta de 0,8 s. O desligamento do transmissor leva 10 ms, então não é ele, e uma única gravação não separa a reverberação da sala do alto-falante sem fio e do seu codec. É contra essa cauda que existe o intervalo de guarda descartado no início de cada símbolo.
+Depois que a varredura acaba o nível cai cerca de 36 dB ao longo de meio segundo, e só alcança o piso por volta de 0,8 s. O desligamento do transmissor leva 10 ms, então não é ele, e uma gravação só não separa a sala do alto-falante sem fio e do seu codec.
 
-O nível ao longo da banda também não é uniforme. Na faixa ocupada pelos dezesseis tons, medida pela mesma varredura em passos de 74 Hz, o nível varia 23,7 dB entre o melhor e o pior ponto, com diferenças de até 9,4 dB entre pontos vizinhos.
-
-A 5×2-FSK votada reparte a decisão entre cinco pares de tons. Dez frequências formam os cinco pares e cinco delas soam a cada símbolo, uma por par, e cada par decide pelo tom que chegou mais forte, e a maioria dos cinco dá o bit.
-
-São cem símbolos por segundo, um bit por símbolo, com os primeiros 15% de cada símbolo descartados como guarda e a decisão sobre os 8,5 ms restantes. A Figura 4 mostra a abertura da transmissão, em que os bits se alternam e os dois acordes se revezam a cada dez milissegundos.
+A 5×2-FSK votada soa cinco dos dez tons a cada símbolo, um por par, e a maioria dá o bit, a cem símbolos por segundo. A polaridade alterna: nos pares de 700, 1540 e 2380 Hz o tom mais grave significa 0, e nos de 1120 e 1960 Hz significa 1.
 
 ![](figuras/5x2fsk-alternancia.png "0.95")
-Figura 4 - Trecho alternado que abre a transmissão, com o espectrograma ao fundo e a leitura do receptor por cima. Cada coluna é um símbolo e cada marcador é o tom que venceu o seu par, com a forma dizendo que bit ele significa.
+Figura 4 - Trecho alternado que abre a transmissão, com o espectrograma ao fundo; cada marcador é o tom que venceu o seu par, e a forma diz que bit ele significa.
 
-A polaridade alterna de propósito. Nos pares de 700, 1540 e 2380 Hz o tom mais grave significa 0, e nos pares de 1120 e 1960 Hz significa 1, de modo que os dois acordes ficam entrelaçados na banda e com quase a mesma frequência média.
-
-A Figura 5 mostra a decisão em dois símbolos. O detector mede a energia nas dez frequências dentro da janela de decisão, e quem decide é a comparação dentro de cada par, nunca o nível absoluto. No símbolo de cima os cinco pares votaram 0, e o bit era 0. No de baixo o bit era 1, o par de 700 e 900 Hz votou 0, e os outros quatro fizeram o bit sair certo.
+Quem decide é a comparação dentro de cada par, nunca o nível absoluto: no símbolo de baixo da Figura 5 o par de 700 e 900 Hz votou contra e os outros quatro fizeram o bit sair certo. Isolado, cada par acerta de 74,0% a 86,1%; a maioria leva o acerto a 87,7%.
 
 ![](figuras/5x2fsk-espectro-dos-acordes.png "0.95")
-Figura 5 - Espectro medido na janela de decisão de dois símbolos, um com bit 0 e outro com bit 1, com as barras marcando a energia nas dez frequências que o detector compara.
+Figura 5 - Espectro na janela de decisão de dois símbolos, um com bit 0 e outro com bit 1, com as barras nas dez frequências que o detector compara.
 
-Ao longo do bloco, a taxa de acerto de cada par isolado vai de 74,0% a 86,1%. Reunidos pela maioria, os cinco pares levam o acerto a 87,7%.
+Antes da correção de erros, 88,1% dos 2340 bits chegaram certos, acima dos 87,7% da maioria dura porque a decisão suave conserva a confiança que o voto descarta. Com a correção, os 48 bytes chegaram idênticos. Foi uma gravação de três.
 
-A Figura 6 mostra o mesmo mecanismo sobre os dados: trinta símbolos consecutivos em que todos os bits saem certos, e ainda assim em vinte e dois deles ao menos um par votou contra os demais.
-
-![](figuras/5x2fsk-votacao-nos-dados.png "0.95")
-Figura 6 - Trinta símbolos consecutivos da carga transmitida, com a leitura do receptor sobreposta ao espectrograma. Os marcadores em vermelho são os pares que votaram contra o bit transmitido.
-
-Antes da correção de erros, 88,1% dos 2340 bits do bloco chegaram certos, acima dos 87,7% da maioria dura porque a decisão suave conserva a confiança que o voto descarta. Com a correção, os 48 bytes enviados chegaram idênticos, e a cadeia recebida é a mesma que saiu da outra máquina, `HPdp14v7rxCu9tyxbhaEWN2DnsHi4LdGhQeAN0MPo4uVpv62`. Foi uma gravação de três desta forma.
-
-A 16-FSK troca a redundância por densidade. Dezesseis frequências entre 888 e 3325 Hz se revezam, exatamente uma soando por vez, e qual delas soou nomeia quatro bits. A taxa de símbolos é a mesma, cem por segundo. Frequências vizinhas recebem códigos que diferem em um único bit em doze dos quinze pares, porque são as que o canal confunde. A Figura 7 mostra trinta símbolos consecutivos, com um único tom aceso a cada dez milissegundos.
+A 16-FSK troca redundância por densidade: dezesseis frequências entre 888 e 3325 Hz se revezam, uma por vez, e qual soou nomeia quatro bits, com vizinhas diferindo em um único bit em doze dos quinze pares. Um tom por vez leva toda a potência que o alto-falante aceita, onde cinco simultâneos dividem o mesmo pico.
 
 ![](figuras/16fsk-tons.png "0.95")
-Figura 7 - Trinta símbolos consecutivos da carga, com o espectrograma ao fundo e o tom detectado marcado sobre cada símbolo, entre os dezesseis do eixo. Neste trecho o tom detectado é o transmitido nos trinta.
+Figura 6 - Trinta símbolos consecutivos da carga, com o tom detectado marcado sobre cada um entre os dezesseis do eixo; neste trecho o detectado é o transmitido nos trinta.
 
-Com um tom por vez, toda a potência que o alto-falante aceita vai para ele. Cinco tons simultâneos dividem o mesmo pico e cada um sai com uma fração dele.
-
-A decisão é escolher o maior entre dezesseis, cada tom contado do próprio piso corrente.
-
-A Figura 8 mostra as duas grandezas em um símbolo: em cima o espectro medido e o piso de cada tom, embaixo a diferença entre os dois, que é o que decide.
+A decisão é escolher o maior entre dezesseis, cada tom contado do próprio piso corrente, que varia 6,9 dB entre o tom mais alto e o mais baixo. A margem sobre o segundo colocado tem mediana de 7,9 dB, entre 2,6 e 12,6 dB do primeiro ao último decil.
 
 ![](figuras/16fsk-decisao.png "0.95")
-Figura 8 - Decisão em um símbolo. Em cima, o espectro na janela de decisão, a energia medida em cada um dos dezesseis tons e o piso corrente de cada um. Embaixo, a energia de cada tom contada do próprio piso, que é a grandeza comparada. O tom transmitido, de 2512 Hz, fica 8,0 dB acima do segundo colocado.
+Figura 7 - Decisão em um símbolo: em cima o espectro e o piso corrente de cada tom, embaixo a energia contada do próprio piso, com o tom transmitido de 2512 Hz 8,0 dB acima do segundo colocado.
 
-O piso não é o mesmo em toda a banda. Entre o tom de piso mais alto e o de piso mais baixo há 6,9 dB, tomada a mediana ao longo do bloco. A margem sobre o segundo colocado, no símbolo da figura, é de 8,0 dB, próxima da mediana de 7,9 dB do bloco, que varia entre 2,6 e 12,6 dB entre o primeiro e o último decil.
+As duas máquinas não compartilham relógio, e o receptor corrige o passo em quinze amostras a cada símbolo: as janelas de decisão ficaram espaçadas de 420 a 585 amostras, com mediana em 480, que é o passo nominal.
 
-As duas máquinas não compartilham relógio. A Figura 9 sobrepõe ao mesmo trecho as fronteiras que o receptor de fato usou e a grade de passo constante que o período nominal daria. O símbolo nominal tem 480 amostras e o receptor corrige o passo em quinze amostras para mais ou para menos a cada símbolo. As janelas de decisão ficaram espaçadas de 420 a 585 amostras, com mediana em 480, e o afastamento em relação à grade regular chega a 1,88 ms, com mediana de 0,63 ms.
+Nas três gravações válidas os 48 bytes chegaram íntegros, com 72,5% a 89,5% dos símbolos e 85,2% a 94,5% dos bits certos antes da correção. São as posteriores à correção de duas saturações da cadeia; das seis anteriores, gravadas com o sinal no pico da escala, uma só entregou o bloco.
 
-![](figuras/16fsk-enquadramento.png "0.95")
-Figura 9 - O mesmo trecho, com as fronteiras de símbolo que o receptor usou e a grade de passo nominal. Acima do quadro, os quatro bits enviados em cada símbolo, já codificados e entrelaçados, e não os bytes da mensagem.
+Com a cadeia já linear o nível deixa de ser alavanca: variar o ganho do transmissor de 1,00 a 0,25 não moveu a recuperação, e as doze gravações leram de 96% a 98% dos bits. Por isso o nível se mede em vez de se escolher.
 
-Nas três gravações válidas desta forma, os 48 bytes chegaram íntegros. São as que vieram depois de corrigir duas saturações da cadeia analógica, e as seis anteriores foram descartadas, gravadas com o sinal chegando no pico da escala, das quais uma só entregou o bloco. Antes da correção de erros, o tom detectado coincidiu com o transmitido em 72,5% a 89,5% dos símbolos, e 85,2% a 94,5% dos bits chegaram certos.
+As duas formas foram gravadas em cadeias eletroacústicas diferentes e não se comparam entre si. Nenhuma entrega todos os bits certos, e nenhuma precisa: é a correção de erros que transforma essas taxas em bloco íntegro.
 
-Com a cadeia analógica já linear, o nível deixa de ser alavanca. Variar o ganho do transmissor por um fator de quatro, de 1,00 a 0,25, não moveu a recuperação, e as doze gravações leram de 96% a 98% dos bits em toda a faixa. O mesmo corte de nível, feito antes de corrigir a saturação, é o que separou uma gravação íntegra de três de todas as três, e é por isso que o nível se mede em vez de se escolher.
-
-Nenhuma das duas formas entrega todos os bits certos, e nenhuma precisa. As duas foram gravadas em cadeias eletroacústicas diferentes e não se comparam entre si. É a correção de erros da camada de enlace que transforma essas taxas em bloco íntegro.
-
-A Figura 10 acompanha uma transmissão de 48 bytes por dentro da correção. Esses 48 bytes viram 1170 bits no ar, porque cada bit de entrada sai como três e seis bits de cauda fecham o codificador.
-
-A primeira faixa é o que foi transmitido e a segunda o que chegou, uma verossimilhança por bit, com o sinal dizendo o bit decidido e o módulo dizendo a confiança. A terceira marca só as posições em que o recebido discorda do transmitido, 69 delas, 5,9% dos bits.
+Numa transmissão de 48 bytes, que viram 1170 bits no ar, 69 chegaram trocados, 5,9%, e a mensagem saiu idêntica. Os bits errados aparecem quase todos rentes ao zero: o módulo médio da verossimilhança é 0,83 neles, contra 2,47 nos que conferem, e a mesma separação aparece nas quatro gravações desta condição.
 
 ![](figuras/fec-correcao.png "0.95")
-Figura 10 - Correção de erros sobre uma transmissão de 48 bytes, do bit transmitido ao byte decodificado. Dos 1170 bits codificados, 69 chegaram trocados e a mensagem saiu idêntica. No recorte ampliado, os losangos vermelhos são os bits errados; note que quase todos ficam rentes ao zero, enquanto os que conferem se afastam dele. A faixa cinza no segundo painel marca o trecho ampliado.
+Figura 8 - Correção de erros sobre 48 bytes, do bit transmitido ao byte decodificado; no recorte, os losangos vermelhos são os bits errados, quase todos rentes ao zero.
 
-O quarto painel amplia cerca de cem bits do trecho destacado, um a um, e mostra o que a faixa inteira esconde. Os bits errados aparecem quase todos junto do zero, isto é, o demodulador os entregou com pouca confiança, enquanto os certos ficam longe dele. Logo abaixo, os 48 bytes decodificados, idênticos aos que saíram da outra máquina.
+O erro se concentra onde o demodulador já tinha pouca certeza, e é essa certeza que o decodificador usa para escolher entre caminhos. Decidir o bit antes de decodificar jogaria fora o que distingue o duvidoso do confiável.
 
-O painel de baixo conta o mesmo sobre o bloco inteiro. Nos bits errados o módulo médio da verossimilhança é 0,83, contra 2,47 nos que conferem, e a mesma separação aparece nas quatro gravações desta condição.
-
-O erro se concentra onde o demodulador já tinha pouca certeza, e é essa certeza que o decodificador usa para escolher entre caminhos. Decidir o bit antes de decodificar jogaria fora exatamente a informação que distingue o bit duvidoso do confiável.
-
-A redundância é o parâmetro que o operador escolhe, e ela se paga em tempo de ar. Medimos as três opções em doze gravações, quatro por ponto, com todo o resto fixo.
-
-Tabela 1 - Repetição do bloco codificado sobre o enlace real, quatro gravações por ponto e carga de 48 bytes. O tempo de ar é o quadro inteiro, com preâmbulo, e a taxa útil são os 48 bytes divididos por ele. Bits certos é a fração dos bits codificados que chegou correta antes de decodificar, no melhor alinhamento.
+Tabela 1 - Repetição do bloco codificado sobre o enlace real, quatro gravações por ponto e carga de 48 bytes. Bits certos é a fração que chegou correta antes de decodificar.
 
 | Repetição | Tempo de ar | Taxa útil | Bits certos | Blocos íntegros |
 |---|---|---|---|---|
@@ -582,17 +546,9 @@ Tabela 1 - Repetição do bloco codificado sobre o enlace real, quatro gravaçõ
 | 2 | 7,19 s | 6,7 B/s | 91,9% | 4 de 4 |
 | 4 | 13,04 s | 3,7 B/s | 92,1% | 4 de 4 |
 
-A coluna de bits certos é o canal e praticamente não se move, porque repetir o bloco não melhora o que chega, apenas dá ao decodificador mais cópias do mesmo bit. A coluna de tempo de ar é o preço, e ele triplica entre a primeira linha e a última.
+A coluna de bits certos é o canal e não se move, porque repetir não melhora o que chega, apenas dá mais cópias do mesmo bit ao decodificador. O tempo de ar triplica, e os doze blocos chegaram íntegros: nesta sala a redundância não comprou nada.
 
-Os doze blocos chegaram íntegros, então nesta sala a redundância não comprou nada e custou o triplo. A taxa um terço sozinha já basta, e o tempo economizado vale mais gasto em mais dados.
-
-Numa das gravações com repetição quatro a busca automática de alinhamento não alcança o início do quadro, que nessa condição é mais longo que a janela de busca, e a leitura crua sai em 63,2%. Relida no alinhamento correto ela dá 92,2%, e é esse valor que entra na tabela.
-
-As doze gravações chegaram, então, entre 5,9% e 9,6% de bits codificados errados, e todas foram decodificadas sem erro. Nenhuma delas foi difícil o bastante para separar as três condições, e o valor da repetição tem de ser procurado onde a taxa de erro é maior.
-
-Simulamos então o decodificador sozinho, sem ar e sem hardware, injetando erros de bit independentes num bloco de 64 bytes e subindo a taxa de erro até o bloco deixar de sair íntegro.
-
-Tabela 2 - Simulação, não medida no ar. Fração de bits codificados errados até a qual o bloco de 64 bytes ainda chega íntegro, com 200 transmissões por ponto. A primeira coluna de resultado é o ponto em que as 200 saem inteiras e a segunda, o ponto em que 90% saem.
+Tabela 2 - Simulação, não medida no ar. Fração de bits codificados errados até a qual o bloco de 48 bytes ainda sai inteiro.
 
 | Variante do código | Todos os blocos íntegros | 90% dos blocos íntegros |
 |---|---|---|
@@ -601,32 +557,18 @@ Tabela 2 - Simulação, não medida no ar. Fração de bits codificados errados 
 | Taxa um terço, decisão suave | 10% | 14% |
 | Taxa um terço, decisão suave, repetição 2 | 19% | 23% |
 
-A decisão suave é a linha que mais rende, e não custa nada, porque a verossimilhança é um número que o demodulador já calculou para decidir. Na mesma taxa de código ela leva a tolerância de menos de 2% para 5%.
+A decisão suave é a linha que mais rende e não custa nada, porque a verossimilhança é um número que o demodulador já calculou. As doze gravações chegaram entre 5,9% e 9,6% de bits errados, dentro do que a taxa um terço aguenta, e é por isso que repetir não mudou nada.
 
-As duas tabelas se leem juntas pela mesma grandeza. O enlace entrega entre 5,9% e 9,6% de bits codificados errados, e a taxa um terço com decisão suave, terceira linha da Tabela 2, entrega todos os blocos até 10%. É por isso que os doze blocos chegaram íntegros, e é essa margem estreita que a repetição alargaria, de 10% para 19%, se a sala fosse pior.
-
-Duas ressalvas fecham a leitura da Tabela 2. As quatro linhas não gastam o mesmo tempo de ar, então a comparação entre elas é de robustez e não de eficiência, e os erros simulados são independentes, de modo que ela não exercita o entrelaçamento, que existe contra erro agrupado.
-
-A 2-FSK e a 5×2-FSK multicanal não foram remedidas nesta cadeia. A primeira nunca entregou mensagem pelo ar e a segunda gasta os mesmos dez tons sem a proteção do voto, de modo que as duas formas medidas aqui são as que cobrem os dois extremos do compromisso entre robustez e densidade.
-
-Um bloco corrigido não é ainda um arquivo. Acima do bloco os dados são partidos em pacotes, cada um com número de sequência, comprimento e verificação de redundância cíclica, e o receptor conduz a transferência: pede um pacote, confere, e só então pede o seguinte, repetindo o pedido enquanto a verificação falhar. Repetir só converge quando a maioria das tentativas chega inteira, e é a correção de erros que garante isso.
-
-Transferimos uma imagem de 1334 bytes por esse caminho, em duas condições, mudando apenas o tamanho da carga de cada pacote.
-
-Tabela 3 - Transferência de um arquivo de 1334 bytes pelo enlace real, uma corrida por condição. A coluna de pacotes traz os que chegaram sobre os que o arquivo exige, o tempo é a transferência inteira, com os pedidos e as esperas, e a taxa útil são os 1334 bytes divididos por ele.
+Tabela 3 - Transferência de um arquivo de 1334 bytes pelo enlace real, uma corrida por condição.
 
 | Carga por pacote | Pacotes | Tempo | Taxa útil | Retransmissões | Arquivo |
 |---|---|---|---|---|---|
 | 64 bytes | 21 de 21 | 197 s | 6,8 B/s | 0 | idêntico |
 | 128 bytes | 11 de 11 | 186 s | 7,2 B/s | 3 | idêntico |
 
-Nos dois casos o arquivo recebido é idêntico ao enviado, byte a byte, conferido por soma de verificação, e com pacotes de 64 bytes nenhum precisou ser pedido duas vezes.
+Nos dois casos o arquivo recebido é idêntico ao enviado, byte a byte. O pacote maior amortiza o preâmbulo e rende 6% a mais, e a taxa fica abaixo da do bloco, 6,8 contra 11,3 bytes por segundo, porque cada pacote paga o preâmbulo e a espera do pedido.
 
-O pacote maior amortiza o preâmbulo, que cada pacote paga uma vez, e rende 6% a mais. Em compensação falha mais, três retransmissões contra nenhuma, e cada retransmissão custa o pacote inteiro. As duas coisas quase se cancelam, e num canal um pouco pior a conta se inverte.
-
-A taxa do arquivo é menor que a do bloco na Tabela 1, 6,8 contra 11,3 bytes por segundo, e a diferença não é perda no ar: é o preâmbulo de cada pacote, o cabeçalho, a verificação e o intervalo entre confirmar um pacote e pedir o próximo.
-
-Cada linha da Tabela 3 é uma transferência única. Nenhuma retransmissão em vinte e um pacotes diz que a taxa de falha por pacote está bem abaixo de um em vinte e um, mas não a mede.
+A 2-FSK e a 5×2-FSK multicanal não foram remedidas nesta cadeia: a primeira nunca entregou uma mensagem sobre o ar, e a segunda ficou de fora por tempo.
 
 ## 6 CONSIDERAÇÕES FINAIS
 
