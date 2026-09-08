@@ -33,7 +33,7 @@ Conferidos em 2026-09-07 importando `modem.py` e lendo os *defaults* das assinat
 
 Cobre: tons 1200/2200 Hz e 1200 baud da 2-FSK; centro do discriminador em 1700 Hz e atraso de 7 amostras a 48 kHz; cinco pares, dez tons, 200 Hz dentro do par, limiar de presença 1,3, 100 baud; médias dos acordes em 1620 e 1660 Hz; os pares 0, 2 e 4 com o tom grave valendo 0; dezesseis tons de 888 a 3325 Hz, 4 bits, 100 baud; e o intervalo de guarda.
 
-**Correção feita nesta sessão:** o guarda é **15%**, não 35%. O padrão é `guard=0.15` em `MFSKDemodulator` e `MaryDemodulator`. Os 35% existem só em `loopback_test.py`, num caso ajustado de propósito para reverberação, e em `console.py`, numa varredura de diagnóstico. **O `CLAUDE.md` da raiz ainda descreve os 35% como se fossem o comportamento entregue, e não foi corrigido.**
+**Correção feita nesta sessão:** o guarda é **15%**, não 35%. O padrão é `guard=0.15` em `MFSKDemodulator` e `MaryDemodulator`. Os 35% existem só em `loopback_test.py`, num caso ajustado de propósito para reverberação, e em `console.py`, numa varredura de diagnóstico. O `CLAUDE.md` da raiz descrevia os 35% como se fossem o comportamento entregue; **corrigido em 2026-09-07**, junto com o `artigo/CLAUDE.md`, que repetia o mesmo número.
 
 Única imprecisão remanescente, pequena: o texto diz "espaçados 162 Hz" e o espaçamento real alterna 162 e 163 Hz por arredondamento.
 
@@ -84,6 +84,5 @@ print(np.median(deg), np.percentile(deg, 90), deg.max())
 ## O que fica pendente
 
 - Decidir o "13 dB" e o "12 a 20 dB" da 2.1. O primeiro vira "chega a mais de 10 dB" ou sai; o segundo não tem como ficar como está.
-- Corrigir os 35% para 15% no `CLAUDE.md` da raiz.
 - Resolver as quatro contradições entre a 2.1 e a seção 4, listadas no comentário da 2.1.
 - `figura_canal.py` lendo FLAC, e `soundfile` instalado, sem o que nenhum número da 2.1 se reconfere.

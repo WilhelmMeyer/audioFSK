@@ -259,8 +259,9 @@ CORRECAO, e ela vale para o CLAUDE.md da raiz tambem: O INTERVALO DE GUARDA E 15
   descarte e no INICIO do simbolo, np.arange(self.guard, samples_per_symbol).
   Os 35% aparecem em dois lugares e nenhum e o caminho vivo: loopback_test.py linha 119, num caso
   deliberadamente ajustado para reverberacao ((0.35, 0.15, True)), e console.py linha 605, numa
-  varredura de diagnostico que repontua audio guardado. O CLAUDE.md da raiz descreve o caso de teste
-  como se fosse o comportamento entregue, e a versao anterior desta secao repetia o erro.
+  varredura de diagnostico que repontua audio guardado. O CLAUDE.md da raiz descrevia o caso de teste
+  como se fosse o comportamento entregue, e a versao anterior desta secao repetia o erro; os dois
+  CLAUDE.md foram corrigidos em 2026-09-07 e agora dizem 15%.
 
 O marcador "(CITAR: modulacao M-FSK, deteccao nao coerente)" foi retirado: pela decisao de escopo do
 autor, a literatura serve a introducao e a 2.1, e daqui para a frente o texto se sustenta no que
