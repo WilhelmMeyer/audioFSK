@@ -547,6 +547,25 @@ Os doze blocos chegaram íntegros. Repetir o bloco não melhorou nada que a colu
 
 O que a repetição compra aparece em uma gravação só, e é a cauda e não a média. Uma das quatro gravações com repetição quatro leu apenas 63,2% dos bits, ou seja, mais de um terço deles errados, e ainda assim entregou os 48 bytes corretos. Nenhuma gravação com repetição um ou dois chegou perto desse nível de erro, então a bancada não mostrou o caso simétrico, mas o mecanismo está demonstrado: a redundância é reserva para o momento ruim, não ajuste de rotina. É também por causa dessa única gravação que a média de bits da última linha é mais baixa; sem ela as três condições empatam.
 
+Um bloco corrigido não é ainda um arquivo. Acima do bloco os dados são partidos em pacotes, cada um com número de sequência, comprimento e verificação de redundância cíclica, e o receptor conduz a transferência: pede um pacote, confere, e só então pede o seguinte, repetindo o pedido enquanto a verificação falhar. Repetir só converge quando a maioria das tentativas chega inteira, e é a correção de erros que garante isso.
+
+Transferimos uma imagem de 1334 bytes por esse caminho, em duas condições, mudando apenas o tamanho da carga de cada pacote.
+
+Tabela 2 - Transferência de um arquivo de 1334 bytes, uma corrida por condição.
+
+| Carga por pacote | Pacotes | Tempo | Taxa útil | Retransmissões | Arquivo |
+|---|---|---|---|---|---|
+| 64 bytes | 21 de 21 | 197 s | 6,8 B/s | 0 | idêntico |
+| 128 bytes | 11 de 11 | 186 s | 7,2 B/s | 3 | idêntico |
+
+Nos dois casos o arquivo recebido é idêntico ao enviado, byte a byte, conferido por soma de verificação, e com pacotes de 64 bytes nenhum precisou ser pedido duas vezes.
+
+O pacote maior amortiza o preâmbulo, que cada pacote paga uma vez, e rende 6% a mais. Em compensação falha mais, três retransmissões contra nenhuma, e cada retransmissão custa o pacote inteiro. As duas coisas quase se cancelam, e num canal um pouco pior a conta se inverte.
+
+A taxa do arquivo é menor que a do bloco na Tabela 1, 6,8 contra 11,3 bytes por segundo, e a diferença não é perda no ar: é o preâmbulo de cada pacote, o cabeçalho, a verificação e o intervalo entre confirmar um pacote e pedir o próximo.
+
+Cada linha da Tabela 2 é uma transferência única. Nenhuma retransmissão em vinte e um pacotes diz que a taxa de falha por pacote está bem abaixo de um em vinte e um, mas não a mede.
+
 ## 6 CONSIDERAÇÕES FINAIS
 
 <!-- A redigir por ultimo. Inclui a frase sobre o que ficou para a versao final por prazo, entre elas
