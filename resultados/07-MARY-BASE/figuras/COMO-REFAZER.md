@@ -134,22 +134,36 @@ em vez de um espectrograma.
 nao possam divergir em nada que nao seja o que cada uma tem a dizer.
 
 **A figura da decisao tem dois paineis alinhados na frequencia.** Em cima a
-energia medida em cada tom, com os dezesseis pontos ligados por retas, mais o
-piso corrente. Embaixo a mesma medida contada do proprio piso de cada tom, que
+FFT da janela como curva, com uma barra em cada tom na altura que o detector
+mediu, mais o piso corrente. Embaixo a mesma medida contada do proprio piso de cada tom, que
 e a grandeza que decide.
 
-**Nao ha FFT densa da janela, e ela foi tentada.** Com 408 amostras e sem
-janelamento, cada tom vira um montinho de 118 Hz de largura com covas fundas
-dos dois lados. Isso e o formato da janela de medida, nao o canal, e ocupa a
-figura falando de uma coisa que a decisao nao olha; o detector le dezesseis
-numeros por simbolo. Janela de Hann so na curva foi tentada tambem e e pior:
-alisa os montes mas tira a curva de cima dos pontos medidos, entao a linha
-deixa de passar pelo topo das barras e vira uma segunda medida ao lado delas.
-Ligar os dezesseis pontos por retas nao tem nenhum dos dois problemas, cai
-sobre o topo de cada barra por construcao e tem a mesma forma da linha do
-piso. **Isto diverge do padrao da camada de cinco pares**, que mantem a FFT
-como curva; ali a decisao e outra e a divergencia e decisao do usuario,
-tomada em 2026-09-07 olhando as tres variantes. As barras tem a mesma
+**A curva e a FFT densa da janela, com preenchimento de zeros ate 8192
+pontos, e nao os dezesseis pontos ligados por retas.** Duas alternativas foram
+desenhadas e descartadas pelo usuario em 2026-09-07. Ligar so os dezesseis
+pontos tira os lobulos largos que incomodam, e tira junto a informacao de que
+uma janela de 408 amostras resolve 117,6 Hz enquanto os tons estao a 162 Hz,
+que e o motivo de os lobulos se sobreporem. Janela de Hann so na curva alisa
+os lobulos e e pior por outro motivo: tira a curva de cima dos pontos
+medidos, entao ela deixa de passar pelo topo das barras e vira uma segunda
+medida ao lado delas. O preenchimento com zeros nao inventa resolucao, so
+avalia em mais frequencias a mesma transformada que as 408 amostras ja
+definem.
+
+**Os lobulos largos sao da janela de medida, nao do canal.** Um seno perfeito
+de 2512 Hz, sintetizado e sem canal nenhum, medido nas mesmas 408 amostras,
+da o mesmo lobulo, com as covas em f0 mais ou menos 116 e 119 Hz contra os
+117,6 Hz previstos por fs/N. Sobreposto ao simbolo gravado, as duas curvas
+diferem 2,7 dB em media dentro do lobulo principal e 16,2 dB longe dele, que
+e onde esta o ruido da sala. Vale ler assim: perto do tom a curva fala da
+janela, longe do tom fala do canal, e a decisao nao olha nem uma coisa nem
+outra, so os dezesseis pontos.
+
+**A marcacao da margem tem uma linha de chamada por barra**, e nao so pela
+mais alta: a flecha mede a distancia entre duas alturas, entao as duas
+precisam estar marcadas ou ela parece medir de um valor ate coisa nenhuma. A
+flecha vai com `shrinkA` e `shrinkB` em zero, porque o padrao do matplotlib
+recua alguns pontos em cada ponta e ela fica sem encostar nas duas linhas. As barras tem a mesma
 espessura e as mesmas cores nos dois paineis, porque sao os mesmos dezesseis
 tons na mesma janela e duas cores para o mesmo tom fariam a figura parecer
 falar de duas coisas; o que muda de um painel para o outro e de onde a barra e

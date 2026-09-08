@@ -1,9 +1,10 @@
 """Figura do artigo: a decisao da 16-FSK em um simbolo.
 
-Os dezesseis tons na janela em que o receptor decidiu um simbolo: o
-transmitido e os quinze calados. Em cima, a energia medida em cada tom e o
-piso corrente dele; embaixo, a mesma medida contada do proprio piso, que e o
-numero que a decisao usa.
+Espectro da janela em que o receptor decidiu um simbolo, com os dezesseis
+tons no mesmo eixo: o transmitido e os quinze calados. A curva mostra a banda
+inteira; sobre ela, uma barra em cada tom mostra a energia que o detector
+mediu ali, e embaixo a mesma medida contada do proprio piso, que e o numero
+que a decisao usa.
 
     ./venv/bin/python resultados/07-MARY-BASE/figuras/figura_decisao.py [--stem S] [--simbolo K] [--out PNG]
 
@@ -13,12 +14,14 @@ do segundo colocado e a margem anotada. Foi para isso que o piso entrou na
 figura: o canal e um pente, o ruido de fundo varia de tom para tom, e comparar
 alturas absolutas nao e o que o receptor faz.
 
-A linha liga os dezesseis pontos medidos, e nao e a FFT densa da janela. A
-FFT densa foi tentada: com 408 amostras e sem janelamento, cada tom vira um
-montinho de 118 Hz de largura com covas fundas dos dois lados, que e o formato
-da janela e nao o canal, e ocupa a figura falando de uma coisa que a decisao
-nao olha. O detector le dezesseis numeros por simbolo, tirados de
-`MaryDemodulator._energies`, e sao esses que a figura desenha.
+A curva e a FFT da mesma janela que o detector mediu, mesma amostra inicial e
+mesmo comprimento, sem intervalo de guarda e sem janelamento, porque e assim
+que `MaryDemodulator._energies` mede. Os dezesseis pontos nao sao lidos da
+curva: sao as energias que o detector calculou, e caem sobre ela porque sao a
+mesma transformada. O preenchimento com zeros da FFT e so resolucao de
+desenho e nao muda nenhuma delas. Os lobulos largos em volta de cada tom sao
+o formato de uma janela de 408 amostras, 8,5 ms, que resolve 117,6 Hz; ligar
+so os dezesseis pontos por retas foi tentado e esconde isso.
 
 O simbolo desenhado por padrao nao e escolhido a mao. E o simbolo do trecho
 das outras duas figuras cuja margem esta mais perto da mediana do bloco, entre
@@ -39,6 +42,7 @@ from comum import (CERTO, CONTORNO, CURVA, ERRADO, GRADE, LARGURA,
                    MARY_TONES, NEGATIVO, virgula)
 
 NOME = '16fsk-decisao.png'
+NFFT = 8192
 TRECHO = (290, 320)      # o mesmo das outras duas figuras
 
 
@@ -94,6 +98,13 @@ def main():
     k = args.simbolo if args.simbolo is not None else tipico(a, margem_bloco,
                                                              *TRECHO)
     i0, i1 = a.janela(k)
+    seg = a.amostras[i0:i1]
+
+    # Sem janelamento e com o mesmo comprimento do detector, para que os
+    # dezesseis pontos caiam sobre a curva em vez de serem uma segunda medida
+    # ao lado dela.
+    espectro = db(np.abs(np.fft.rfft(seg, n=NFFT)) ** 2)
+    freq = np.fft.rfftfreq(NFFT, 1.0 / a.fs)
 
     energia, piso, norma = db(a.energia(k)), db(a.piso(k)), a.norma(k)
     ordem = np.argsort(norma)
@@ -117,14 +128,8 @@ def main():
              else (ERRADO if alturas[i_t] > 0 else NEGATIVO)
              for i_t in range(len(MARY_TONES))]
 
-    # Os dezesseis pontos medidos ligados por retas, e nao a FFT densa da
-    # janela. A FFT densa foi tentada e desenha um montinho de 118 Hz de
-    # largura em cada tom, com covas fundas entre eles: e o formato de uma
-    # janela de 408 amostras sem janelamento, nao o canal, e ocupa a figura
-    # falando de uma coisa que a decisao nao olha. O detector le dezesseis
-    # numeros, e e isso que a linha liga. Ela cai sobre o topo de cada barra
-    # por construcao, e tem a mesma forma da linha do piso, que ja era isso.
-    ax.plot(MARY_TONES, energia, color=CURVA, linewidth=1.0, zorder=2)
+    faixa = (freq >= min(MARY_TONES) - 300) & (freq <= max(MARY_TONES) + 300)
+    ax.plot(freq[faixa], espectro[faixa], color=CURVA, linewidth=0.6, zorder=2)
     ax.vlines(MARY_TONES, piso, energia, color=cores, linewidth=2.2, zorder=3)
     ax.plot(MARY_TONES, piso, color=GRADE, linewidth=0.8,
             linestyle=(0, (3, 2)), zorder=4)
@@ -134,7 +139,7 @@ def main():
     ax.set_ylabel('Energia na janela\nde decisão (dB)')
     ax.legend(handles=[
         Line2D([], [], color=CURVA, linewidth=1.0,
-               label='Energia medida, tom a tom'),
+               label='Espectro da janela'),
         Line2D([], [], color=GRADE, linewidth=0.8, linestyle=(0, (3, 2)),
                label='Piso corrente de cada tom'),
     ], loc='lower left', bbox_to_anchor=(0.0, 1.01), frameon=False, ncols=2,
