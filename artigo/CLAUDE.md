@@ -88,7 +88,7 @@ Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas
 
 **As duas figuras que saíram foram as que as próprias legendas denunciavam:** a antiga 6 mostrava "o mesmo mecanismo" da 4 e a antiga 9, "o mesmo trecho" da 7. Ficaram oito, renumeradas, todas citadas no texto. Se faltar espaço de novo, o lugar de olhar continua sendo o gráfico, que vale de 150 a 250 palavras por elemento.
 
-**O corte vem depois, decisão do autor em 2026-09-07: primeiro completar, depois encurtar.** Ainda faltam a 6, os agradecimentos, o financiamento, a declaração de uso de IAG e o conflito de interesses. Quando o corte vier, o de maior retorno é a redescrição de mecanismo que a 2.2 e a 3 fazem em dobro, anotada no comentário da 3.
+**O corte foi feito em 2026-09-07, e a duplicação entre a 2.2 e a 3 era mesmo o de maior retorno:** a 2.2 virou panorama, a 3 ficou com o detalhe, e cada fato passou a ser dito uma vez. Falta escrever a 6, os agradecimentos, o financiamento e a declaração de uso de IAG, que devem somar umas 400 palavras e ainda cabem; o conflito de interesses já está redigido.
 
 ## Processo de trabalho
 
