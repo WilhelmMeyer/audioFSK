@@ -32,6 +32,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import aviso
 import recording
 from ruido import band_rms, dbfs
 from serial_link import Control, pack, unpack
@@ -135,6 +136,7 @@ def reverse(ctl, args):
 
     stream = sd.OutputStream(samplerate=FS, blocksize=BLOCK, channels=1,
                              dtype='float32', device=out, callback=cb)
+    aviso.inicio("alto-falante", f"tom: {args.freq:.0f} Hz")
     stream.start()
     time.sleep(0.5)
     rows = []
@@ -156,6 +158,7 @@ def reverse(ctl, args):
         playing[0] = False
         stream.stop()
         stream.close()
+        aviso.fim("tom: alto-falante liberado")
         talk(ctl, 'mic off')
         ctl._stop = True
         ctl.ser.close()
@@ -206,6 +209,7 @@ def main():
         return reverse(ctl, args)
 
     mic = Mic(dev)
+    aviso.inicio("microfone", "tom: medindo o tom da outra máquina")
     mic.stream.start()
     time.sleep(1.0)                       # o stream assenta antes de qualquer medida
 
@@ -252,6 +256,7 @@ def main():
         talk(ctl, 'spk off')
         mic.stream.stop()
         mic.stream.close()
+        aviso.fim("tom: microfone liberado")
         ctl._stop = True
         ctl.ser.close()
 

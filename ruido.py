@@ -28,6 +28,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import aviso
 import recording
 from modem import MARY_TONES, MFSK_PAIRS
 
@@ -57,8 +58,9 @@ def record(device, secs, settle):
             print(f"[ruido] {status}", file=sys.stderr)
         q.put(indata[:, 0].copy())
 
-    with sd.InputStream(samplerate=FS, blocksize=BLOCK, channels=1,
-                        dtype='float32', device=device, callback=cb):
+    with aviso.em_uso("microfone", f"ruido: medindo o piso, {secs:.0f}s"), \
+            sd.InputStream(samplerate=FS, blocksize=BLOCK, channels=1,
+                           dtype='float32', device=device, callback=cb):
         t0 = time.time()
         while time.time() - t0 < settle:
             try:

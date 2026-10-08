@@ -22,6 +22,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import aviso
 import fec
 import xfer
 from modem import MFSKDemodulator, MaryDemodulator, MARY_BITS
@@ -170,6 +171,7 @@ def main():
 
     stream = sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
                             device=args.device, callback=on_audio)
+    aviso.inicio("microfone", f"recvfile: recebendo {args.remote_file}")
     stream.start()
     time.sleep(0.3)                                   # let it settle
 
@@ -260,6 +262,7 @@ def main():
     finally:
         stream.stop()
         stream.close()
+        aviso.fim("recvfile: microfone liberado")
 
     rem.cmd("spk off")
     rem.close()

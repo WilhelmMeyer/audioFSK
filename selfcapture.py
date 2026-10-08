@@ -37,6 +37,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import aviso
 import fec
 import recording
 from modem import (FSKModulator, MFSKModulator, MFSK_PAIRS, MaryModulator,
@@ -351,7 +352,8 @@ def main():
     if args.chirp:
         f0, f1, secs = (float(x) for x in args.chirp.split())
         burst = build_chirp(f0, f1, secs, args.gain)
-        heard = play_and_record(burst, secs + args.tail, args.in_device, args.out_device)
+        with aviso.em_uso("microfone + alto-falante", "selfcapture: varredura"):
+            heard = play_and_record(burst, secs + args.tail, args.in_device, args.out_device)
         stem = recording.save(args.out, heard, b'', kind='chirp',
                               label=args.label or 'self-chirp', mode=args.mode,
                               baud=0, chirp=[f0, f1, secs],
@@ -372,8 +374,10 @@ def main():
         mod = build_modulator(args)
         burst = build_burst(args, mod, payload)
         airtime = len(burst) / FS
-        heard = play_and_record(burst, airtime + args.tail,
-                                args.in_device, args.out_device)
+        with aviso.em_uso("microfone + alto-falante",
+                          f"selfcapture: teste {trial}/{args.trials}, {airtime:.1f}s no ar"):
+            heard = play_and_record(burst, airtime + args.tail,
+                                    args.in_device, args.out_device)
 
         rms = float(np.sqrt(np.mean(np.square(heard)))) if len(heard) else 0.0
         peak = float(np.max(np.abs(heard))) if len(heard) else 0.0

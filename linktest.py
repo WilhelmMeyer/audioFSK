@@ -28,6 +28,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import aviso
 from modem import FSKModulator, FSKDemodulator
 from scoring import find_payload_start, make_payload, score
 from serial_link import Control
@@ -82,7 +83,8 @@ def run_tx(args, ctl):
 
         ctl.send("GO")
         time.sleep(GUARD)
-        sd.play(samples, FS, device=args.device, blocking=True)
+        with aviso.em_uso("alto-falante", f"linktest tx: teste {trial}"):
+            sd.play(samples, FS, device=args.device, blocking=True)
         ctl.send("DONE")
 
         line = ctl.recv(timeout=args.wait + TAIL + 5)
@@ -159,8 +161,9 @@ def run_rx(args, ctl):
 
         # The stream opens and warms up *before* we answer ARMED, so device
         # startup latency is off the critical path and GO can act immediately.
-        with sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
-                            device=args.device) as stream:
+        with aviso.em_uso("microfone", f"linktest rx: {nbytes} bytes"), \
+                sd.InputStream(samplerate=FS, channels=1, blocksize=BLOCK,
+                               device=args.device) as stream:
             for _ in range(3):
                 stream.read(BLOCK)
             demod.reset()

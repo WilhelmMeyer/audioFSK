@@ -26,6 +26,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import aviso
 import fec
 import recording
 from modem import MARY_BITS
@@ -71,6 +72,7 @@ class Recorder:
         self.q.put(indata[:, 0].copy())
 
     def __enter__(self):
+        aviso.inicio("microfone", "capture: gravando a outra máquina")
         self.stream.start()
         time.sleep(0.2)          # let the device settle before it counts
         self.drain()
@@ -79,6 +81,7 @@ class Recorder:
     def __exit__(self, *exc):
         self.stream.stop()
         self.stream.close()
+        aviso.fim("capture: gravação encerrada")
 
     def drain(self):
         while True:

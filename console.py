@@ -34,6 +34,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+import aviso
 import fec
 import recording
 import updater
@@ -674,11 +675,19 @@ class AudioNode:
         return (sig * self.gain).astype(np.float32)
 
     def _feeder(self):
+        speaking = False
         while True:
             try:
                 data = self.tx_bytes.get_nowait()
             except queue.Empty:
                 data = None
+            if data is not None or self.tone:
+                if not speaking:
+                    aviso.inicio("alto-falante", "console: transmitindo")
+                    speaking = True
+            elif speaking and self.out_queue.empty() and len(self.out_buf) == 0:
+                aviso.fim("console: transmissão terminou")
+                speaking = False
             if data is not None:
                 # A raw item already carries its own lead-in and framing, as
                 # xfer.build does; prefixing the console's preamble as well
