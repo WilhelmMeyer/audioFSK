@@ -28,3 +28,12 @@ A raiz do repositório é o diretório de trabalho (`captures/` com os wav):
     ./venv/bin/python resultados/G20-SUBTRAI-CAUDA/ganho.py <stem>
 
 Os `out-*.json`/`cache-*.pkl` (pickles) não foram copiados para cá; `subtrai.py` os recria. `subtrai.py` já ajusta o `sys.path` para a raiz (dois níveis acima da pasta). Não testei a reexecução completa.
+
+## Validação fora da amostra
+
+26 gravações novas, variante congelada (detalhes em `validacao/VALIDACAO.md`, números em `validacao/resumo.txt`).
+
+- Sem IFK: bits 97.18 -> 98.56 %, melhor em 16 de 16; oráculo 98.82 %. Erros de bit -49 %. Blocos 26/26 em todas as variantes.
+- Com IFK: efeito neutro (+0.1 a +0.2 pt).
+- Subtração simples + subtração empata com IFK (98.44 vs 98.49 %): equivale ao IFK sem mudar o fio; somar os dois não acrescenta.
+- As conclusões do G20 original de que a subtração supera o IFK NÃO se repetiram neste canal moderado.

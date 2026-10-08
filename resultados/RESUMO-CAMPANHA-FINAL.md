@@ -9,7 +9,7 @@ Bancada: B (Windows) toca pelo alto-falante Realtek no P2, aprimoramentos deslig
 | 2-FSK (Bell 202), sem FEC | 1 | 97,6 B/s nominal | 54,87 % | 54,66 % [54,37-55,04] | 0/5 |
 | 5×2-FSK votada + FEC | 1 | 3,7 B/s | 100,00 % | 99,04 % [79,10-99,33] | 4/5 |
 | 5×2-FSK multicanal + FEC | 5 | 13,8 B/s | 93,13 % | 90,91 % [90,26-91,85] | 5/5 |
-| 16-FSK + FEC (F00, sem varreduras) | 4 | 11,2 B/s | 99,67 % | 95,42 % [92,92-98,33] | 3/5 |
+| 16-FSK + FEC (F00, sem varreduras) | 4 | 11,2 B/s | 99,67 % | 95,42 % [92,92-98,33] | 3/5 (r1-r8 na posição 2: 5/8, `H02`) |
 | 16-FSK + FEC, duas varreduras (F04) | 4 | 10,7 B/s | 100,00 % | 95,38 % [94,59-97,09] | 5/5 |
 | 16-FSK + IFK + FEC, duas varreduras (F06) | 4 | 10,7 B/s | 98,75 % | 98,09 % [96,75-99,08] | 5/5 |
 
@@ -32,11 +32,16 @@ Régua das varreduras (`align.py`), posição 2: F04 gate 95,35 [94,6-97,1], rel
 
 ## IFK (tom de repetição): pares F06 menos F04
 
-Posição 2, r1 a r4: o IFK ganhou 4/4 em todas as réguas, de +0,9 a +4,1 pt (malha +0,9, +2,0, +3,7, +3,0; duas varreduras +2,1, +2,6, +4,1, +2,1). Passada A (posição 1): -1,2 pt (F04 já em 100 %). Ressalva: o F06 foi sempre gravado logo depois do F04, sem ordem alternada.
+Posição 2, r1 a r4 (IFK gravado em segundo): o IFK ganhou 4/4 em todas as réguas, de +0,9 a +4,1 pt (malha +0,9, +2,0, +3,7, +3,0; duas varreduras +2,1, +2,6, +4,1, +2,1; média ~+2,5). Passada A (posição 1): -1,2 pt (F04 já em 100 %).
+**Ordem invertida, r5 a r8 (IFK primeiro, sem IFK ~20 s depois, `H01-IFK-ORDEM-INVERTIDA`):** IFK ganhou 4/4 de novo: malha +0,7 +1,4 +2,0 +0,7; relógio travado +1,6 +1,4 +1,4 +1,1; duas varreduras +1,4 +1,1 +1,7 +1,0. Blocos pela malha: IFK 4/4, sem IFK 3/4 (r6 não).
+Conclusão: **8 de 8 pares nas duas ordens; +1 a +2 pt de bits nesta bancada, sem diferença de blocos.** O ganho é menor na ordem invertida (~+1,3), então parte do +2,5 anterior era ordem/deriva.
+
+**16-FSK na mesma posição, blocos em 8 gravações (r1-r8):** sem varreduras (só malha, `F00-NIVEL-10CM` + `H02-16FSK-MALHA`) **5/8**; com duas varreduras 7/8; com IFK 8/8. Malha r5-r8: 96,84 OK, 95,25 OK, 93,92 não, 95,17 OK.
 
 ## Subtração da cauda (offline, `G20-SUBTRAI-CAUDA`)
 
-Bits antes do FEC, atual -> subtração cega k=1..3 piso cru -> com ganho ×4: eco 85,8 -> 89,0 -> 90,4 %; moderado 89,2 -> 91,4 -> 92,3 %; limpo 99,9 -> 100,0 %. 9 melhores, 1 igual, 0 piores em 10 gravações sem IFK; blocos no eco 3/6 -> 5/6. Só receptor, sem mudar o fio. **Variante escolhida nos mesmos dados; precisa de validação**, em especial nas rodadas r1 a r4.
+Bits antes do FEC, atual -> subtração cega k=1..3 piso cru -> com ganho ×4: eco 85,8 -> 89,0 -> 90,4 %; moderado 89,2 -> 91,4 -> 92,3 %; limpo 99,9 -> 100,0 %. 9 melhores, 1 igual, 0 piores em 10 gravações sem IFK; blocos no eco 3/6 -> 5/6. Só receptor, sem mudar o fio.
+**Validada fora da amostra** (26 gravações novas, variante congelada, `G20-SUBTRAI-CAUDA/validacao/`): sem IFK 97,18 -> 98,56 % (16/16 melhores; oráculo 98,82 %), erros de bit -49 %, blocos 26/26 em todas as variantes. Com IFK é neutra (+0,1 a +0,2). Subtração simples + subtração empata com IFK (98,44 vs 98,49 %): **equivale ao IFK aqui, sem mudar o fio; somar não acrescenta.** A conclusão do G20 de que a subtração supera o IFK não se repetiu neste canal moderado.
 
 ## O achado da bancada
 
@@ -48,4 +53,4 @@ Sentido pior, como já registrado em `INVESTIGACAO-A2B.md`: cerca de 72 % de bit
 
 ## Pastas
 
-Novas (sufixo `-10CM` = esta bancada): `F00-NIVEL-10CM`, `F01-2FSK-10CM`, `F02-5X2-VOTADA-10CM`, `F03-5X2-MULTICANAL-10CM`, `F04-16FSK-10CM`, `F05-ARQUIVO-10CM`, `F06-16FSK-IFK-10CM`, `G00-PISO`, `G01-TONS`, `G02-VARREDURA`, `G03-LINEARIDADE`, `G20-SUBTRAI-CAUDA`, `G10-FIGURAS-CANAL` (figuras; `cauda/` acrescentada). Bancada anterior, não alterada: `F00-NIVEL`, `F00-AJUSTE`, `F00-NIVEL-A2B`, `F01-2FSK`, `F02-5X2-VOTADA`, `F03-5X2-MULTICANAL`, `F04-16FSK`, `F05-ARQUIVO`, `F06-16FSK-IFK`. Planos: `PLANO-FINAL.md`, `PLANO-AFK.md`.
+Novas (sufixo `-10CM` = esta bancada): `F00-NIVEL-10CM`, `F01-2FSK-10CM`, `F02-5X2-VOTADA-10CM`, `F03-5X2-MULTICANAL-10CM`, `F04-16FSK-10CM`, `F05-ARQUIVO-10CM`, `F06-16FSK-IFK-10CM`, `G00-PISO`, `G01-TONS`, `G02-VARREDURA`, `G03-LINEARIDADE`, `G20-SUBTRAI-CAUDA` (com `validacao/`), `G10-FIGURAS-CANAL` (figuras; `cauda/` acrescentada), `H01-IFK-ORDEM-INVERTIDA` (r5-r8, IFK primeiro), `H02-16FSK-MALHA` (F00 r5-r8, só malha). Bancada anterior, não alterada: `F00-NIVEL`, `F00-AJUSTE`, `F00-NIVEL-A2B`, `F01-2FSK`, `F02-5X2-VOTADA`, `F03-5X2-MULTICANAL`, `F04-16FSK`, `F05-ARQUIVO`, `F06-16FSK-IFK`. Planos: `PLANO-FINAL.md`, `PLANO-AFK.md`.
