@@ -645,6 +645,8 @@ class Estacao:
         self.livre_em = 0          # fim do que estou tocando
         self.ouvido_em = -10 * FS  # última marca ouvida
         self._usadas = set()       # marcas já lidas como parte de um segmento
+        self.lat_extra = 0         # latência de saída não declarada, medida no próprio eco
+        self._eco = None           # (tipo, início) da última varredura de saudação tocada
         self.reinicia()
         self.anota("tempos no ar: " + "; ".join(
             f"{d.nome} {d.segundos:.1f}s" for d in ABORDAGENS)
@@ -674,7 +676,7 @@ class Estacao:
         self.tentativas = 0
         self.sem_progresso = 0
 
-    def _toca(self, partes, depois=0, espera=True, guarda_turno=True, apos=None):
+    def _toca(self, partes, depois=0, espera=True, guarda_turno=True, apos=None, eco=None):
         """Agenda um turno: segmentos separados por GAP, `depois` amostras
         após o fim do que chegou por último (ou a partir de `apos`)."""
         s = []
@@ -682,7 +684,7 @@ class Estacao:
             s += [p, np.zeros(GAP)]
         x = np.concatenate(s[:-1])
         quando = max(self.agora, (self.turno_ultimo if apos is None else apos) + depois)
-        self.agenda.append((quando, x))
+        self.agenda.append((quando, x, eco))
         if guarda_turno:
             self.ultimo_turno = partes
         self.espera_ate = (quando + len(x) + RESP + ESPERA) if espera else None
@@ -700,6 +702,8 @@ class Estacao:
         intervalo errado e a estação se ouviria."""
         if n <= 0:
             return
+        if self._eco is not None:
+            self._eco = (self._eco[0], self._eco[1] + n)
         a, b = self.ouvido.cegos[-1]
         self.ouvido.cegos[-1] = (a + n, b + n)
         self.livre_em += n
@@ -718,18 +722,43 @@ class Estacao:
             self._turno(turno)
         self._prazos()
         if self.agenda and self.agenda[0][0] <= self.agora and self.agora >= self.livre_em:
-            _, x = self.agenda.pop(0)
+            _, x, eco = self.agenda.pop(0)
             a = self.agora
-            self.livre_em = a + len(x)
-            self.ouvido.cego(a, a + len(x) + GUARDA)
+            self.livre_em = a + len(x) + self.lat_extra
+            if eco:
+                # A varredura de saudação não é apagada da entrada: nenhuma
+                # estação age sobre a do próprio tipo, e ouvir o próprio eco
+                # é como se mede quanto o som demora de fato a sair.
+                self.ouvido.cego(a, a)
+                self._eco = (eco, a)
+            else:
+                self.ouvido.cego(a + self.lat_extra, a + self.lat_extra + len(x) + GUARDA)
             if self.espera_ate is not None:
-                self.espera_ate = max(self.espera_ate, a + len(x) + RESP + ESPERA)
+                self.espera_ate = max(self.espera_ate,
+                                      a + self.lat_extra + len(x) + RESP + ESPERA)
             return x
         return None
 
     # --- recepção
 
     def _marca(self, pos, tipo, sc):
+        if self._eco is not None and tipo == self._eco[0]:
+            d = pos - self._eco[1]
+            if -SPS <= d < 2 * FS:
+                # O meu próprio eco. A latência que o runtime declarou já está
+                # descontada em `_eco`; o que sobra é a que ninguém declarou
+                # (um alto-falante Bluetooth declara menos do que tem). Sem
+                # isto, com 0,7 s a mais, a minha marca de fechamento saía da
+                # janela de cegueira e virava a abertura de um quadro fantasma.
+                novo = max(0, d)
+                if abs(novo - self.lat_extra) > SPS:
+                    self.anota(f"latência de saída medida no eco: +{novo / FS:.3f}s "
+                               "além da declarada")
+                self.lat_extra = novo
+                self._eco = None
+                return
+        if (self.papel == 'chamador') == (tipo == 'chamada') and tipo in ('chamada', 'resposta'):
+            return                      # a do meu tipo, de um eco que já não espero
         self.ouvido_em = pos
         if tipo == 'chamada':
             if self.papel == 'ouvinte' and self.aberto and \
@@ -743,7 +772,7 @@ class Estacao:
                 self.k_chamada += 1
                 self.turno_ultimo = pos + len(MOLDES['chamada'])
                 self._toca([MOLDES['resposta'] * g], depois=RESP, espera=False,
-                           guarda_turno=False)
+                           guarda_turno=False, eco='resposta')
                 self.estado = 'aguarda_ola'
                 self.espera_ate = self.agora + 20 * FS
         elif tipo == 'resposta':
@@ -929,7 +958,8 @@ class Estacao:
                 self.k_chamada += 1
                 self.anota(f"chamando (ganho {g})")
                 self.turno_ultimo = self.agora
-                self._toca([MOLDES['chamada'] * g], espera=True, guarda_turno=False)
+                self._toca([MOLDES['chamada'] * g], espera=True, guarda_turno=False,
+                           eco='chamada')
             elif (self.espera_ate is not None and self.agora > self.espera_ate
                   and not self.agenda):
                 self.espera_ate = None
@@ -1062,6 +1092,13 @@ class Estacao:
         self.anota(f"sondagem lida: bits errados {bers}; margens "
                    f"{np.round(margem).astype(int).tolist()} dB")
         self.anota(f"contrato para o que me {sentido}: {c.descreve()}")
+        if c.ganho == 0:
+            # A borda da escada, não um ótimo cercado. Num link real com o
+            # volume do sistema alto é a assinatura de compressão de CLAUDE.md
+            # (o ganho menor sempre vence), e o remédio é o fader analógico,
+            # que esta escada não alcança.
+            self.anota("AVISO: venceu o menor ganho da escada; se o volume do "
+                       "outro lado estiver alto, baixá-lo e saudar de novo")
         return c
 
     # --- canal aberto: pare-e-espere

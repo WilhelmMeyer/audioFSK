@@ -123,9 +123,13 @@ def roda(cenario, verbose=False, semente=0):
             est.ouvir(ar_meu.le(t, t + BLOCO))
             x = est.passo()
             if x is not None:
-                ar_outro.soma(t + BLOCO, canal.passa(x))
+                # Latência da saída que a estação não sabe (um alto-falante
+                # Bluetooth declara menos do que tem): o som sai depois do
+                # instante em que ela acha que tocou, para os dois ouvidos.
+                lat = t + BLOCO + int(c.get('latencia_oculta', 0.0) * FS)
+                ar_outro.soma(lat, canal.passa(x))
                 # O próprio alto-falante no próprio microfone, bem alto.
-                ar_meu.soma(t + BLOCO, 0.8 * np.tanh(x / 0.35))
+                ar_meu.soma(lat, 0.8 * np.tanh(x / 0.35))
         t += BLOCO
         if b and a.aberto and b.aberto and a.confirmado and b.confirmado \
                 and a.recebido == msg_b and b.recebido == msg_a \
@@ -157,6 +161,12 @@ CENARIOS = {
                                       (2675, 0.03), (3000, 0.03))),
                   ab=dict(perda=0.3, cauda_db=-14.0, relogio=5e-5),
                   ba=dict(CANAL_BOM), dados_a=150, dados_b=20),
+    # Como 'limpo', com 0,7 s de latência de saída que ninguém declarou. A
+    # própria marca de fechamento sai da janela de cegueira se a guarda não
+    # cobrir isso, e vira uma abertura fantasma.
+    'latencia': dict(segundos=240, ruido_a=0.002, ruido_b=0.002,
+                     ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
+                     dados_a=120, dados_b=60, latencia_oculta=0.7),
     'sem_parceiro': dict(segundos=120, ruido_a=0.01, ruido_b=0.01,
                          ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
                          sem_parceiro=True),
