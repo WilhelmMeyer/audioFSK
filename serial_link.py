@@ -19,7 +19,10 @@ class Control:
     """
 
     def __init__(self, port, baud, timeout=0.1):
-        self.ser = serial.Serial(port, baud, timeout=timeout)
+        # A URL, not only a device: `socket://host:port` carries this same line
+        # protocol over a TCP tunnel when there is no cable, only SSH between
+        # the machines. A plain path or COMn opens exactly as serial.Serial would.
+        self.ser = serial.serial_for_url(port, baud, timeout=timeout)
         self.lines = queue.Queue()
         self._stop = False
         self._write_lock = threading.Lock()
