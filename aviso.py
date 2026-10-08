@@ -42,6 +42,8 @@ _NOTIFY = None if _WIN else shutil.which('notify-send')
 _DESKTOP = _WIN or bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
 _ATIVO = _DESKTOP and os.environ.get('AUDIOFSK_AVISO', '1') != '0'
 
+PORTA = 7099      # aviso.py --servidor, localhost only
+
 _q = queue.Queue()
 _worker = None
 _lock = threading.Lock()
@@ -100,8 +102,50 @@ class _Banner:
         self._kill()
 
 
+class _Remoto:
+    """Hand the notice to `aviso.py --servidor`, falling back to a banner of
+    our own when nothing is listening.
+
+    Needed on Windows because the agent is started over SSH and lives in
+    session 0, which has no desktop: a window it opens exists and is shown to
+    nobody. The server runs in the logged-in session (a logon task, see
+    `--instala`) and draws there. The connection stays open while the notice
+    is 'on', so a client that dies takes its banner down with it.
+    """
+
+    def __init__(self):
+        self.sock = None
+        self.local = _Banner()
+
+    def show(self, titulo, corpo, ativo):
+        import socket
+        linha = ('\t'.join(('on' if ativo else 'off', titulo, corpo)) + '\n').encode()
+        for _ in range(2):                   # one reconnect if the server restarted
+            try:
+                if self.sock is None:
+                    self.sock = socket.create_connection(('127.0.0.1', PORTA), timeout=0.5)
+                self.sock.sendall(linha)
+                self.local.close()
+                return
+            except OSError:
+                self.close_sock()
+        self.local.show(titulo, corpo, ativo)
+
+    def close_sock(self):
+        if self.sock is not None:
+            try:
+                self.sock.close()
+            except OSError:
+                pass
+            self.sock = None
+
+    def close(self):
+        self.close_sock()
+        self.local.close()
+
+
 def _run():
-    backend = _NotifySend() if _NOTIFY else _Banner()
+    backend = _NotifySend() if _NOTIFY else _Remoto() if _WIN else _Banner()
     while True:
         items = [_q.get()]
         while True:                          # coalesce: the latest state wins
@@ -170,10 +214,24 @@ def em_uso(o_que, detalhe=''):
 
 # --- the banner itself, when this file runs as a child process
 
-def _banner(estado, titulo, corpo):
+def _desenha(root, titulo, corpo, ativo):
     import tkinter as tk
-    ativo = estado == 'on'
     bg = '#c62828' if ativo else '#2e7d32'
+    for w in root.winfo_children():
+        w.destroy()
+    frame = tk.Frame(root, bg=bg, padx=16, pady=10)
+    frame.pack()
+    fonte = 'Segoe UI' if _WIN else 'Sans'
+    tk.Label(frame, text=titulo, bg=bg, fg='white', font=(fonte, 14, 'bold')).pack(anchor='w')
+    tk.Label(frame, text=corpo, bg=bg, fg='white', font=(fonte, 10)).pack(anchor='w')
+    root.update_idletasks()
+    w = root.winfo_reqwidth()
+    root.geometry(f"+{root.winfo_screenwidth() - w - 24}+{24}")
+    return frame
+
+
+def _janela():
+    import tkinter as tk
     root = tk.Tk()
     root.overrideredirect(True)
     root.attributes('-topmost', True)
@@ -182,15 +240,79 @@ def _banner(estado, titulo, corpo):
             root.attributes('-toolwindow', True)
         except tk.TclError:
             pass
-    frame = tk.Frame(root, bg=bg, padx=16, pady=10)
-    frame.pack()
-    tk.Label(frame, text=titulo, bg=bg, fg='white',
-             font=('Segoe UI' if _WIN else 'Sans', 14, 'bold')).pack(anchor='w')
-    tk.Label(frame, text=corpo, bg=bg, fg='white',
-             font=('Segoe UI' if _WIN else 'Sans', 10)).pack(anchor='w')
-    root.update_idletasks()
-    w, h = root.winfo_reqwidth(), root.winfo_reqheight()
-    root.geometry(f"+{root.winfo_screenwidth() - w - 24}+{24}")
+    return root
+
+
+def _servidor():
+    """Draw notices sent by other processes, in this (the desktop's) session."""
+    import socket
+    root = _janela()
+    root.withdraw()
+    eventos = queue.Queue()
+    esconder = [None]
+
+    def atende(conn):
+        ultimo = None
+        with conn:
+            arq = conn.makefile('r', encoding='utf-8', errors='replace')
+            for linha in arq:
+                partes = linha.rstrip('\n').split('\t')
+                if len(partes) == 3:
+                    ultimo = partes
+                    eventos.put(partes)
+        if ultimo and ultimo[0] == 'on':      # client died mid-use
+            eventos.put(['off', '⚠ aviso encerrado', ultimo[2] + ' (processo terminou)'])
+
+    def escuta():
+        srv = socket.socket()
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(('127.0.0.1', PORTA))
+        srv.listen()
+        while True:
+            conn, _ = srv.accept()
+            threading.Thread(target=atende, args=(conn,), daemon=True).start()
+
+    threading.Thread(target=escuta, daemon=True).start()
+
+    def poll():
+        try:
+            while True:
+                estado, titulo, corpo = eventos.get_nowait()
+                ativo = estado == 'on'
+                if esconder[0] is not None:
+                    root.after_cancel(esconder[0])
+                    esconder[0] = None
+                frame = _desenha(root, titulo, corpo, ativo)
+                frame.bind('<Button-1>', lambda e: root.withdraw())
+                root.deiconify()
+                root.attributes('-topmost', True)
+                if not ativo:
+                    esconder[0] = root.after(3000, root.withdraw)
+        except queue.Empty:
+            pass
+        root.after(100, poll)
+
+    root.after(100, poll)
+    root.mainloop()
+
+
+def _instala():
+    """Windows: register the server as a logon task in the desktop session,
+    and start it now."""
+    exe = sys.executable
+    if exe.lower().endswith('python.exe'):
+        alt = exe[:-len('python.exe')] + 'pythonw.exe'
+        exe = alt if os.path.exists(alt) else exe
+    tr = f'"{exe}" "{os.path.abspath(__file__)}" --servidor'
+    subprocess.run(['schtasks', '/create', '/f', '/tn', 'audioFSK-aviso',
+                    '/sc', 'onlogon', '/it', '/tr', tr], check=True)
+    subprocess.run(['schtasks', '/run', '/tn', 'audioFSK-aviso'], check=True)
+
+
+def _banner(estado, titulo, corpo):
+    ativo = estado == 'on'
+    root = _janela()
+    frame = _desenha(root, titulo, corpo, ativo)
 
     # Parent gone or told us to go: stdin reaches EOF.
     done = threading.Event()
@@ -220,5 +342,12 @@ def _banner(estado, titulo, corpo):
     root.mainloop()
 
 
-if __name__ == '__main__' and len(sys.argv) == 5 and sys.argv[1] == '--banner':
-    _banner(*sys.argv[2:])
+if __name__ == '__main__':
+    if len(sys.argv) == 5 and sys.argv[1] == '--banner':
+        _banner(*sys.argv[2:])
+    elif sys.argv[1:] == ['--servidor']:
+        _servidor()
+    elif sys.argv[1:] == ['--instala']:
+        _instala()
+    else:
+        sys.exit("uso: aviso.py --servidor | --instala")
