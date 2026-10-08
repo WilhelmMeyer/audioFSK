@@ -30,7 +30,7 @@ import fec
 import recording
 import spectro
 from modem import (MaryDemodulator, MARY_TONES, chirp, find_chirp,
-                   find_chirp_pair, SYNC_CHIRP)
+                   find_chirp_pair, SYNC_CHIRP, TONE_LAYERS)
 
 BLOCK = 2048
 
@@ -83,8 +83,10 @@ def genie_floor(samples, payload, meta, sps, repeat, skip):
     already achieves, pilots are not worth their air time, and that is the
     only reason to compute it.
     """
-    want = spectro.tx_tone_indices(payload, repeat, ifk=bool(meta.get('ifk')))
-    ntones = len(MARY_TONES) + (1 if meta.get('ifk') else 0)
+    tones, nb = TONE_LAYERS[meta['mode']]
+    want = spectro.tx_tone_indices(payload, repeat, ifk=bool(meta.get('ifk')),
+                                   bits=nb)
+    ntones = len(tones) + (1 if meta.get('ifk') else 0)
     # Deliberately the *same* offset the frozen-clock column used, not one
     # found independently. Two alignments and two divisors changing at once
     # produce a difference that cannot be attributed to either -- which is
@@ -93,11 +95,8 @@ def genie_floor(samples, payload, meta, sps, repeat, skip):
     # its worse alignment.
     start = skip
     ones = np.ones(ntones)
-    d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'], steer=False,
-                        skip=start, floor_fixed=ones,
-                        gap=meta.get('gap', 0.0), band=meta.get('band', 0.0),
-                        chord=bool(meta.get('chord')),
-                        ifk=bool(meta.get('ifk')))
+    d = MaryDemodulator(steer=False, skip=start, floor_fixed=ones,
+                        **layer_kw(meta))
     # With the divisor pinned at one, the `norm` the demodulator yields is the
     # raw per-tone energy -- no separate accessor needed.
     decided, energies = [], []
@@ -150,6 +149,20 @@ def genie_floor(samples, payload, meta, sps, repeat, skip):
     return (sig / nsig, noi / nnoi), start
 
 
+def layer_kw(meta):
+    """Receiver settings the recording's metadata calls for, alphabet included.
+
+    The mode picks the tone set and bits per symbol (16-FSK or 2-FSK); IFK and
+    the chord exist only on the 16-tone layer and are never passed otherwise.
+    """
+    tones, nb = TONE_LAYERS[meta['mode']]
+    kw = dict(fs=meta['fs'], baud=meta['baud'], gap=meta.get('gap', 0.0),
+              band=meta.get('band', 0.0), tones=tones, bits=nb)
+    if meta['mode'] == 'mary':
+        kw.update(chord=bool(meta.get('chord')), ifk=bool(meta.get('ifk')))
+    return kw
+
+
 def _stream(demod, samples):
     for i in range(0, len(samples), BLOCK):
         yield from demod._symbols(samples[i:i + BLOCK])
@@ -159,9 +172,7 @@ def probe(samples, payload, meta, step):
     fs, baud = meta['fs'], meta['baud']
     sps = int(fs / baud)
     repeat = meta.get('fec_repeat', 1) or 1
-    kw = dict(fs=fs, baud=baud, gap=meta.get('gap', 0.0),
-              band=meta.get('band', 0.0), chord=bool(meta.get('chord')),
-              ifk=bool(meta.get('ifk')))
+    kw = layer_kw(meta)
 
     d = MaryDemodulator(**kw)
     llr = soft(d, samples)
@@ -238,14 +249,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('directory', nargs='?', default='captures-self')
+    ap.add_argument('--mode', default='mary', choices=sorted(TONE_LAYERS),
+                    help="camada a pontuar: mary (16-FSK) ou fsk2 (2-FSK); "
+                         "uma por diretorio, o resumo supoe um conjunto so")
     ap.add_argument('--step', type=int, default=16,
                     help="passo da busca, em amostras (480 = um simbolo)")
     args = ap.parse_args()
 
     caps = [c for c in recording.load_all(args.directory)
-            if c[2].get('kind') == 'fec' and c[2].get('mode') == 'mary']
+            if c[2].get('kind') == 'fec' and c[2].get('mode') == args.mode]
     if not caps:
-        sys.exit(f"[align] nenhuma captura mary com --fec em {args.directory}/")
+        sys.exit(f"[align] nenhuma captura {args.mode} com --fec em {args.directory}/")
 
     gate_accs, best_accs = [], []
     sig_accs, noi_accs, chirp_accs, chirp_err = [], [], [], []

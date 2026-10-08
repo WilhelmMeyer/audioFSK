@@ -55,7 +55,8 @@ import numpy as np
 
 import fec
 import recording
-from modem import MARY_BITS, MaryDemodulator, MFSKDemodulator, MFSK_PAIRS
+from modem import (MARY_BITS, MaryDemodulator, MFSKDemodulator, MFSK_PAIRS,
+                   TONE_LAYERS, tone_layer)
 
 BLOCK = 2048          # what the live path hands the demodulator at a time
 PY = sys.executable
@@ -88,6 +89,12 @@ def demodulator(meta):
                                band=meta.get('band', 0.0),
                                chord=meta.get('chord', False),
                                ifk=bool(meta.get('ifk')))
+    if meta['mode'] in TONE_LAYERS:
+        # Any other tone layer (2-FSK): its own alphabet, never IFK or chord.
+        return MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
+                               gap=meta.get('gap', 0.0),
+                               band=meta.get('band', 0.0),
+                               **tone_layer(meta['mode']))
     return MFSKDemodulator(fs=meta['fs'], baud=meta['baud'],
                            parallel=meta.get('parallel', False),
                            grouped=meta.get('grouped', False))
@@ -108,8 +115,8 @@ def soft(demod, samples):
 
 def symbol_bits(meta):
     """How many log-likelihoods one symbol contributes to the soft stream."""
-    if meta['mode'] == 'mary':
-        return MARY_BITS
+    if meta['mode'] in TONE_LAYERS:
+        return TONE_LAYERS[meta['mode']][1]
     return len(MFSK_PAIRS) if meta.get('parallel') else 1
 
 
@@ -130,8 +137,9 @@ def preamble(meta):
     fully known from the payload the capture stored, so the "expected" column
     is the real transmitted sequence rather than an illustration of one.
     """
-    if meta['mode'] == 'mary':
-        return np.asarray(fec.preamble_bits('mary', symbol_bits=MARY_BITS),
+    if meta['mode'] in TONE_LAYERS:
+        return np.asarray(fec.preamble_bits('mary',
+                                            symbol_bits=TONE_LAYERS[meta['mode']][1]),
                           dtype=np.int8)
     return np.asarray(fec.preamble_bits('mfsk', npairs=len(MFSK_PAIRS),
                                         parallel=bool(meta.get('parallel'))),

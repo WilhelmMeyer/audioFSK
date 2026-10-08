@@ -49,7 +49,19 @@ import numpy as np
 import fec
 import recording
 from modem import (MARY_TONES, MARY_BITS, MFSK_PAIRS, _GRAY, _UNGRAY,
-                   MFSKDemodulator, MaryDemodulator, ifk_tones)
+                   MFSKDemodulator, MaryDemodulator, ifk_tones,
+                   TONE_LAYERS, tone_layer)
+
+
+def _layer_kw(meta):
+    """Alphabet for a non-16-tone layer (2-FSK); empty for `mary`, which
+    keeps every call exactly as it was."""
+    mode = meta.get('mode')
+    return tone_layer(mode) if mode in TONE_LAYERS and mode != 'mary' else {}
+
+
+def _layer_tones(meta):
+    return TONE_LAYERS.get(meta.get('mode'), (MARY_TONES, MARY_BITS))[0]
 
 
 def write_png(path, rgb):
@@ -159,7 +171,7 @@ def mfsk_decided(samples, meta):
     return out
 
 
-def tx_tone_indices(payload, repeat, ifk=False):
+def tx_tone_indices(payload, repeat, ifk=False, bits=MARY_BITS):
     """The tone the transmitter sounded in each symbol slot, from the payload.
 
     Reconstructed rather than guessed: the preamble is a fixed alternation and
@@ -168,13 +180,18 @@ def tx_tone_indices(payload, repeat, ifk=False):
     instead of decorative -- it is the actual transmitted sequence, not an
     illustration of one.
     """
-    pre = fec.preamble_bits('mary', symbol_bits=MARY_BITS)
+    nb = bits
+    pre = fec.preamble_bits('mary', symbol_bits=nb)
     bits = list(pre) + list(fec.frame(payload, repeat=repeat))
-    values = [sum(int(b) << j for j, b in enumerate(bits[i:i + MARY_BITS]))
-              for i in range(0, len(bits) - (MARY_BITS - 1), MARY_BITS)]
+    values = [sum(int(b) << j for j, b in enumerate(bits[i:i + nb]))
+              for i in range(0, len(bits) - (nb - 1), nb)]
     # Under IFK the tone depends on the previous value as well; index 16 is
-    # the repetition tone.
-    return ifk_tones(values) if ifk else [_GRAY[v] for v in values]
+    # the repetition tone. With fewer bits per symbol (2-FSK) the Gray table
+    # is that layer's own.
+    if ifk:
+        return ifk_tones(values)
+    gray = _GRAY if nb == MARY_BITS else [v ^ (v >> 1) for v in range(1 << nb)]
+    return [gray[v] for v in values]
 
 
 def find_start(samples, fs, sps, tones, want, guard=0.15, search=2.5):
@@ -219,7 +236,8 @@ def align_mary(samples, meta, want, coarse, sps):
     def score(start, period=None):
         d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
                             gap=meta.get('gap', 0.0), steer=False,
-                            skip=max(0, int(start)), period=period)
+                            skip=max(0, int(start)), period=period,
+                            **_layer_kw(meta))
         dec = np.array([i for i, _c, _n in d._symbols(samples)], dtype=int)
         return dec
 
@@ -263,7 +281,8 @@ def align_mary(samples, meta, want, coarse, sps):
     return int(start), hits, n
 
 
-def ideal_panel(want, start, fs, sps, tone_frac, f_lo, f_hi, cols, rows, win, nsamp):
+def ideal_panel(want, start, fs, sps, tone_frac, f_lo, f_hi, cols, rows, win, nsamp,
+                tones=MARY_TONES):
     """Where a perfect channel would put energy, on the same time axis.
 
     Built against the *same* column-to-sample mapping the measured panel uses,
@@ -280,7 +299,7 @@ def ideal_panel(want, start, fs, sps, tone_frac, f_lo, f_hi, cols, rows, win, ns
             continue
         if (centre - start) % sps > tone_frac * sps:    # the transmitted gap
             continue
-        f = MARY_TONES[want[k]]
+        f = tones[want[k]]
         if not f_lo <= f <= f_hi:
             continue
         r = int((f - f_lo) / (f_hi - f_lo) * (rows - 1))
@@ -305,7 +324,7 @@ def mary_decisions(samples, meta, start, sps, clock='grade'):
     """
     if clock == 'livre':
         d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
-                            gap=meta.get('gap', 0.0))
+                            gap=meta.get('gap', 0.0), **_layer_kw(meta))
         out = []
         for idx, _c, _n in d._symbols(samples):
             k = int(round((d.last_window - start) / sps))
@@ -315,7 +334,8 @@ def mary_decisions(samples, meta, start, sps, clock='grade'):
     k0 = max(0, int(np.ceil(-start / sps)))
     skip = int(start + k0 * sps)
     d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
-                        gap=meta.get('gap', 0.0), steer=False, skip=skip)
+                        gap=meta.get('gap', 0.0), steer=False, skip=skip,
+                        **_layer_kw(meta))
     return [(skip + j * sps, idx, k0 + j)
             for j, (idx, _c, _n) in enumerate(d._symbols(samples))]
 
@@ -331,7 +351,7 @@ def agreement(decisions, want):
 
 
 def decided_panel(decisions, want, f_lo, f_hi, cols, rows, win, nsamp, sps,
-                  want_mask=False):
+                  want_mask=False, tones=MARY_TONES):
     """What the demodulator concluded, marked at the position it concluded it.
 
     Correctness is judged by symbol *index*, which `mary_decisions` supplies,
@@ -349,7 +369,7 @@ def decided_panel(decisions, want, f_lo, f_hi, cols, rows, win, nsamp, sps,
     mask = np.zeros((rows, cols))
     half = max(1, int(rows * 26.0 / (f_hi - f_lo)))
     for pos, idx, k in decisions:
-        f = MARY_TONES[idx]
+        f = tones[idx]
         if not f_lo <= f <= f_hi:
             continue
         inside = 0 <= k < len(want)
@@ -743,15 +763,20 @@ def render(args, samples_all, payload, meta, t0, secs, out_path, tag):
 
     if args.fundido:
         args.ideal = True
-    is_mary = meta.get('mode') == 'mary'
+    # 2-FSK runs on the same machinery as the 16-FSK, so it draws the same way
+    # with its own two tones.
+    is_mary = meta.get('mode') in TONE_LAYERS
+    layer_tones = _layer_tones(meta)
+    layer_bits = TONE_LAYERS.get(meta.get('mode'), (None, MARY_BITS))[1]
     if args.ideal:
         if meta.get('kind') != 'fec':
             sys.exit("[spectro] --ideal precisa de uma captura com --fec")
         sps = int(fs / meta['baud'])
         tone_frac = 1.0 - meta.get('gap', 0.0)
         if is_mary:
-            want = tx_tone_indices(payload, meta.get('fec_repeat', 1))
-            tone_list = list(MARY_TONES)
+            want = tx_tone_indices(payload, meta.get('fec_repeat', 1),
+                                   bits=layer_bits)
+            tone_list = list(layer_tones)
             start = args.start - a
         else:
             plan, tone_list = mfsk_plan(payload, meta)
@@ -760,7 +785,8 @@ def render(args, samples_all, payload, meta, t0, secs, out_path, tag):
 
         if is_mary:
             ideal = ideal_panel(want, start, fs, sps, tone_frac, args.lo,
-                                args.hi, args.cols, args.rows, win, len(samples))
+                                args.hi, args.cols, args.rows, win, len(samples),
+                                tones=layer_tones)
             decisions = mary_decisions(samples, meta, start, sps, args.relogio)
             ok, n = agreement(decisions, want)
             report = (f"{tag}: {ok}/{n} simbolos coincidem "
@@ -778,7 +804,7 @@ def render(args, samples_all, payload, meta, t0, secs, out_path, tag):
         if is_mary:
             dec_mask = decided_panel(decisions, want, args.lo, args.hi, args.cols,
                                      args.rows, win, len(samples), sps,
-                                     want_mask=True)
+                                     want_mask=True, tones=layer_tones)
         else:
             dec_mask = chord_panel(mfsk_decided(samples, meta), fs, sps,
                                    tone_frac, args.lo, args.hi, args.cols,
@@ -806,7 +832,8 @@ def render(args, samples_all, payload, meta, t0, secs, out_path, tag):
             if is_mary:
                 tiles.append((decided_panel(decisions, want, args.lo, args.hi,
                                             args.cols, args.rows, win,
-                                            len(samples), sps),
+                                            len(samples), sps,
+                                            tones=layer_tones),
                               'decidido (verde=certo, vermelho=errado)'))
             tiles.append((colourise(ideal), 'ideal'))
 
@@ -829,7 +856,7 @@ def render(args, samples_all, payload, meta, t0, secs, out_path, tag):
         img[y:y + len(strip)] = strip
         y += len(strip)
 
-    marks = (MARY_TONES if meta.get('mode') == 'mary'
+    marks = (layer_tones if is_mary
              else sorted(t for pair in MFSK_PAIRS for t in pair))
     for f in marks:
         if not args.lo <= f <= args.hi:
@@ -909,10 +936,11 @@ def main():
         if meta.get('kind') != 'fec':
             sys.exit("[spectro] --ideal precisa de uma captura com --fec")
         sps = int(fs / meta['baud'])
-        if meta.get('mode') == 'mary':
-            want = tx_tone_indices(payload, meta.get('fec_repeat', 1))
+        if meta.get('mode') in TONE_LAYERS:
+            tones, nb = TONE_LAYERS[meta['mode']]
+            want = tx_tone_indices(payload, meta.get('fec_repeat', 1), bits=nb)
             coarse, hits = find_start(samples, fs, sps,
-                                      np.array(MARY_TONES, float), want)
+                                      np.array(tones, float), want)
             start, agree, ncomp = align_mary(samples, meta, want, coarse, sps)
             moved = (start - coarse) // sps
             print(f"[spectro] rajada em {start / fs:.3f}s "

@@ -721,6 +721,37 @@ _UNGRAY = {g: i for i, g in enumerate(_GRAY)}
 # that chooses which tone sounds is new.
 MARY_REPEAT_TONE = 3487.5
 
+# 2-FSK on the M-ary machinery: the same energy-per-tone detector divided by
+# each tone's running floor, the same soft output, FEC, sync word, preamble,
+# idle tail and optional sync sweeps -- with two tones and one bit per symbol,
+# at the same 100 baud. It exists to answer whether Bell 202 failed on the air
+# because it has two tones or because of how it was built (1200 baud under a
+# tail that spans ~12 of its bits, a sign-test discriminator, 8N1, no coding).
+#
+# 1700 and 2350 Hz: both measured at 10 cm (resultados/G01-TONS) with the
+# widest margins of the band (73.1 and 76.5 dB) and medians 2.1 dB apart; 650
+# Hz apart is 5.5 bins of the 118 Hz window, and neither is the 2nd or 3rd
+# harmonic of the other (3400, 5100 vs 2350). Only measured frequencies are
+# eligible: the comb moves 13-18 dB between neighbouring 50 Hz bins.
+FSK2_TONES = (1700, 2350)
+FSK2_BITS = 1
+
+# Tone set and bits per symbol for each mode name that runs on the
+# MaryModulator/MaryDemodulator pair. Every tool that rebuilds a receiver from
+# a recording's `mode` reads it here, so a new layer cannot be scored with the
+# wrong alphabet by a tool that forgot it.
+TONE_LAYERS = {'mary': (MARY_TONES, MARY_BITS), 'fsk2': (FSK2_TONES, FSK2_BITS)}
+
+
+def tone_layer(mode):
+    """dict(tones=..., bits=...) for a mode in TONE_LAYERS."""
+    tones, bits = TONE_LAYERS[mode]
+    return dict(tones=tones, bits=bits)
+
+
+def gray_table(bits):
+    return [_gray(i) for i in range(1 << bits)]
+
 
 def ifk_tones(values):
     """Tone index for each value under the IFK rule, starting a fresh frame.
@@ -755,9 +786,15 @@ class MaryModulator:
     """
 
     def __init__(self, fs=48000, baud=100, tones=MARY_TONES, gap=0.0,
-                 chord=False, ifk=False):
+                 chord=False, ifk=False, bits=MARY_BITS):
         if ifk and chord:
             raise ValueError("ifk e chord nao combinam: o IFK escolhe um tom")
+        if bits != MARY_BITS and (ifk or chord):
+            raise ValueError("ifk e chord so existem com 16 tons")
+        if len(tones) != 1 << bits:
+            raise ValueError(f"{len(tones)} tons para {bits} bits por simbolo")
+        self.nbits = int(bits)
+        self.gray = gray_table(self.nbits)
         self.fs = fs
         self.baud = baud
         self.ifk = bool(ifk)
@@ -795,7 +832,7 @@ class MaryModulator:
         self.phase = (self.phase + w * self.samples_per_symbol) % (2 * np.pi)
 
     def _symbol(self, value):
-        v = value & ((1 << MARY_BITS) - 1)
+        v = value & ((1 << self.nbits) - 1)
         nd = self.samples_per_tone
         n = np.arange(nd)
         if self.chord:
@@ -809,7 +846,7 @@ class MaryModulator:
             # of them quietly running hotter into the far side's limiter.
             out /= len(idxs)
         else:
-            idx = _GRAY[v]
+            idx = self.gray[v]
             if (self.ifk and v == self.prev_value
                     and self.prev_tone != 1 << MARY_BITS):
                 idx = 1 << MARY_BITS
@@ -823,12 +860,13 @@ class MaryModulator:
 
     def modulate_bits(self, bits):
         bits = list(bits)
-        if len(bits) % MARY_BITS:
-            bits += [0] * (MARY_BITS - len(bits) % MARY_BITS)
+        nb = self.nbits
+        if len(bits) % nb:
+            bits += [0] * (nb - len(bits) % nb)
         chunks = []
-        for i in range(0, len(bits), MARY_BITS):
+        for i in range(0, len(bits), nb):
             v = 0
-            for j, b in enumerate(bits[i:i + MARY_BITS]):
+            for j, b in enumerate(bits[i:i + nb]):
                 v |= (b & 1) << j
             chunks.append(self._symbol(v))
         return np.concatenate(chunks) if chunks else np.array([])
@@ -842,8 +880,16 @@ class MaryModulator:
     def idle(self, symbols):
         """A tail so the receiver's last symbols are not stranded in its
         buffer. Alternating, not constant: timing recovery needs transitions
-        and a repeated symbol teaches it nothing."""
-        return self.modulate_bits([0, 1, 0, 1] * symbols)
+        and a repeated symbol teaches it nothing.
+
+        Exactly `symbols` symbols at any bits per symbol: `fec.frame_symbols`
+        counts the tail in symbols, and the two-sweep period divides by it.
+        With 16 tones the four bits per symbol are kept as they always were,
+        so the 16-FSK burst is byte-identical."""
+        if self.nbits == MARY_BITS:
+            return self.modulate_bits([0, 1, 0, 1] * symbols)
+        return self.modulate_bits([(i // self.nbits) % 2
+                                   for i in range(symbols * self.nbits)])
 
 
 class MaryDemodulator:
@@ -853,9 +899,17 @@ class MaryDemodulator:
                  contrast_min=0.15, floor_alpha=0.02, gap=0.0, band=0.0,
                  chord=False, steer=True, skip=0, floor_fixed=None,
                  period=None, floor_norm=False, floor_clip=None, floor_top=1,
-                 ifk=False):
+                 ifk=False, bits=MARY_BITS):
         if ifk and chord:
             raise ValueError("ifk e chord nao combinam: o IFK escolhe um tom")
+        if bits != MARY_BITS and (ifk or chord):
+            raise ValueError("ifk e chord so existem com 16 tons")
+        if len(tones) != 1 << bits:
+            raise ValueError(f"{len(tones)} tons para {bits} bits por simbolo")
+        # Bits per symbol. Not `self.bits`, which is the leftover-bit list.
+        self.nbits = int(bits)
+        self.gray = gray_table(self.nbits)
+        self.ungray = {g: i for i, g in enumerate(self.gray)}
         # IFK by repetition tone: see `ifk_tones`. With it on, the tone this
         # demodulator *detected* in the previous symbol is left out of the
         # comparison, and a win by the repetition tone means "the value decided
@@ -1009,7 +1063,7 @@ class MaryDemodulator:
         elif self.ifk and idx == self.rep:
             v = self.prev_val
         else:
-            v = _UNGRAY[idx]
+            v = self.ungray[idx]
         self.value = v
         self.prev_idx, self.prev_val = idx, v
 
@@ -1187,7 +1241,7 @@ class MaryDemodulator:
             # the repetition tone resolved to the previous value. `_commit`
             # did both.
             v = self.value
-            self.bits += [(v >> j) & 1 for j in range(MARY_BITS)]
+            self.bits += [(v >> j) & 1 for j in range(self.nbits)]
         while len(self.bits) >= 8:
             chunk = self.bits[:8]
             del self.bits[:8]
@@ -1210,7 +1264,9 @@ class MaryDemodulator:
             # sum over its three tones, and a bit's likelihood has to be read
             # off the values that carry it, whatever they are made of.
             log_e = np.log(np.maximum(self._nibble_scores(norm), 1e-30))
-            place = (lambda v: v) if self.chord else (lambda v: _GRAY[v])
+            nb = self.nbits
+            gray = self.gray
+            place = (lambda v: v) if self.chord else (lambda v: gray[v])
             if self.ifk:
                 # Evidence for value v is the better of its own tone and, when
                 # v is the value decided last symbol, the repetition tone --
@@ -1222,13 +1278,13 @@ class MaryDemodulator:
                 log_e = log_e.copy()
                 if self.used_excl is not None:
                     log_e[self.used_excl] = -np.inf
-                metric = np.array([log_e[_GRAY[v]] for v in range(1 << MARY_BITS)])
+                metric = np.array([log_e[gray[v]] for v in range(1 << nb)])
                 metric[self.used_ref] = max(metric[self.used_ref], log_e[self.rep])
                 log_e = metric
                 place = lambda v: v
-            for j in range(MARY_BITS):
-                ones = [log_e[place(v)] for v in range(1 << MARY_BITS) if (v >> j) & 1]
-                zeros = [log_e[place(v)] for v in range(1 << MARY_BITS) if not (v >> j) & 1]
+            for j in range(nb):
+                ones = [log_e[place(v)] for v in range(1 << nb) if (v >> j) & 1]
+                zeros = [log_e[place(v)] for v in range(1 << nb) if not (v >> j) & 1]
                 out.append(max(ones) - max(zeros))
         return np.array(out)
 

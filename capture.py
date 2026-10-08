@@ -29,7 +29,7 @@ import sounddevice as sd
 import aviso
 import fec
 import recording
-from modem import MARY_BITS
+from modem import MARY_BITS, TONE_LAYERS
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -141,7 +141,7 @@ _seq = [0]
 SYNC_HUSH = 0.03            # o mesmo silencio que `console.py` poe ao redor de cada varredura
 
 
-def sync_span(nbytes, repeat):
+def sync_span(nbytes, repeat, symbol_bits=MARY_BITS):
     """Quantos simbolos separam as duas varreduras, contados como o
     transmissor os montou.
 
@@ -162,7 +162,7 @@ def sync_span(nbytes, repeat):
     O termo final sao os dois silencios que cercam as varreduras, que separam
     o decaimento de cada varredura do primeiro simbolo de dado.
     """
-    return (fec.frame_symbols(nbytes, repeat, MARY_BITS)
+    return (fec.frame_symbols(nbytes, repeat, symbol_bits)
             + 2 * (SYNC_HUSH * FS) / (FS / 100))
 
 
@@ -193,7 +193,9 @@ def main():
     ap.add_argument('--port', required=True, help="serial port to the other machine")
     ap.add_argument('--sync-baud', type=int, default=115200)
     ap.add_argument('--device', help="input device (index or name)")
-    ap.add_argument('--mode', choices=('fsk', 'mfsk', 'mary'), default='mfsk')
+    ap.add_argument('--mode', choices=('fsk', 'mfsk', 'mary', 'fsk2'), default='mfsk',
+                    help="fsk2 = 2-FSK com a maquinaria do mary (2 tons, 1 bit "
+                         "por simbolo, 100 baud); use com --fec")
     ap.add_argument('--gain', type=float, help="far side output amplitude 0..1")
     ap.add_argument('--bytes', type=int, default=48)
     ap.add_argument('--seed', type=int, default=None)
@@ -236,6 +238,8 @@ def main():
 
     if args.ifk and args.chord:
         sys.exit("[capture] --ifk e --chord nao combinam")
+    if args.mode == 'fsk2' and (args.ifk or args.chord or args.parallel):
+        sys.exit("[capture] fsk2 tem 2 tons: sem --ifk, --chord ou --parallel")
 
     if args.device is not None and args.device.isdigit():
         args.device = int(args.device)
@@ -245,7 +249,14 @@ def main():
         sys.exit(f"[capture] sem resposta em {args.port} -- a outra maquina esta em --role agent?")
 
     print(f"[capture] agent respondeu. modo={args.mode}")
-    ask(ctl, f"mode {args.mode}")
+    reply = ask(ctl, f"mode {args.mode}")
+    if not (reply or '').startswith(f"modo = {args.mode} "):
+        # An agent that has not been pulled answers "modo desconhecido" and
+        # stays in whatever mode it was, then transmits *that* -- a recording
+        # stamped fsk2 over a burst of something else.
+        ctl.close()
+        sys.exit(f"[capture] o outro lado nao entrou em {args.mode}: {reply!r} "
+                 "-- pull + restart nele primeiro")
     ask(ctl, "spk on")
     if args.fec:
         ask(ctl, f"fecpar {'on' if args.parallel else 'off'}")
@@ -315,7 +326,11 @@ def main():
         # so it spends far longer on the air than its byte count suggests.
         if args.fec:
             coded = (len(payload) * 8 + 6) * 3 * args.repeat
-            if args.mode == 'mary':
+            if args.mode == 'fsk2':
+                # The same count the transmitter builds the frame from.
+                airtime = fec.frame_symbols(len(payload), args.repeat,
+                                            TONE_LAYERS['fsk2'][1]) / baud
+            elif args.mode == 'mary':
                 airtime = (120 + 8 + coded / 4 + 6) / baud
             elif args.parallel:
                 airtime = (31 + 80 + coded / 5) / baud
@@ -346,8 +361,10 @@ def main():
                               ifk=bool(args.ifk),
                               sync_chirp=bool(args.sync_chirp),
                               sync_hush=SYNC_HUSH if args.sync_chirp else 0.0,
-                              sync_span_symbols=(sync_span(len(payload), args.repeat)
-                                                 if args.sync_chirp else 0.0),
+                              sync_span_symbols=(sync_span(
+                                  len(payload), args.repeat,
+                                  TONE_LAYERS.get(args.mode, (None, MARY_BITS))[1])
+                                  if args.sync_chirp else 0.0),
                               grouped=bool(args.grouped),
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,

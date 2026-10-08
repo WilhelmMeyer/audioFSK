@@ -43,6 +43,7 @@ import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
                    MaryModulator, MaryDemodulator, MARY_BITS, MARY_REPEAT_TONE,
+                   TONE_LAYERS, tone_layer,
                    chirp, find_chirp, find_chirp_pair, SYNC_CHIRP)
 from serial_link import Control, pack, unpack
 
@@ -138,6 +139,14 @@ class AudioNode:
                      MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=MARY_GAP,
                                      band=MARY_BAND, chord=MARY_CHORD,
                                      ifk=MARY_IFK)),
+            # 2-FSK built like the 16-FSK: same detector, floor, soft output,
+            # FEC, sync word and sweeps, two tones and one bit per symbol at
+            # 100 baud. Not Bell 202 (`fsk`), which stays as it was. IFK and
+            # the chord do not exist with two tones and are never passed here.
+            'fsk2': (MaryModulator(fs=FS, baud=MFSK_BAUD, gap=MARY_GAP,
+                                   **tone_layer('fsk2')),
+                     MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=MARY_GAP,
+                                     band=MARY_BAND, **tone_layer('fsk2'))),
         }
         self.mode = 'fsk'
         self.gain = gain
@@ -238,8 +247,8 @@ class AudioNode:
         different instance than the one that spoke -- harmless only for as
         long as there was no receive path. Both ends read this property now.
         """
-        if self.mode == 'mary':
-            return 'mary'
+        if self.mode in TONE_LAYERS:
+            return self.mode
         return 'mfsk-par' if self.fec_parallel else 'mfsk'
 
     def threshold(self, value=None):
@@ -278,7 +287,13 @@ class AudioNode:
             MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
                             band=self.mary_band, chord=self.mary_chord,
                             ifk=self.mary_ifk))
-        if self.mode == 'mary':
+        # The 2-FSK pair shares the gap and the band, never IFK or the chord.
+        self.layers['fsk2'] = (
+            MaryModulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
+                          **tone_layer('fsk2')),
+            MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
+                            band=self.mary_band, **tone_layer('fsk2')))
+        if self.mode in TONE_LAYERS:
             # `mod` and `demod` are properties read off `layers`, so the new
             # pair is already live. Assigning to them raised, the agent
             # replied ERRO, and the rebuild had in fact taken effect.
@@ -296,7 +311,8 @@ class AudioNode:
 
     def set_mode(self, mode):
         if mode not in self.layers:
-            return f"modo desconhecido: {mode!r} (use 'fsk', 'mfsk' ou 'mary')"
+            return (f"modo desconhecido: {mode!r} "
+                    "(use 'fsk', 'mfsk', 'mary' ou 'fsk2')")
         self.mode = mode
         self.mod.reset()
         self.demod.reset()
@@ -308,7 +324,10 @@ class AudioNode:
         with self.stats_lock:
             self._reset_stats()
         baud = BAUD if mode == 'fsk' else MFSK_BAUD
-        bits = MARY_BITS if mode == 'mary' else 1
+        bits = TONE_LAYERS[mode][1] if mode in TONE_LAYERS else 1
+        if mode == 'fsk2':
+            t0, t1 = TONE_LAYERS['fsk2'][0]
+            return f"modo = fsk2 ({baud} baud, 2 tons {t0}/{t1} Hz, 1 bit por simbolo)"
         return (f"modo = {mode} ({baud} baud"
                 + (f", {bits} bits por simbolo)" if bits > 1 else ")"))
 
@@ -364,7 +383,7 @@ class AudioNode:
         me hunting a truncated capture that was never truncated.
         """
         k = len(MFSK_PAIRS)
-        if self.mode == 'mary':
+        if self.mode in TONE_LAYERS:
             symbols = self.mary_frame_symbols(len(data), self.fec_repeat)
             if self.sync_sweep:
                 # The sweeps and their silences are air time like any other,
@@ -395,7 +414,27 @@ class AudioNode:
         the same answer from it. One function, called by both, so they cannot
         drift.
         """
-        return fec.frame_symbols(nbytes, repeat, MARY_BITS)
+        return fec.frame_symbols(nbytes, repeat, self.symbol_bits)
+
+    @property
+    def symbol_bits(self):
+        """Bits per symbol of the tone layer an M-ary-style frame uses."""
+        return TONE_LAYERS.get(self.fec_layer, (None, MARY_BITS))[1]
+
+    def tone_demod(self, **kw):
+        """A fresh receiver for the active tone layer, with its own alphabet.
+
+        One place, because `_sweep_llr` and `fec_sweep` both build one and a
+        bare `MaryDemodulator()` is the 16-tone receiver whatever the mode.
+        """
+        if self.fec_layer == 'fsk2':
+            return MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
+                                   band=self.mary_band, **tone_layer('fsk2'),
+                                   **kw)
+        kw.setdefault('gap', self.mary_gap)
+        kw.setdefault('band', self.mary_band)
+        return MaryDemodulator(fs=FS, baud=MFSK_BAUD, chord=self.mary_chord,
+                               ifk=self.mary_ifk, **kw)
 
     def _fec_frame(self, data, repeat):
         """Alternating preamble, sync word, coded block, trailing idle.
@@ -407,13 +446,13 @@ class AudioNode:
         byte stream, a block missing its tail does not decode at all.
         """
         k = len(MFSK_PAIRS)
-        if self.mode == 'mary':
+        if self.mode in TONE_LAYERS:
             mod = self.layers[self.fec_layer][0]
             # Every frame opens absolute: under IFK the first symbol must not
             # be relative to the previous burst's idle tail.
             mod.restart_ifk()
             bits = fec.frame(data, repeat=repeat)
-            pre = fec.preamble_bits('mary', symbol_bits=MARY_BITS)
+            pre = fec.preamble_bits('mary', symbol_bits=self.symbol_bits)
             samples = np.concatenate([mod.modulate_bits(pre),
                                       mod.modulate_bits(list(bits)),
                                       mod.idle(6)])
@@ -501,10 +540,7 @@ class AudioNode:
             if at is None:
                 return None, ""
             skip = at + hush
-        d = MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
-                            band=self.mary_band, chord=self.mary_chord,
-                            ifk=self.mary_ifk,
-                            steer=False, skip=skip, period=period)
+        d = self.tone_demod(steer=False, skip=skip, period=period)
         llr = np.concatenate([d.demodulate_soft(audio[i:i + BLOCK])
                               for i in range(0, len(audio), BLOCK)])
         note = ("duas varreduras, %.2f amostras/simbolo" % period if period
@@ -526,7 +562,7 @@ class AudioNode:
             return "nada acumulado -- 'fecrx on <bytes>' primeiro"
         note = ""
         llr = None
-        if self.sync_sweep and self.fec_layer == 'mary':
+        if self.sync_sweep and self.fec_layer in TONE_LAYERS:
             llr, note = self._sweep_llr(want)
             if llr is None:
                 # Falling back rather than failing, because the sweeps can be
@@ -617,12 +653,15 @@ class AudioNode:
             lines.append(f"  {label}: " +
                          ("sem sync" if got is None else printable(got)))
 
-        if self.fec_layer == 'mary':
+        if self.fec_layer in TONE_LAYERS:
             for guard in (0.10, 0.15, 0.25, 0.35, 0.45):
                 for alpha in (0.02, 0.08):
-                    try_one(MaryDemodulator(fs=FS, baud=MFSK_BAUD, guard=guard,
-                                            floor_alpha=alpha,
-                                            ifk=self.mary_ifk),
+                    d = (self.tone_demod(guard=guard, floor_alpha=alpha)
+                         if self.fec_layer == 'fsk2' else
+                         MaryDemodulator(fs=FS, baud=MFSK_BAUD, guard=guard,
+                                         floor_alpha=alpha,
+                                         ifk=self.mary_ifk))
+                    try_one(d,
                             f"guard {guard:.2f} alpha {alpha:.2f}")
         else:
             par = self.fec_layer == 'mfsk-par'
@@ -993,7 +1032,8 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   meter on|off|<seg>  medidor de nivel continuo
   level               uma leitura de nivel
   gain <0..1>         amplitude de saida
-  mode fsk|mfsk|mary  camada fisica: fsk 1200 baud, mfsk por razao, mary 16 tons
+  mode fsk|mfsk|mary|fsk2  camada fisica: fsk 1200 baud, mfsk por razao,
+                      mary 16 tons, fsk2 = 2 tons como o mary (FEC, sync, varreduras)
   squelch <valor>     limiar: squelch (fsk) ou contraste 0..1 (mfsk e mary)
   dev in|out <n>      troca o dispositivo de audio (reinicia o stream)
   dev in|out auto     volta ao dispositivo padrao do sistema
@@ -1189,8 +1229,8 @@ def execute(node, cmd):
         # meaning depending on hidden state.
         if not arg:
             return "uso: fecsend <texto>"
-        if node.mode not in ('mfsk', 'mary'):
-            return "fecsend so em mfsk ou mary - rode 'mode mfsk' antes"
+        if node.mode not in ('mfsk', 'mary', 'fsk2'):
+            return "fecsend so em mfsk, mary ou fsk2 - rode 'mode mfsk' antes"
         if not node.out_stream:
             return "caixa desligada - rode 'spk on' antes"
         data = arg.encode("utf-8", "replace")
@@ -1286,6 +1326,9 @@ def execute(node, cmd):
         on = arg.split()[0].lower() in ("on", "1", "true", "sim")
         if on and node.mary_chord:
             return "ifk nao combina com marychord -- 'marychord off' primeiro"
+        if on and node.mode == 'fsk2':
+            # Two tones: excluding the previous one leaves a single candidate.
+            return "ifk nao existe em fsk2 (2 tons) -- 'mode mary' antes"
         node.mary_ifk = on
         node.rebuild_mary()
         return (f"ifk {'LIGADO' if on else 'desligado'} "
@@ -1447,8 +1490,8 @@ def execute(node, cmd):
             return f"fecpkt: {e}"
         if not 0 <= seq < len(parts):
             return f"seq fora de faixa: {seq} (0..{len(parts) - 1})"
-        if node.mode not in ('mfsk', 'mary'):
-            return "fecpkt so em mfsk ou mary"
+        if node.mode not in ('mfsk', 'mary', 'fsk2'):
+            return "fecpkt so em mfsk, mary ou fsk2"
         if not node.out_stream:
             return "caixa desligada - rode 'spk on' antes"
         packet = xfer.build(seq, parts[seq])

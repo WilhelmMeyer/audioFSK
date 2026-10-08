@@ -17,7 +17,8 @@ import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
                    MaryModulator, MaryDemodulator, MARY_TONES, MARY_BITS,
-                   _GRAY, ifk_tones)
+                   _GRAY, ifk_tones, FSK2_TONES, FSK2_BITS, tone_layer,
+                   chirp, find_chirp_pair, SYNC_CHIRP)
 
 FS = 48000
 
@@ -390,6 +391,94 @@ def test_ifk():
     check("cauda medida: ifk entrega os blocos", on[3] == on[4])
 
 
+def fsk2_fec_air(msg, repeat=1, sweeps=False):
+    """What console.py's fecsend puts on the air in `mode fsk2`.
+
+    Built from the same pieces `_fec_frame` uses -- `fec.preamble_bits` at one
+    bit per symbol, `fec.frame`, `idle(6)` -- because console.py cannot be
+    imported here (sounddevice).
+    """
+    mod = MaryModulator(fs=FS, baud=100, **tone_layer('fsk2'))
+    body = np.concatenate([
+        mod.modulate_bits(fec.preamble_bits('mary', symbol_bits=FSK2_BITS)),
+        mod.modulate_bits(list(fec.frame(msg, repeat=repeat))),
+        mod.idle(6)])
+    if not sweeps:
+        return body
+    lead = chirp(FS, *SYNC_CHIRP)
+    hush = np.zeros(int(0.03 * FS))
+    return np.concatenate([lead, hush, body, hush, lead])
+
+
+def test_fsk2():
+    """2-FSK on the M-ary machinery: two tones, one bit per symbol, 100 baud.
+
+    The frame length is checked against `fec.frame_symbols` first, because the
+    two-sweep period divides the measured interval by it: an idle tail of the
+    wrong length (four bits per idle symbol, as the 16-tone tail is built)
+    would be 18 extra symbols, a period 1.4% long -- inside the receiver's
+    acceptance window, so accepted silently and wrong.
+    """
+    print()
+    print(f"2-FSK com FEC (100 baud, tons {FSK2_TONES[0]}/{FSK2_TONES[1]} Hz, 1 bit por simbolo):")
+    msg = bytes(range(48))
+    for rep in (1, 2):
+        n = len(fsk2_fec_air(msg, repeat=rep))
+        want = fec.frame_symbols(len(msg), rep, FSK2_BITS) * 480
+        check(f"quadro rep {rep} tem frame_symbols simbolos", n == want,
+              f"{n} amostras, esperado {want}")
+
+    text = b"ola fsk2, como vai voce"
+    mod = MaryModulator(fs=FS, baud=100, **tone_layer('fsk2'))
+    audio = np.concatenate([mod.modulate(text), mod.idle(6)])
+    for block in (2048, 777):
+        out = run(MaryDemodulator(fs=FS, baud=100, **tone_layer('fsk2')),
+                  audio, block=block)
+        check(f"bloco {block} ida e volta sem FEC", text in out,
+              f"{out[:len(text) + 2]!r}")
+
+    def soft_decode(audio, **kw):
+        d = MaryDemodulator(fs=FS, baud=100, **tone_layer('fsk2'), **kw)
+        llr = np.concatenate([d.demodulate_soft(audio[i:i + 2048])
+                              for i in range(0, len(audio), 2048)])
+        start = fec.find_sync(llr)
+        return llr, (b"" if start is None
+                     else fec.decode(llr[start:], len(msg), repeat=1))
+
+    air = fsk2_fec_air(msg)
+    for name, chan in (("limpo", lambda a: a),
+                       ("tilt -16 dB", tilt),
+                       ("tilt + limiter", lambda a: limiter(tilt(a))),
+                       ("ganho x0.02", lambda a: a * 0.02),
+                       ("cauda medida + pente + ruido",
+                        lambda a: measured_tail(a, 6.0, 11))):
+        llr, got = soft_decode(chan(air))
+        check(f"{name} decodifica o bloco (rep 1)", got == msg,
+              f"{len(llr)} valores")
+
+    # The sweeps, read the way console.py's `_sweep_llr` and align.py read
+    # them: start from the first, period from the interval over the span
+    # capture.py stamps.
+    y = measured_tail(fsk2_fec_air(msg, sweeps=True), 0.0, 12)
+    sps, hush = 480, int(0.03 * FS)
+    span = fec.frame_symbols(len(msg), 1, FSK2_BITS) + 2 * hush / sps
+    pair = find_chirp_pair(y, chirp(FS, *SYNC_CHIRP), min_gap=int(0.5 * span * sps))
+    period = None if pair is None else (pair[1] - pair[0]) / span
+    check("varreduras medem o periodo", period is not None
+          and abs(period - 480) < 0.1, f"periodo {period}")
+    if period is not None:
+        skip = pair[0] + int(round(hush * period / sps))
+        _llr, got = soft_decode(y, steer=False, skip=skip, period=period)
+        check("varreduras decodificam o bloco", got == msg)
+
+    try:
+        MaryModulator(fs=FS, baud=100, ifk=True, **tone_layer('fsk2'))
+        refused = False
+    except ValueError:
+        refused = True
+    check("ifk recusado com 2 tons", refused)
+
+
 def test_int16_transfer():
     """The wire format for bringing a capture back over the serial cable.
 
@@ -491,6 +580,7 @@ def main():
     test_mary()
     test_fec()
     test_ifk()
+    test_fsk2()
     test_xfer()
     test_int16_transfer()
     test_distortion()
