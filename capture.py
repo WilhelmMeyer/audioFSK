@@ -231,6 +231,9 @@ def main():
     ap.add_argument('--label', default='', help="goes in the filename; name the setup")
     args = ap.parse_args()
 
+    if args.ifk and args.chord:
+        sys.exit("[capture] --ifk e --chord nao combinam")
+
     if args.device is not None and args.device.isdigit():
         args.device = int(args.device)
 
@@ -258,19 +261,24 @@ def main():
     # for the next test, whose recordings then carry a setting its own JSON
     # says is off. The mismatch is undetectable at the decoder: it comes back
     # as garbage that fails the CRC and reads as a channel that got worse.
+    # IFK and the chord refuse each other, so IFK goes off before `marychord`
+    # and, if wanted, back on after it -- in that order nothing a previous run
+    # left on can make either command refuse.
+    ask(ctl, "ifk off")
     ask(ctl, f"marygap {args.gap if args.gap is not None else 0.0}")
     ask(ctl, f"maryband {args.band if args.band is not None else 0.0}")
     ask(ctl, f"marychord {'on' if args.chord else 'off'}")
-    # Sent every run, and checked when it is meant to be on: an agent that has
-    # not been pulled answers "comando desconhecido" and transmits without
-    # IFK, and a recording stamped `ifk` over a plain burst would then be read
-    # the wrong way by every offline tool, silently.
-    reply = ask(ctl, f"ifk {'on' if args.ifk else 'off'}")
-    if args.ifk and not (reply or '').startswith('ifk LIGADO'):
-        ctl.close()
-        sys.exit(f"[capture] o outro lado nao ligou o ifk: {reply!r} "
-                 "-- pull + restart nele primeiro")
     ask(ctl, f"mfskgroup {'on' if args.grouped else 'off'}")
+    if args.ifk:
+        # Checked, not assumed: an agent that has not been pulled answers
+        # "comando desconhecido" and transmits without IFK, and a recording
+        # stamped `ifk` over a plain burst would then be read the wrong way by
+        # every offline tool, silently.
+        reply = ask(ctl, "ifk on")
+        if not (reply or '').startswith('ifk LIGADO'):
+            ctl.close()
+            sys.exit(f"[capture] o outro lado nao ligou o ifk: {reply!r} "
+                     "-- pull + restart nele primeiro")
     if args.gain is not None:
         ask(ctl, f"gain {args.gain}")
 
