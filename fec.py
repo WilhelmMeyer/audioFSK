@@ -385,3 +385,16 @@ def frame_symbols(nbytes, repeat, symbol_bits, idle_symbols=6):
     pre = preamble_bits('mary', symbol_bits=symbol_bits)
     nbits = len(frame(bytes(nbytes), repeat=repeat))
     return len(pre) // symbol_bits + -(-nbits // symbol_bits) + idle_symbols
+
+
+def sweep_span(nbytes, repeat, symbol_bits, hush, sps):
+    """Symbols between the two sync-sweep detections, as transmitted.
+
+    The coded frame plus the two silences that separate it from the sweeps,
+    in symbols so it divides straight into the measured interval. The live
+    receiver (`console.AudioNode._sweep_llr`) and the offline scorer
+    (`resultado.py`) both call this, because the span is exactly the number
+    that once came out two ways in two files and cost a whole symbol of drift.
+    `hush` is in samples, `sps` in samples per symbol.
+    """
+    return frame_symbols(nbytes, repeat, symbol_bits) + 2 * hush / sps

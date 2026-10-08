@@ -1408,3 +1408,49 @@ def find_chirp_pair(samples, template, min_gap, threshold=4.0):
     # not be found at all.
     first, second = sorted((strongest, other))
     return first + len(template), second
+
+
+def sweep_soft(samples, make_demod, span, hush, sps, block=2048,
+               template=None):
+    """Soft values read with the clock the two sync sweeps measured.
+
+    Returns (llr, skip, period, how). `how` is 'pair' when both sweeps were
+    found and the period between them is plausible, 'lead' when only the
+    leading sweep could be trusted (start known, nominal clock), and None
+    when no sweep was found -- then llr, skip and period are None too and the
+    caller falls back to the early/late gate.
+
+    This is the live receiver's second reading of a stored frame, factored out
+    so that `console.py` (on the link) and `resultado.py` (offline, over a
+    recording) run the same arithmetic and cannot drift apart. No I/O:
+    `make_demod(steer=False, skip=..., period=...)` builds the receiver for
+    the right tone layer, `span` comes from `fec.sweep_span`, `hush` is the
+    silence after each sweep in samples, `sps` the nominal samples/symbol.
+
+    A period far from nominal means one of the peaks was not a sweep, and
+    trusting it would be worse than not having it -- so that case falls back
+    to the leading sweep alone, which still recovered 8 blocks of 8 where the
+    gate recovered 5. Audio is fed in `block`-sized pieces, as the live path
+    hands it over, because the demodulator carries state across calls.
+    """
+    samples = np.asarray(samples, dtype=np.float64)
+    tmpl = chirp() if template is None else template
+    skip = period = None
+    how = None
+    pair = find_chirp_pair(samples, tmpl, min_gap=int(0.5 * span * sps))
+    if pair is not None:
+        first, second = pair
+        p = (second - first) / span
+        if 0.98 * sps <= p <= 1.02 * sps:
+            skip, period, how = first + int(round(hush * p / sps)), p, 'pair'
+    if skip is None:
+        at = find_chirp(samples, tmpl)
+        if at is None:
+            return None, None, None, None
+        skip, how = at + hush, 'lead'
+    d = make_demod(steer=False, skip=skip, period=period)
+    parts = [d.demodulate_soft(samples[i:i + block])
+             for i in range(0, len(samples), block)]
+    parts = [q for q in parts if len(q)]
+    llr = np.concatenate(parts) if parts else np.zeros(0)
+    return llr, skip, period, how

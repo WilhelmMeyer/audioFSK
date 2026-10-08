@@ -31,6 +31,12 @@ and the sync position is not. `bloco_ok` stays as the separate honest number
 and goes through the real FEC path, sync word and Viterbi and CRC, because an
 approximation of it would be a different quantity wearing the same name.
 
+*The receiver's sync, not the gate's.* A recording made with the two sync
+sweeps (`sync_chirp`) is read through `modem.sweep_soft`, the function the
+live receiver calls, and the gate's reading stays beside it in the `_gate`
+columns. Without this the gate takes the sweep for the first preamble symbols
+and the folder reports the hazard the sweeps create, not the benefit.
+
 *Four values per symbol.* `MaryDemodulator.demodulate_soft` returns one
 log-likelihood per *bit*, so four per symbol. Reading that array's length as a
 symbol count makes a normal burst look six times longer than it is.
@@ -56,7 +62,7 @@ import numpy as np
 import fec
 import recording
 from modem import (MARY_BITS, MaryDemodulator, MFSKDemodulator, MFSK_PAIRS,
-                   TONE_LAYERS, tone_layer)
+                   TONE_LAYERS, chirp, sweep_soft, tone_layer)
 
 BLOCK = 2048          # what the live path hands the demodulator at a time
 PY = sys.executable
@@ -81,20 +87,24 @@ def git_commit():
         return 'desconhecido'
 
 
-def demodulator(meta):
-    """The receiver the recording's own metadata calls for."""
+def demodulator(meta, **kw):
+    """The receiver the recording's own metadata calls for.
+
+    `kw` (steer, skip, period) reaches only the tone layers: it is how the
+    sweep reading builds a frozen-clock receiver through the same factory.
+    """
     if meta['mode'] == 'mary':
         return MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
                                gap=meta.get('gap', 0.0),
                                band=meta.get('band', 0.0),
                                chord=meta.get('chord', False),
-                               ifk=bool(meta.get('ifk')))
+                               ifk=bool(meta.get('ifk')), **kw)
     if meta['mode'] in TONE_LAYERS:
         # Any other tone layer (2-FSK): its own alphabet, never IFK or chord.
         return MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
                                gap=meta.get('gap', 0.0),
                                band=meta.get('band', 0.0),
-                               **tone_layer(meta['mode']))
+                               **tone_layer(meta['mode']), **kw)
     return MFSKDemodulator(fs=meta['fs'], baud=meta['baud'],
                            parallel=meta.get('parallel', False),
                            grouped=meta.get('grouped', False))
@@ -144,6 +154,39 @@ def preamble(meta):
     return np.asarray(fec.preamble_bits('mfsk', npairs=len(MFSK_PAIRS),
                                         parallel=bool(meta.get('parallel'))),
                       dtype=np.int8)
+
+
+def swept(meta, payload):
+    """Whether this recording carries the two sync sweeps the receiver reads."""
+    return bool(meta.get('sync_chirp') and meta['mode'] in TONE_LAYERS
+                and meta.get('kind') == 'fec' and payload)
+
+
+def sweep_llr(samples, payload, meta):
+    """The soft stream as the live receiver reads a swept frame.
+
+    Same function `console.AudioNode._sweep_llr` calls -- `modem.sweep_soft`,
+    with the span from `fec.sweep_span` -- so the number here is the one the
+    link would have produced, not a reimplementation of it. The span is
+    computed from the payload length as the receiver computes it, never read
+    from `sync_span_symbols` in the JSON: a recorder once stamped that number
+    with the rounding the other way, and the receiver never sees the stamp.
+    Returns (llr, how, period, span); llr is None when no sweep was found.
+    """
+    fs, baud = meta['fs'], meta['baud']
+    sps = fs / baud
+    hush = int(meta.get('sync_hush', 0.0) * fs)
+    span = fec.sweep_span(len(payload), meta.get('fec_repeat', 1) or 1,
+                          symbol_bits(meta), hush, sps)
+    llr, _, period, how = sweep_soft(
+        samples, lambda **kw: demodulator(meta, **kw), span, hush, sps,
+        block=BLOCK, template=chirp(fs))
+    return llr, how, period, span
+
+
+# What `sincronismo` says, per outcome of `modem.sweep_soft`.
+SYNC_NAME = {'pair': 'duas varreduras', 'lead': 'uma varredura',
+             None: 'gate (varredura nao encontrada)'}
 
 
 def best_slide(llr, want):
@@ -217,7 +260,7 @@ def write_llr(path, llr, per_symbol):
     return nsym
 
 
-def write_bits(path, llr, want, at, meta, stem):
+def write_bits(path, llr, want, at, meta, stem, ruler=None):
     """Bits read against bits transmitted, aligned at the best slide.
 
     `at` is where the *frame* agrees best, so the preamble is drawn ahead of
@@ -239,6 +282,7 @@ def write_bits(path, llr, want, at, meta, stem):
         f"# modo {meta['mode']}, fec_repeat {meta.get('fec_repeat')}, "
         f"{len(pre)} bits de preambulo + {len(want)} bits de quadro",
         f"# alinhado no melhor deslizamento: quadro comeca no bit {at} do fluxo",
+    ] + ([f"# lido com: {ruler}"] if ruler else []) + [
         "# esp = transmitido, lid = lido, ^ = diferenca, . = fora da gravacao",
         "",
     ]
@@ -287,6 +331,16 @@ def score_one(json_path, run):
 
     llr = soft(demodulator(meta), samples)
     want = frame_bits(payload, meta)
+    # A swept recording is read the way the receiver reads it: the sweeps
+    # give the start and the clock. The gate's reading is kept beside it,
+    # computed exactly as before, so old and new can be compared row by row.
+    sweep = None
+    if swept(meta, payload):
+        gate_llr = llr
+        s_llr, how, period, span = sweep_llr(samples, payload, meta)
+        if s_llr is not None:
+            llr = s_llr
+        sweep = (gate_llr, how, period, span)
     at, acc = best_slide(llr, want)
     # A capture with no payload -- a noise floor, a tone, a sweep -- has no bit
     # accuracy to report. Without this the sync word alone is the whole of
@@ -297,7 +351,8 @@ def score_one(json_path, run):
         at, acc = None, None
     nsym = write_llr(run / 'llr' / f'{stem}.csv', llr, symbol_bits(meta))
     if at is not None:
-        write_bits(run / 'bits' / f'{stem}.txt', llr, want, at, meta, stem)
+        write_bits(run / 'bits' / f'{stem}.txt', llr, want, at, meta, stem,
+                   ruler=SYNC_NAME[sweep[1]] if sweep else None)
     err = figura(run / 'gravacao' / f'{stem}.json', run / 'figuras' / f'{stem}.png')
 
     row = {
@@ -314,6 +369,20 @@ def score_one(json_path, run):
         'pico_rx': round(float(np.max(np.abs(samples))) if len(samples) else 0.0, 4),
         'rms_rx': round(float(np.sqrt(np.mean(samples ** 2))) if len(samples) else 0.0, 4),
     }
+    if sweep is not None:
+        # Only swept rows carry these keys, so a folder with no sweeps writes
+        # exactly the csv it wrote before they existed.
+        gate_llr, how, period, span = sweep
+        _, gacc = best_slide(gate_llr, want)
+        stamped = meta.get('sync_span_symbols')
+        row.update({
+            'sincronismo': SYNC_NAME[how],
+            'periodo': None if period is None else round(period, 3),
+            'span_simbolos': round(span, 3),
+            'span_json': None if stamped is None else round(float(stamped), 3),
+            'acerto_bits_gate': None if gacc is None else round(100 * gacc, 2),
+            'bloco_ok_gate': int(decodes(gate_llr, payload, meta)),
+        })
     return row, meta, nsym, err
 
 
@@ -343,19 +412,40 @@ def header(path, name, rows, metas, args, commit, errors):
     ]
     if args.note:
         lines += ["", args.note]
-    lines += ["", "## Resultado", "",
-              "| gravacao | ganho | rep | bytes | bits | bloco | pico | rms |",
-              "|---|---|---|---|---|---|---|---|"]
-    for r in rows:
-        bits = '--' if r['acerto_bits'] is None else f"{r['acerto_bits']:.2f}%"
-        lines.append(
-            f"| `{r['stem']}` | {r['gain']} | {r['fec_repeat']} | {r['bytes']} "
-            f"| {bits} | {'--' if r['bloco_ok'] is None else ('OK' if r['bloco_ok'] else 'nao')} "
-            f"| {r['pico_rx']:.2f} | {r['rms_rx']:.3f} |")
+    sw = [r for r in rows if 'sincronismo' in r]
+    pct = lambda v: '--' if v is None else f"{v:.2f}%"
+    okn = lambda v: '--' if v is None else ('OK' if v else 'nao')
+    if sw:
+        lines += ["", "## Resultado", "",
+                  "| gravacao | ganho | rep | bytes | sincronismo | bits | bloco "
+                  "| bits gate | bloco gate | pico | rms |",
+                  "|---|---|---|---|---|---|---|---|---|---|---|"]
+        for r in rows:
+            lines.append(
+                f"| `{r['stem']}` | {r['gain']} | {r['fec_repeat']} | {r['bytes']} "
+                f"| {r.get('sincronismo', 'gate')} | {pct(r['acerto_bits'])} "
+                f"| {okn(r['bloco_ok'])} | {pct(r.get('acerto_bits_gate'))} "
+                f"| {okn(r.get('bloco_ok_gate'))} | {r['pico_rx']:.2f} | {r['rms_rx']:.3f} |")
+    else:
+        lines += ["", "## Resultado", "",
+                  "| gravacao | ganho | rep | bytes | bits | bloco | pico | rms |",
+                  "|---|---|---|---|---|---|---|---|"]
+        for r in rows:
+            bits = '--' if r['acerto_bits'] is None else f"{r['acerto_bits']:.2f}%"
+            lines.append(
+                f"| `{r['stem']}` | {r['gain']} | {r['fec_repeat']} | {r['bytes']} "
+                f"| {bits} | {'--' if r['bloco_ok'] is None else ('OK' if r['bloco_ok'] else 'nao')} "
+                f"| {r['pico_rx']:.2f} | {r['rms_rx']:.3f} |")
     if ok and scored:
         lines += ["",
                   f"Media de bits certos: {np.mean([r['acerto_bits'] for r in ok]):.2f}%. "
                   f"Blocos inteiros: {sum(r['bloco_ok'] for r in scored)} de {len(scored)}."]
+        if sw:
+            g_ok = [r for r in sw if r['acerto_bits_gate'] is not None]
+            lines += [f"So o gate, nas {len(sw)} gravacoes com varredura: "
+                      + (f"{np.mean([r['acerto_bits_gate'] for r in g_ok]):.2f}% de bits, "
+                         if g_ok else "")
+                      + f"{sum(r['bloco_ok_gate'] for r in sw)} de {len(sw)} blocos."]
     lines += [
         "",
         "## Como ler",
@@ -367,6 +457,26 @@ def header(path, name, rows, metas, args, commit, errors):
         "Viterbi soft, comparacao dos bytes) e e o que o enlace de fato entregou.",
         "Com poucas gravacoes ele e ruidoso; nao ajuste parametro por ele.",
         "",
+    ]
+    if sw:
+        lines += [
+            "**Duas reguas de sincronismo.** Nas gravacoes com `sync_chirp`,",
+            "`acerto_bits` e `bloco_ok` saem do audio relido como o receptor ao",
+            "vivo o rele (`modem.sweep_soft`, o mesmo de `console.py`): relogio",
+            "congelado, inicio na varredura de abertura e periodo medido entre as",
+            "duas (`sincronismo` = duas varreduras). Se o par nao serve, so a de",
+            "abertura com relogio nominal (uma varredura); se nenhuma aparece, o",
+            "gate, e a coluna diz. `acerto_bits_gate` e `bloco_ok_gate` sao a",
+            "leitura pelo gate early/late, como esta ferramenta fazia antes --",
+            "pessimista nessas gravacoes, porque o gate toma a varredura pelos",
+            "primeiros simbolos do preambulo. Gravacoes sem varredura so tem a",
+            "regua do gate, nas colunas sem sufixo. `span_simbolos` e o vao entre",
+            "as varreduras calculado como o receptor calcula (`fec.sweep_span`);",
+            "`span_json` e o que o gravador carimbou, so para conferencia.",
+            "`llr/` e `bits/` saem da regua principal.",
+            "",
+        ]
+    lines += [
         "`llr/*.csv` tem uma linha por simbolo. Em M-aria sao quatro colunas,",
         "porque sao quatro bits por simbolo: o tamanho do vetor soft nao e uma",
         "contagem de simbolos.",
@@ -431,16 +541,25 @@ def main():
         if err:
             errors.append((row['stem'], err))
         bits = '--' if row['acerto_bits'] is None else f"{row['acerto_bits']:.2f}%"
+        extra = ''
+        if 'sincronismo' in row:
+            g = row['acerto_bits_gate']
+            extra = (f"  [{row['sincronismo']}; gate "
+                     f"{'--' if g is None else f'{g:.2f}%'} "
+                     f"{'OK' if row['bloco_ok_gate'] else 'nao'}]")
         print(f"  {row['stem']}  {nsym} simbolos  bits {bits}  "
               f"bloco {'--' if row['bloco_ok'] is None else ('OK' if row['bloco_ok'] else 'nao')}  "
-              f"pico {row['pico_rx']:.2f}" + ("  [figura falhou]" if err else ""),
+              f"pico {row['pico_rx']:.2f}" + extra + ("  [figura falhou]" if err else ""),
               flush=True)
 
     if not rows:
         sys.exit("[resultado] nenhuma gravacao pontuada")
 
+    # The union of every row's keys, in first-seen order: swept rows carry
+    # extra columns, and a folder mixing both must not fail on the second kind.
+    fields = list(dict.fromkeys(k for r in rows for k in r))
     with (run / 'resultado.csv').open('w', newline='', encoding='utf-8') as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w = csv.DictWriter(f, fieldnames=fields, restval='')
         w.writeheader()
         w.writerows(rows)
     header(run / 'HEADER.md', args.nome, rows, metas, args, commit, errors)

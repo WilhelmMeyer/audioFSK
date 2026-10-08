@@ -44,7 +44,7 @@ from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
                    MaryModulator, MaryDemodulator, MARY_BITS, MARY_REPEAT_TONE,
                    TONE_LAYERS, tone_layer,
-                   chirp, find_chirp, find_chirp_pair, SYNC_CHIRP)
+                   chirp, SYNC_CHIRP, sweep_soft)
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -521,28 +521,17 @@ class AudioNode:
         if not self.fec_audio:
             return None, ""
         audio = np.concatenate(self.fec_audio)
-        tmpl = chirp(FS, *SYNC_CHIRP)
         sps = FS / MFSK_BAUD
         hush = int(self.sync_hush * FS)
-        # What the two detections span, as transmitted: the silences plus the
-        # frame between them. In symbols rather than samples so it divides
-        # straight into the measured interval.
-        span = self.mary_frame_symbols(want, self.fec_repeat) + 2 * hush / sps
-        skip = period = None
-        pair = find_chirp_pair(audio, tmpl, min_gap=int(0.5 * span * sps))
-        if pair is not None:
-            first, second = pair
-            p = (second - first) / span
-            if 0.98 * sps <= p <= 1.02 * sps:
-                skip, period = first + int(round(hush * p / sps)), p
-        if skip is None:
-            at = find_chirp(audio, tmpl)
-            if at is None:
-                return None, ""
-            skip = at + hush
-        d = self.tone_demod(steer=False, skip=skip, period=period)
-        llr = np.concatenate([d.demodulate_soft(audio[i:i + BLOCK])
-                              for i in range(0, len(audio), BLOCK)])
+        # The arithmetic lives in `modem.sweep_soft` and `fec.sweep_span` so
+        # that `resultado.py`, scoring a recording offline, reads it exactly
+        # as this receiver does on the link.
+        span = fec.sweep_span(want, self.fec_repeat, self.symbol_bits, hush, sps)
+        llr, _, period, how = sweep_soft(audio, self.tone_demod, span, hush,
+                                         sps, block=BLOCK,
+                                         template=chirp(FS, *SYNC_CHIRP))
+        if how is None:
+            return None, ""
         note = ("duas varreduras, %.2f amostras/simbolo" % period if period
                 else "uma varredura, relogio nominal")
         return llr, note
