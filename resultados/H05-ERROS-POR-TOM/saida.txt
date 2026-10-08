@@ -1,0 +1,100 @@
+B->A 20260903-162920-mg2-g1.0.json              per 480.05 pico 0.16 SER   7.9% metades 93/92
+B->A 20260903-162931-mg2-g1.0.json              per 480.10 pico 0.16 SER  12.5% metades 84/91
+B->A 20260903-162941-mg2-g1.0.json              per 480.05 pico 0.14 SER  10.3% metades 91/88
+B->A 20260903-163009-mg2-g0.5.json              per 480.15 pico 0.13 SER  10.6% metades 88/91
+B->A 20260903-163020-mg2-g0.5.json              per 480.10 pico 0.09 SER  13.5% metades 82/91
+B->A 20260903-163031-mg2-g0.5.json              per 480.05 pico 0.10 SER   1.7% metades 98/98
+B->A 20260903-163126-mg3-g0.7.json              per 480.20 pico 0.13 SER   4.1% metades 95/97
+B->A 20260903-163137-mg3-g0.7.json              per 479.90 pico 0.12 SER   2.5% metades 97/98
+B->A 20260903-163147-mg3-g0.7.json              per 479.85 pico 0.13 SER   5.4% metades 92/97
+B->A 20260903-163214-mg3-g0.25.json             per 480.10 pico 0.07 SER   4.4% metades 94/98
+B->A 20260903-163225-mg3-g0.25.json             per 479.80 pico 0.07 SER   3.7% metades 95/97
+B->A 20260903-163235-mg3-g0.25.json             per 479.90 pico 0.06 SER   0.0% metades 100/100
+B->A 20260903-172504-rep1-B2A.json              per 480.20 pico 0.19 SER  11.7% metades 88/89
+B->A 20260903-172511-rep1-B2A.json              per 479.90 pico 0.20 SER  18.3% metades 79/85
+B->A 20260903-172519-rep1-B2A.json              per 480.20 pico 0.19 SER  17.7% metades 83/82
+B->A 20260903-172526-rep1-B2A.json              per 480.25 pico 0.18 SER  12.0% metades 89/87
+B->A 20260903-172550-rep4-B2A.json              per 480.00 pico 0.20 SER  14.3% metades 87/84
+B->A 20260903-172606-rep4-B2A.json              per 480.00 pico 0.19 SER  15.9% metades 84/84
+B->A 20260903-172623-rep4-B2A.json              per 480.00 pico 0.19 SER  14.6% metades 85/86
+B->A 20260903-172639-rep4-B2A.json              per 480.00 pico 0.19 SER  13.8% metades 88/85
+B->A 20260903-172703-rep2-B2A.json              per 479.95 pico 0.21 SER  16.0% metades 83/85
+B->A 20260903-172714-rep2-B2A.json              per 480.10 pico 0.20 SER  13.5% metades 84/89
+B->A 20260903-172724-rep2-B2A.json              per 480.15 pico 0.19 SER  11.8% metades 88/89
+B->A 20260903-172735-rep2-B2A.json              per 480.00 pico 0.18 SER  16.7% metades 80/86
+B->A 20260903-164114-sync-192.json              per 480.00 pico 0.15 SER   7.7% metades 95/90
+B->A 20260903-164142-sync-192.json              per 479.95 pico 0.19 SER   7.6% metades 92/92
+B->A 20260903-164210-sync-192.json              per 480.10 pico 0.17 SER   7.6% metades 93/92
+B->A 20260903-164238-sync-192.json              per 479.95 pico 0.15 SER  10.8% metades 88/90
+A->B 20260903-194719-spk20-g0.5-A2B.json        per 479.95 pico 0.09 SER  20.7% metades 78/81
+A->B 20260903-194853-spk20-g0.5-A2B.json        per 480.10 pico 0.10 SER  24.7% metades 71/79
+A->B 20260903-195028-spk20-g0.5-A2B.json        per 480.05 pico 0.06 SER  25.3% metades 75/75
+A->B 20260903-195822-spk20-g1.0-A2B.json        per 479.95 pico 0.08 SER  28.0% metades 75/69
+A->B 20260903-195956-spk20-g1.0-A2B.json        per 479.90 pico 0.09 SER  20.0% metades 78/82
+A->B 20260903-200131-spk20-g1.0-A2B.json        per 479.95 pico 0.12 SER  28.0% metades 70/74
+A->B 20260903-200309-spk20-g0.25-A2B.json       per 480.00 pico 0.08 SER  25.7% metades 72/77
+A->B 20260903-200444-spk20-g0.25-A2B.json       per 479.85 pico 0.18 SER  40.7% metades 63/55
+A->B 20260903-200619-spk20-g0.25-A2B.json       per 480.05 pico 0.13 SER  25.0% metades 73/77
+
+== B->A: 28 gravacoes, 24615 simbolos, SER 9.9%, 28% dos erros no tom anterior
+  piores 3: [1538, 1700, 2025] -> 49.1% dos erros (uniforme 18.8%, nula 20.7%, p95 21.5%, p=0.000); SER sem eles in-sample 6.2%; validacao cruzada 9.9% -> 7.4% (26% a menos, melhor em 94% das particoes)
+  piores 5: [1538, 1700, 2025, 2675, 1862] -> 70.0% dos erros (uniforme 31.2%, nula 33.9%, p95 34.9%, p=0.000); SER sem eles in-sample 4.3%; validacao cruzada 10.0% -> 5.5% (45% a menos, melhor em 99% das particoes)
+  estabilidade: Spearman medio entre gravacoes 0.21 (nula -0.00, p95 0.02); sobreposicao dos 3 piores 0.94 (nula 0.56, p95 0.61)
+  08-MARY-GAIN           12 grav   7079 simb SER 6.4% piores [2675, 2838, 2188]
+  14-FEC-REP             12 grav   8256 simb SER 14.7% piores [1538, 1700, 1862]
+  12-13-SYNC              4 grav   9280 simb SER 8.4% piores [2025, 2675, 2512]
+  fora 08-MARY-GAIN       mapa [1538, 1700, 2025]: SER 6.4% -> 6.6% (pior3), 5.7% (pior5); Spearman treino/teste 0.38
+  fora 14-FEC-REP         mapa [2025, 2675, 2512]: SER 14.7% -> 17.8% (pior3), 20.4% (pior5); Spearman treino/teste -0.10
+  fora 12-13-SYNC         mapa [1538, 1700, 1862]: SER 8.4% -> 10.4% (pior3), 8.4% (pior5); Spearman treino/teste 0.22
+  1a de 08-MARY-GAIN      mapa [2350, 2838, 2512]: SER 6.2% -> 5.4% (pior3), 3.4% (pior5); Spearman dentro 0.25
+      treino em cada uma, pior3: 6.4% -> 5.6% (faixa 4.3-7.6%)
+      treino em cada uma, pior5: 6.4% -> 4.8% (faixa 3.4-7.3%)
+  1a de 14-FEC-REP        mapa [1538, 1700, 1862]: SER 14.8% -> 1.8% (pior3), 0.5% (pior5); Spearman dentro 0.91
+      treino em cada uma, pior3: 14.7% -> 2.0% (faixa 1.6-4.4%)
+      treino em cada uma, pior5: 14.7% -> 0.6% (faixa 0.5-1.4%)
+  1a de 12-13-SYNC        mapa [2675, 2025, 2512]: SER 8.7% -> 2.7% (pior3), 1.9% (pior5); Spearman dentro 0.82
+      treino em cada uma, pior3: 8.4% -> 3.6% (faixa 2.6-4.7%)
+      treino em cada uma, pior5: 8.4% -> 1.3% (faixa 0.5-2.1%)
+  tom    n    SER  sem-ISI  vit.falsa
+    888  1578   4.3%   2.5%   0.69%
+   1050  1553   0.3%   0.2%   0.67%
+   1212  1556   2.4%   1.6%   0.67%
+   1375  1539   0.1%   0.1%   0.94%
+   1538  1500  31.0%  22.2%   0.44%
+   1700  1539  28.3%  21.9%   0.88%
+   1862  1553  15.6%   9.9%   0.76%
+   2025  1552  19.3%  14.6%   0.78%
+   2188  1433  10.3%   6.0%   0.66%
+   2350  1509   8.7%   6.1%   0.69%
+   2512  1507  13.3%   9.4%   0.61%
+   2675  1569  17.0%  13.1%   0.59%
+   2838  1566   5.3%   3.8%   0.56%
+   3000  1528   2.5%   1.8%   0.48%
+   3162  1535   1.4%   1.2%   0.49%
+   3325  1598   0.1%   0.0%   0.66%
+
+== A->B: 9 gravacoes, 2700 simbolos, SER 26.4%, 28% dos erros no tom anterior
+  piores 3: [1050, 3162, 2675] -> 48.9% dos erros (uniforme 18.8%, nula 21.9%, p95 23.8%, p=0.000); SER sem eles in-sample 16.7%; validacao cruzada 26.4% -> 17.2% (35% a menos, melhor em 100% das particoes)
+  piores 5: [1050, 3162, 2675, 1212, 2188] -> 70.2% dos erros (uniforme 31.2%, nula 35.4%, p95 37.4%, p=0.000); SER sem eles in-sample 11.4%; validacao cruzada 26.5% -> 11.8% (56% a menos, melhor em 100% das particoes)
+  estabilidade: Spearman medio entre gravacoes 0.77 (nula 0.00, p95 0.07); sobreposicao dos 3 piores 1.83 (nula 0.58, p95 0.78)
+  17-SPK-LEVEL-A2B        9 grav   2700 simb SER 26.4% piores [1050, 3162, 2675]
+  1a de 17-SPK-LEVEL-A2B  mapa [1050, 3162, 2675]: SER 27.2% -> 17.5% (pior3), 13.5% (pior5); Spearman dentro 0.77
+      treino em cada uma, pior3: 26.4% -> 18.1% (faixa 16.0-20.3%)
+      treino em cada uma, pior5: 26.4% -> 13.1% (faixa 11.3-16.3%)
+  tom    n    SER  sem-ISI  vit.falsa
+    888   170  32.4%  25.9%   1.62%
+   1050   172  82.0%  59.3%   1.34%
+   1212   155  49.0%  32.3%   5.70%
+   1375   172   9.3%   4.7%   4.71%
+   1538   157  19.7%  15.9%   3.07%
+   1700   142   0.0%   0.0%   2.23%
+   1862   171  22.8%  19.3%   1.46%
+   2025   178  14.0%   9.6%   1.31%
+   2188   171  44.4%  25.1%   0.20%
+   2350   154   9.7%   7.8%   0.24%
+   2512   164   9.1%   7.9%   0.91%
+   2675   174  55.2%  40.8%   0.40%
+   2838   189   6.9%   2.6%   0.68%
+   3000   194   0.5%   0.0%   1.24%
+   3162   162  69.1%  52.5%   1.22%
+   3325   175   1.7%   1.7%   1.86%
