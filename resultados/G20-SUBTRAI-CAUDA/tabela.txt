@@ -1,0 +1,210 @@
+| gravacao | regime | variante | simb % | bits % | bloco |
+|---|---|---|---|---|---|
+| 161343-f00-nivel | eco | a atual | 69.7 | 84.6 | FALHA |
+| 161343-f00-nivel | eco | c/d cega k=1..1 | 76.7 | 88.4 | FALHA |
+| 161343-f00-nivel | eco | cega k=1..1 piso cru | 77.0 | 88.8 | FALHA |
+| 161343-f00-nivel | eco | c/d cega k=1..2 | 77.0 | 88.9 | FALHA |
+| 161343-f00-nivel | eco | cega k=1..2 piso cru | 78.7 | 89.7 | FALHA |
+| 161343-f00-nivel | eco | c/d cega k=1..3 | 77.3 | 88.8 | FALHA |
+| 161343-f00-nivel | eco | cega k=1..3 piso cru | 78.7 | 89.7 | FALHA |
+| 161343-f00-nivel | eco | e oraculo k=1..1 | 78.0 | 89.3 | FALHA |
+| 161343-f00-nivel | eco | e oraculo k=1..3 | 80.3 | 90.6 | FALHA |
+| 161721-f00-nivel-g025 | eco | a atual | 70.7 | 85.3 | ok |
+| 161721-f00-nivel-g025 | eco | c/d cega k=1..1 | 72.0 | 86.3 | ok |
+| 161721-f00-nivel-g025 | eco | cega k=1..1 piso cru | 72.3 | 86.8 | ok |
+| 161721-f00-nivel-g025 | eco | c/d cega k=1..2 | 71.7 | 87.0 | ok |
+| 161721-f00-nivel-g025 | eco | cega k=1..2 piso cru | 72.3 | 87.4 | ok |
+| 161721-f00-nivel-g025 | eco | c/d cega k=1..3 | 72.0 | 86.8 | ok |
+| 161721-f00-nivel-g025 | eco | cega k=1..3 piso cru | 72.3 | 87.2 | ok |
+| 161721-f00-nivel-g025 | eco | e oraculo k=1..1 | 73.7 | 87.4 | ok |
+| 161721-f00-nivel-g025 | eco | e oraculo k=1..3 | 73.7 | 87.7 | ok |
+| 161734-f00-nivel-g100 | eco | a atual | 73.0 | 86.6 | ok |
+| 161734-f00-nivel-g100 | eco | c/d cega k=1..1 | 73.7 | 86.8 | ok |
+| 161734-f00-nivel-g100 | eco | cega k=1..1 piso cru | 74.3 | 87.1 | ok |
+| 161734-f00-nivel-g100 | eco | c/d cega k=1..2 | 73.3 | 87.1 | ok |
+| 161734-f00-nivel-g100 | eco | cega k=1..2 piso cru | 75.3 | 88.1 | ok |
+| 161734-f00-nivel-g100 | eco | c/d cega k=1..3 | 74.0 | 87.5 | ok |
+| 161734-f00-nivel-g100 | eco | cega k=1..3 piso cru | 76.0 | 88.7 | ok |
+| 161734-f00-nivel-g100 | eco | e oraculo k=1..1 | 73.7 | 86.6 | ok |
+| 161734-f00-nivel-g100 | eco | e oraculo k=1..3 | 75.7 | 87.7 | ok |
+| 161939-f04-16fsk | eco | a atual | 79.7 | 88.7 | ok |
+| 161939-f04-16fsk | eco | c/d cega k=1..1 | 83.0 | 91.2 | ok |
+| 161939-f04-16fsk | eco | cega k=1..1 piso cru | 83.0 | 91.2 | ok |
+| 161939-f04-16fsk | eco | c/d cega k=1..2 | 83.0 | 91.0 | ok |
+| 161939-f04-16fsk | eco | cega k=1..2 piso cru | 84.0 | 91.7 | ok |
+| 161939-f04-16fsk | eco | c/d cega k=1..3 | 83.7 | 91.4 | ok |
+| 161939-f04-16fsk | eco | cega k=1..3 piso cru | 84.7 | 91.8 | ok |
+| 161939-f04-16fsk | eco | e oraculo k=1..1 | 84.7 | 91.8 | ok |
+| 161939-f04-16fsk | eco | e oraculo k=1..3 | 86.0 | 92.7 | ok |
+| 162218-f00-nivel-pos-restart | eco | a atual | 70.0 | 84.7 | FALHA |
+| 162218-f00-nivel-pos-restart | eco | c/d cega k=1..1 | 74.0 | 87.1 | ok |
+| 162218-f00-nivel-pos-restart | eco | cega k=1..1 piso cru | 73.3 | 87.0 | ok |
+| 162218-f00-nivel-pos-restart | eco | c/d cega k=1..2 | 74.3 | 87.2 | FALHA |
+| 162218-f00-nivel-pos-restart | eco | cega k=1..2 piso cru | 74.3 | 87.8 | ok |
+| 162218-f00-nivel-pos-restart | eco | c/d cega k=1..3 | 74.3 | 87.4 | FALHA |
+| 162218-f00-nivel-pos-restart | eco | cega k=1..3 piso cru | 75.3 | 88.0 | ok |
+| 162218-f00-nivel-pos-restart | eco | e oraculo k=1..1 | 75.0 | 87.8 | FALHA |
+| 162218-f00-nivel-pos-restart | eco | e oraculo k=1..3 | 75.7 | 88.4 | FALHA |
+| 162232-f04-16fsk-b | eco | a atual | 71.0 | 85.2 | FALHA |
+| 162232-f04-16fsk-b | eco | c/d cega k=1..1 | 73.3 | 86.1 | FALHA |
+| 162232-f04-16fsk-b | eco | cega k=1..1 piso cru | 73.7 | 86.5 | FALHA |
+| 162232-f04-16fsk-b | eco | c/d cega k=1..2 | 73.7 | 86.2 | FALHA |
+| 162232-f04-16fsk-b | eco | cega k=1..2 piso cru | 75.3 | 87.9 | FALHA |
+| 162232-f04-16fsk-b | eco | c/d cega k=1..3 | 72.3 | 85.8 | FALHA |
+| 162232-f04-16fsk-b | eco | cega k=1..3 piso cru | 76.0 | 88.4 | ok |
+| 162232-f04-16fsk-b | eco | e oraculo k=1..1 | 76.3 | 87.3 | FALHA |
+| 162232-f04-16fsk-b | eco | e oraculo k=1..3 | 78.7 | 88.8 | FALHA |
+| 162241-f06-16fsk-ifk | eco | b IFK atual | 71.0 | 85.3 | FALHA |
+| 162241-f06-16fsk-ifk | eco | a IFK sem exclusao | 66.0 | 82.6 | FALHA |
+| 162241-f06-16fsk-ifk | eco | c/d cega k=1..1 | 67.0 | 83.2 | FALHA |
+| 162241-f06-16fsk-ifk | eco | cega k=1..1 piso cru | 68.3 | 83.9 | FALHA |
+| 162241-f06-16fsk-ifk | eco | IFK + cega k=1..1 | 71.0 | 85.7 | ok |
+| 162241-f06-16fsk-ifk | eco | c/d cega k=1..2 | 69.3 | 84.2 | FALHA |
+| 162241-f06-16fsk-ifk | eco | cega k=1..2 piso cru | 70.7 | 85.2 | FALHA |
+| 162241-f06-16fsk-ifk | eco | IFK + cega k=1..2 | 71.7 | 85.3 | ok |
+| 162241-f06-16fsk-ifk | eco | c/d cega k=1..3 | 70.3 | 84.8 | FALHA |
+| 162241-f06-16fsk-ifk | eco | cega k=1..3 piso cru | 70.3 | 85.1 | FALHA |
+| 162241-f06-16fsk-ifk | eco | IFK + cega k=1..3 | 72.7 | 86.2 | ok |
+| 162241-f06-16fsk-ifk | eco | e oraculo k=1..1 | 70.7 | 85.8 | FALHA |
+| 162241-f06-16fsk-ifk | eco | e oraculo k=1..3 | 73.3 | 86.5 | FALHA |
+| 162722-f00-nivel-v3 | moderado | a atual | 76.7 | 87.9 | FALHA |
+| 162722-f00-nivel-v3 | moderado | c/d cega k=1..1 | 75.7 | 87.9 | FALHA |
+| 162722-f00-nivel-v3 | moderado | cega k=1..1 piso cru | 77.0 | 89.0 | FALHA |
+| 162722-f00-nivel-v3 | moderado | c/d cega k=1..2 | 75.3 | 87.9 | FALHA |
+| 162722-f00-nivel-v3 | moderado | cega k=1..2 piso cru | 77.0 | 89.0 | FALHA |
+| 162722-f00-nivel-v3 | moderado | c/d cega k=1..3 | 76.0 | 88.3 | FALHA |
+| 162722-f00-nivel-v3 | moderado | cega k=1..3 piso cru | 78.0 | 89.6 | FALHA |
+| 162722-f00-nivel-v3 | moderado | e oraculo k=1..1 | 76.3 | 88.2 | FALHA |
+| 162722-f00-nivel-v3 | moderado | e oraculo k=1..3 | 77.0 | 89.0 | FALHA |
+| 162926-f04-16fsk-v4 | moderado | a atual | 83.0 | 90.6 | ok |
+| 162926-f04-16fsk-v4 | moderado | c/d cega k=1..1 | 85.0 | 91.9 | ok |
+| 162926-f04-16fsk-v4 | moderado | cega k=1..1 piso cru | 85.7 | 92.3 | ok |
+| 162926-f04-16fsk-v4 | moderado | c/d cega k=1..2 | 85.7 | 92.7 | ok |
+| 162926-f04-16fsk-v4 | moderado | cega k=1..2 piso cru | 86.3 | 93.0 | ok |
+| 162926-f04-16fsk-v4 | moderado | c/d cega k=1..3 | 86.0 | 93.2 | ok |
+| 162926-f04-16fsk-v4 | moderado | cega k=1..3 piso cru | 86.3 | 93.2 | ok |
+| 162926-f04-16fsk-v4 | moderado | e oraculo k=1..1 | 85.7 | 92.4 | ok |
+| 162926-f04-16fsk-v4 | moderado | e oraculo k=1..3 | 85.7 | 92.8 | ok |
+| 162936-f06-16fsk-ifk-v4 | moderado | b IFK atual | 80.0 | 88.3 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | a IFK sem exclusao | 77.7 | 86.8 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | c/d cega k=1..1 | 78.0 | 86.9 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | cega k=1..1 piso cru | 78.7 | 87.2 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | IFK + cega k=1..1 | 80.3 | 88.0 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | c/d cega k=1..2 | 78.0 | 86.8 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | cega k=1..2 piso cru | 79.0 | 87.4 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | IFK + cega k=1..2 | 80.7 | 88.3 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | c/d cega k=1..3 | 79.3 | 87.4 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | cega k=1..3 piso cru | 79.7 | 87.7 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | IFK + cega k=1..3 | 82.0 | 89.2 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | e oraculo k=1..1 | 80.0 | 87.8 | FALHA |
+| 162936-f06-16fsk-ifk-v4 | moderado | e oraculo k=1..3 | 81.3 | 88.6 | FALHA |
+| 164718-f00-nivel-10cm | limpo | a atual | 99.7 | 99.8 | ok |
+| 164718-f00-nivel-10cm | limpo | c/d cega k=1..1 | 99.7 | 99.8 | ok |
+| 164718-f00-nivel-10cm | limpo | cega k=1..1 piso cru | 99.7 | 99.8 | ok |
+| 164718-f00-nivel-10cm | limpo | c/d cega k=1..2 | 99.7 | 99.8 | ok |
+| 164718-f00-nivel-10cm | limpo | cega k=1..2 piso cru | 100.0 | 100.0 | ok |
+| 164718-f00-nivel-10cm | limpo | c/d cega k=1..3 | 99.7 | 99.8 | ok |
+| 164718-f00-nivel-10cm | limpo | cega k=1..3 piso cru | 100.0 | 100.0 | ok |
+| 164718-f00-nivel-10cm | limpo | e oraculo k=1..1 | 99.7 | 99.8 | ok |
+| 164718-f00-nivel-10cm | limpo | e oraculo k=1..3 | 100.0 | 100.0 | ok |
+| 164832-f04-16fsk-10cm | limpo | a atual | 100.0 | 100.0 | ok |
+| 164832-f04-16fsk-10cm | limpo | c/d cega k=1..1 | 100.0 | 100.0 | ok |
+| 164832-f04-16fsk-10cm | limpo | cega k=1..1 piso cru | 100.0 | 100.0 | ok |
+| 164832-f04-16fsk-10cm | limpo | c/d cega k=1..2 | 100.0 | 100.0 | ok |
+| 164832-f04-16fsk-10cm | limpo | cega k=1..2 piso cru | 100.0 | 100.0 | ok |
+| 164832-f04-16fsk-10cm | limpo | c/d cega k=1..3 | 100.0 | 100.0 | ok |
+| 164832-f04-16fsk-10cm | limpo | cega k=1..3 piso cru | 100.0 | 100.0 | ok |
+| 164832-f04-16fsk-10cm | limpo | e oraculo k=1..1 | 99.7 | 99.8 | ok |
+| 164832-f04-16fsk-10cm | limpo | e oraculo k=1..3 | 100.0 | 100.0 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | b IFK atual | 99.0 | 99.4 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | a IFK sem exclusao | 98.7 | 99.5 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | c/d cega k=1..1 | 98.3 | 99.5 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | cega k=1..1 piso cru | 99.0 | 99.5 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | IFK + cega k=1..1 | 99.0 | 99.4 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | c/d cega k=1..2 | 98.3 | 99.5 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | cega k=1..2 piso cru | 99.0 | 99.5 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | IFK + cega k=1..2 | 99.0 | 99.4 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | c/d cega k=1..3 | 98.3 | 99.5 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | cega k=1..3 piso cru | 99.0 | 99.5 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | IFK + cega k=1..3 | 99.0 | 99.4 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | e oraculo k=1..1 | 98.7 | 99.3 | ok |
+| 164852-f06-16fsk-ifk-10cm | limpo | e oraculo k=1..3 | 99.7 | 100.0 | ok |
+
+checks: {'161343-f00-nivel': {'_check_a': 1.0}, '161721-f00-nivel-g025': {'_check_a': 1.0}, '161734-f00-nivel-g100': {'_check_a': 1.0}, '161939-f04-16fsk': {'_check_a': 1.0}, '162218-f00-nivel-pos-restart': {'_check_a': 1.0}, '162232-f04-16fsk-b': {'_check_a': 1.0}, '162241-f06-16fsk-ifk': {'_check_b': 1.0}, '162722-f00-nivel-v3': {'_check_a': 1.0}, '162926-f04-16fsk-v4': {'_check_a': 1.0}, '162936-f06-16fsk-ifk-v4': {'_check_b': 1.0}, '164718-f00-nivel-10cm': {'_check_a': 1.0}, '164832-f04-16fsk-10cm': {'_check_a': 1.0}, '164852-f06-16fsk-ifk-10cm': {'_check_b': 1.0}}
+a finais: {'161343-f00-nivel': {'1': [0.231], '2': [0.2443, 0.1266], '3': [0.2327, 0.13, 0.0721], 'oraculo1': [0.6571], 'oraculo3': [0.4381, 0.3253, 0.1413]}, '161721-f00-nivel-g025': {'1': [0.1242], '2': [0.1267, 0.0414], '3': [0.1344, 0.0458, 0.0243], 'oraculo1': [0.1648], 'oraculo3': [0.3296, 0.1035, 0.028]}, '161734-f00-nivel-g100': {'1': [0.094], '2': [0.0992, 0.0605], '3': [0.1015, 0.0667, 0.0416], 'oraculo1': [0.1031], 'oraculo3': [0.275, 0.1393, 0.0654]}, '161939-f04-16fsk': {'1': [0.1754], '2': [0.1792, 0.0542], '3': [0.1809, 0.0566, 0.0364], 'oraculo1': [0.2541], 'oraculo3': [0.5082, 0.2383, 0.1595]}, '162218-f00-nivel-pos-restart': {'1': [0.1217], '2': [0.1282, 0.0984], '3': [0.13, 0.1133, 0.0828], 'oraculo1': [0.3793], 'oraculo3': [0.3793, 0.1784, 0.2034]}, '162232-f04-16fsk-b': {'1': [0.1398], '2': [0.1571, 0.0791], '3': [0.1546, 0.0841, 0.0299], 'oraculo1': [0.5519], 'oraculo3': [0.5519, 0.2523, 0.1355]}, '162241-f06-16fsk-ifk': {'1': [0.15], '2': [0.1662, 0.0927], '3': [0.169, 0.103, 0.0687], 'oraculo1': [0.5245], 'oraculo3': [0.5245, 0.3548, 0.2225]}, '162722-f00-nivel-v3': {'1': [0.0385], '2': [0.0392, 0.0128], '3': [0.0397, 0.0132, 0.0137], 'oraculo1': [0.0856], 'oraculo3': [0.1284, 0.0457, 0.0302]}, '162926-f04-16fsk-v4': {'1': [0.0318], '2': [0.0319, 0.009], '3': [0.0334, 0.0096, 0.0201], 'oraculo1': [0.044], 'oraculo3': [0.022, 0.0204, 0.0164]}, '162936-f06-16fsk-ifk-v4': {'1': [0.0402], '2': [0.0398, 0.0192], '3': [0.0409, 0.0205, 0.0136], 'oraculo1': [0.1081], 'oraculo3': [0.1081, 0.0383, 0.0573]}, '164718-f00-nivel-10cm': {'1': [0.0313], '2': [0.0327, 0.0298], '3': [0.033, 0.0301, 0.0095], 'oraculo1': [0.0136], 'oraculo3': [0.0407, 0.0548, 0.0213]}, '164832-f04-16fsk-10cm': {'1': [0.0241], '2': [0.0254, 0.0558], '3': [0.0256, 0.056, 0.0039], 'oraculo1': [0.0135], 'oraculo3': [0.0135, 0.022, 0.0062]}, '164852-f06-16fsk-ifk-10cm': {'1': [0.0313], '2': [0.0323, 0.0296], '3': [0.0325, 0.0297, 0.0018], 'oraculo1': [0.0241], 'oraculo3': [0.0483, 0.0873, 0.021]}}
+
+### eco
+sem IFK (n=6) | variante | simb % | bits % | blocos | dbits vs a atual (pp): media, melhor/igual/pior, pior caso
+  a atual                   72.3  85.8 3/6  +0.00  0/6/0  +0.00
+  c/d cega k=1..1           75.4  87.6 4/6  +1.79  6/0/0  +0.17
+  cega k=1..1 piso cru      75.6  87.9 4/6  +2.03  6/0/0  +0.50
+  c/d cega k=1..2           75.5  87.9 3/6  +2.07  6/0/0  +0.50
+  cega k=1..2 piso cru      76.7  88.8 4/6  +2.92  6/0/0  +1.50
+  c/d cega k=1..3           75.6  87.9 3/6  +2.10  6/0/0  +0.50
+  cega k=1..3 piso cru      77.2  89.0 5/6  +3.11  6/0/0  +1.92
+  e oraculo k=1..1          76.9  88.4 3/6  +2.51  5/1/0  +0.00
+  e oraculo k=1..3          78.3  89.3 3/6  +3.46  6/0/0  +1.08
+IFK (n=1) | variante | simb % | bits % | blocos | dbits vs b IFK atual (pp): media, melhor/igual/pior, pior caso
+  b IFK atual               71.0  85.3 0/1  +0.00  0/1/0  +0.00
+  a IFK sem exclusao        66.0  82.6 0/1  -2.75  0/0/1  -2.75
+  c/d cega k=1..1           67.0  83.2 0/1  -2.08  0/0/1  -2.08
+  cega k=1..1 piso cru      68.3  83.9 0/1  -1.42  0/0/1  -1.42
+  IFK + cega k=1..1         71.0  85.7 1/1  +0.33  1/0/0  +0.33
+  c/d cega k=1..2           69.3  84.2 0/1  -1.08  0/0/1  -1.08
+  cega k=1..2 piso cru      70.7  85.2 0/1  -0.17  0/0/1  -0.17
+  IFK + cega k=1..2         71.7  85.3 1/1  +0.00  0/1/0  +0.00
+  c/d cega k=1..3           70.3  84.8 0/1  -0.50  0/0/1  -0.50
+  cega k=1..3 piso cru      70.3  85.1 0/1  -0.25  0/0/1  -0.25
+  IFK + cega k=1..3         72.7  86.2 1/1  +0.92  1/0/0  +0.92
+  e oraculo k=1..1          70.7  85.8 0/1  +0.42  1/0/0  +0.42
+  e oraculo k=1..3          73.3  86.5 0/1  +1.17  1/0/0  +1.17
+### moderado
+sem IFK (n=2) | variante | simb % | bits % | blocos | dbits vs a atual (pp): media, melhor/igual/pior, pior caso
+  a atual                   79.8  89.2 1/2  +0.00  0/2/0  +0.00
+  c/d cega k=1..1           80.3  89.9 1/2  +0.67  1/1/0  +0.00
+  cega k=1..1 piso cru      81.3  90.7 1/2  +1.42  2/0/0  +1.08
+  c/d cega k=1..2           80.5  90.3 1/2  +1.04  1/1/0  +0.00
+  cega k=1..2 piso cru      81.7  91.0 1/2  +1.75  2/0/0  +1.08
+  c/d cega k=1..3           81.0  90.8 1/2  +1.50  2/0/0  +0.42
+  cega k=1..3 piso cru      82.2  91.4 1/2  +2.12  2/0/0  +1.67
+  e oraculo k=1..1          81.0  90.3 1/2  +1.08  2/0/0  +0.33
+  e oraculo k=1..3          81.3  90.9 1/2  +1.67  2/0/0  +1.08
+IFK (n=1) | variante | simb % | bits % | blocos | dbits vs b IFK atual (pp): media, melhor/igual/pior, pior caso
+  b IFK atual               80.0  88.3 0/1  +0.00  0/1/0  +0.00
+  a IFK sem exclusao        77.7  86.8 0/1  -1.50  0/0/1  -1.50
+  c/d cega k=1..1           78.0  86.9 0/1  -1.42  0/0/1  -1.42
+  cega k=1..1 piso cru      78.7  87.2 0/1  -1.08  0/0/1  -1.08
+  IFK + cega k=1..1         80.3  88.0 0/1  -0.33  0/0/1  -0.33
+  c/d cega k=1..2           78.0  86.8 0/1  -1.58  0/0/1  -1.58
+  cega k=1..2 piso cru      79.0  87.4 0/1  -0.92  0/0/1  -0.92
+  IFK + cega k=1..2         80.7  88.3 0/1  +0.00  0/1/0  +0.00
+  c/d cega k=1..3           79.3  87.4 0/1  -0.92  0/0/1  -0.92
+  cega k=1..3 piso cru      79.7  87.7 0/1  -0.67  0/0/1  -0.67
+  IFK + cega k=1..3         82.0  89.2 0/1  +0.92  1/0/0  +0.92
+  e oraculo k=1..1          80.0  87.8 0/1  -0.50  0/0/1  -0.50
+  e oraculo k=1..3          81.3  88.6 0/1  +0.25  1/0/0  +0.25
+### limpo
+sem IFK (n=2) | variante | simb % | bits % | blocos | dbits vs a atual (pp): media, melhor/igual/pior, pior caso
+  a atual                   99.8  99.9 2/2  +0.00  0/2/0  +0.00
+  c/d cega k=1..1           99.8  99.9 2/2  +0.00  0/2/0  +0.00
+  cega k=1..1 piso cru      99.8  99.9 2/2  +0.00  0/2/0  +0.00
+  c/d cega k=1..2           99.8  99.9 2/2  +0.00  0/2/0  +0.00
+  cega k=1..2 piso cru     100.0 100.0 2/2  +0.12  1/1/0  +0.00
+  c/d cega k=1..3           99.8  99.9 2/2  +0.00  0/2/0  +0.00
+  cega k=1..3 piso cru     100.0 100.0 2/2  +0.12  1/1/0  +0.00
+  e oraculo k=1..1          99.7  99.8 2/2  -0.08  0/1/1  -0.17
+  e oraculo k=1..3         100.0 100.0 2/2  +0.12  1/1/0  +0.00
+IFK (n=1) | variante | simb % | bits % | blocos | dbits vs b IFK atual (pp): media, melhor/igual/pior, pior caso
+  b IFK atual               99.0  99.4 1/1  +0.00  0/1/0  +0.00
+  a IFK sem exclusao        98.7  99.5 1/1  +0.08  1/0/0  +0.08
+  c/d cega k=1..1           98.3  99.5 1/1  +0.08  1/0/0  +0.08
+  cega k=1..1 piso cru      99.0  99.5 1/1  +0.08  1/0/0  +0.08
+  IFK + cega k=1..1         99.0  99.4 1/1  +0.00  0/1/0  +0.00
+  c/d cega k=1..2           98.3  99.5 1/1  +0.08  1/0/0  +0.08
+  cega k=1..2 piso cru      99.0  99.5 1/1  +0.08  1/0/0  +0.08
+  IFK + cega k=1..2         99.0  99.4 1/1  +0.00  0/1/0  +0.00
+  c/d cega k=1..3           98.3  99.5 1/1  +0.08  1/0/0  +0.08
+  cega k=1..3 piso cru      99.0  99.5 1/1  +0.08  1/0/0  +0.08
+  IFK + cega k=1..3         99.0  99.4 1/1  +0.00  0/1/0  +0.00
+  e oraculo k=1..1          98.7  99.3 1/1  -0.08  0/0/1  -0.08
+  e oraculo k=1..3          99.7 100.0 1/1  +0.58  1/0/0  +0.58

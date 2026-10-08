@@ -1,0 +1,2 @@
+stem,modo,baud,gain,fec_repeat,bytes,acerto_bits,bloco_ok,pico_rx,rms_rx
+20261008-163150-f01-2fsk-v4,fsk,1200,0.5,0,48,53.54,0,0.2817,0.0294

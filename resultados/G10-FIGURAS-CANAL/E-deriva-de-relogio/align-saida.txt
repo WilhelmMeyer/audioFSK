@@ -1,0 +1,24 @@
+gravacao              gate  travado   /sinal   /ruido   skip
+20261008-161939      87.5%    89.6%    85.9%    90.3%    384
+20261008-162232      84.2%    85.8%    80.0%    84.3%    400
+20261008-162241      82.9%    86.2%    77.9%    84.5%    256
+20261008-162821      82.2%    84.5%    65.8%    86.3%    432
+20261008-162831      79.2%    81.4%    77.6%    80.3%    128
+20261008-162926      88.4%    90.9%    83.0%    91.8%    464
+20261008-162936      89.1%    90.4%    86.8%    91.3%      0
+20261008-164832     100.0%   100.0%   100.0%   100.0%    192
+20261008-164852      98.8%    99.7%    99.6%    99.9%    256
+
+media de bits certos
+  gate early/late, como esta hoje             88.0%   4/9 blocos
+  relogio travado no melhor offset            89.8%   6/9 blocos
+  travado, dividindo pelo GANHO por tom       84.1%   5/9 blocos   <- o que um piloto mede
+  travado, dividindo pelo RUIDO por tom       89.9%   6/9 blocos   <- o que o codigo ja estima sozinho
+  varredura de sincronismo no inicio do frame   88.8%   4/9 blocos   <- o S, alinhamento que um receptor consegue de fato
+    erro medio contra o melhor offset: 59 amostras de 480
+  duas varreduras: inicio E periodo medidos     89.2%   4/8 blocos   <- S no comeco e no fim
+    periodo medido: 480.00 amostras por simbolo (nominal 480), desvio 0.00
+
+linha 2 - linha 1 = o que uma sincronizacao melhor pode render.
+linha 4 - linha 2 = o teto do estimador de piso, sabendo a resposta.
+linha 3          = um piloto por tom, no melhor caso possivel.

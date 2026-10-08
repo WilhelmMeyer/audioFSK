@@ -1,0 +1,2 @@
+stem,modo,baud,gain,fec_repeat,bytes,acerto_bits,bloco_ok,pico_rx,rms_rx
+20261008-163229-f03-multicanal-v4,mfsk,100,0.5,1,48,88.3,1,0.1241,0.0244

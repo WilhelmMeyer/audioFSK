@@ -1,0 +1,13 @@
+20261008-161343-f00-nivel {"oraculo cru k=1..1": [89.25, false, 2.0], "oraculo cru k=1..3": [91.5, false, 6.0]}
+20261008-161721-f00-nivel-g025 {"oraculo cru k=1..1": [87.42, true, 1.5], "oraculo cru k=1..3": [88.08, true, 1.5]}
+20261008-161734-f00-nivel-g100 {"oraculo cru k=1..1": [87.25, true, 2.0], "oraculo cru k=1..3": [89.17, true, 2.0]}
+20261008-161939-f04-16fsk {"oraculo cru k=1..1": [92.5, true, 3.0], "oraculo cru k=1..3": [94.25, true, 3.0]}
+20261008-162218-f00-nivel-pos-restart {"oraculo cru k=1..1": [87.58, false, 6.0], "oraculo cru k=1..3": [90.08, true, 3.0]}
+20261008-162232-f04-16fsk-b {"oraculo cru k=1..1": [87.58, true, 4.0], "oraculo cru k=1..3": [89.42, true, 4.0]}
+20261008-162241-f06-16fsk-ifk {"oraculo cru k=1..1": [87.08, true, 6.0], "oraculo cru k=1..3": [89.58, false, 6.0], "IFK+cega k=1..3 cru": [86.33, true]}
+20261008-162722-f00-nivel-v3 {"oraculo cru k=1..1": [90.33, true, 4.0], "oraculo cru k=1..3": [91.25, true, 4.0]}
+20261008-162926-f04-16fsk-v4 {"oraculo cru k=1..1": [93.25, true, 6.0], "oraculo cru k=1..3": [94.67, true, 6.0]}
+20261008-162936-f06-16fsk-ifk-v4 {"oraculo cru k=1..1": [89.5, false, 6.0], "oraculo cru k=1..3": [90.67, true, 6.0], "IFK+cega k=1..3 cru": [89.92, true]}
+20261008-164718-f00-nivel-10cm {"oraculo cru k=1..1": [99.75, true, 0.5], "oraculo cru k=1..3": [100.0, true, 0.75]}
+20261008-164832-f04-16fsk-10cm {"oraculo cru k=1..1": [100.0, true, 0.5], "oraculo cru k=1..3": [100.0, true, 0.5]}
+20261008-164852-f06-16fsk-ifk-10cm {"oraculo cru k=1..1": [99.5, true, 0.5], "oraculo cru k=1..3": [100.0, true, 1.5], "IFK+cega k=1..3 cru": [99.42, true]}

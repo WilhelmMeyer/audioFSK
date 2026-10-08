@@ -1,0 +1,40 @@
+  remoto: mode mary        -> modo = mary (100 baud, 4 bits por simbolo)
+  remoto: spk on           -> caixa LIGADA
+  remoto: gain 0.5         -> gain = 0.5
+  remoto: mic off          -> mic ja desligado
+  remoto: fecrep 1         -> fec repeticao = 1
+  remoto: syncsweep off    -> syncsweep desligado (so em mary; 220 ms por frame)
+  remoto: ifk off          -> ifk desligado (so em mary; tom de repeticao 3487.5 Hz)
+
+testcard.bmp: 1334 bytes, 42 pacotes, crc32 24763389
+~10.1s de audio por pacote, ~1.8 min no melhor caso
+
+  -> remoto envia tx 1/11 (9%) 145 bytes codificados
+  [##                            ]   9%  1/11 pacotes   128/1334 bytes    14s decorridos, ~138s restantes   pkt 0 OK (128 bytes, tentativa 1)
+  -> remoto envia tx 2/11 (18%) 145 bytes codificados
+  [#####                         ]  18%  2/11 pacotes   256/1334 bytes    27s decorridos, ~122s restantes   pkt 1 OK (128 bytes, tentativa 1)
+  -> remoto envia tx 3/11 (27%) 145 bytes codificados
+  [########                      ]  27%  3/11 pacotes   384/1334 bytes    41s decorridos, ~108s restantes   pkt 2 OK (128 bytes, tentativa 1)
+  -> remoto envia tx 4/11 (36%) 145 bytes codificados
+  [##########                    ]  36%  4/11 pacotes   512/1334 bytes    54s decorridos, ~94s restantes   pkt 3 OK (128 bytes, tentativa 1)
+  -> remoto envia tx 5/11 (45%) 145 bytes codificados
+  pkt  4: tentativa 1 falhou (5284 simbolos, CRC nao fechou)
+  -> remoto envia tx 5/11 (45%) 145 bytes codificados
+  [#############                 ]  45%  5/11 pacotes   640/1334 bytes    81s decorridos, ~97s restantes   pkt 4 OK (128 bytes, tentativa 2)
+  -> remoto envia tx 6/11 (54%) 145 bytes codificados
+  [################              ]  54%  6/11 pacotes   768/1334 bytes    94s decorridos, ~78s restantes   pkt 5 OK (128 bytes, tentativa 1)
+  -> remoto envia tx 7/11 (63%) 145 bytes codificados
+  [##################            ]  63%  7/11 pacotes   896/1334 bytes   108s decorridos, ~62s restantes   pkt 6 OK (128 bytes, tentativa 1)
+  -> remoto envia tx 8/11 (72%) 145 bytes codificados
+  [#####################         ]  72%  8/11 pacotes  1024/1334 bytes   121s decorridos, ~45s restantes   pkt 7 OK (128 bytes, tentativa 1)
+  -> remoto envia tx 9/11 (81%) 145 bytes codificados
+  [########################      ]  81%  9/11 pacotes  1152/1334 bytes   134s decorridos, ~30s restantes   pkt 8 OK (128 bytes, tentativa 1)
+  -> remoto envia tx 10/11 (90%) 145 bytes codificados
+  pkt  9: tentativa 1 falhou (5276 simbolos, CRC nao fechou)
+  -> remoto envia tx 10/11 (90%) 145 bytes codificados
+  [###########################   ]  90%  10/11 pacotes  1280/1334 bytes   161s decorridos, ~16s restantes   pkt 9 OK (128 bytes, tentativa 2)
+  -> remoto envia tx 11/11 (100%) 71 bytes codificados
+  [##############################] 100%  11/11 pacotes  1334/1334 bytes   175s decorridos   pkt 10 OK (54 bytes, tentativa 1)
+
+1334/1334 bytes em 175s (7.6 B/s efetivos, 2 retransmissoes)
+CRC32 24763389 confere. Arquivo gravado em f05-128.bmp

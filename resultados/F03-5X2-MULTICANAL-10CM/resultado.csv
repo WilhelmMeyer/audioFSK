@@ -1,0 +1,6 @@
+stem,modo,baud,gain,fec_repeat,bytes,acerto_bits,bloco_ok,pico_rx,rms_rx
+20261008-164814-f03-multicanal-10cm,mfsk,100,0.5,1,48,93.13,1,0.1422,0.024
+20261008-172744-f03-multicanal-10cm-r1,mfsk,100,0.5,1,48,90.26,1,0.0853,0.0176
+20261008-173058-f03-multicanal-10cm-r2,mfsk,100,0.5,1,48,91.4,1,0.0872,0.0175
+20261008-173406-f03-multicanal-10cm-r3,mfsk,100,0.5,1,48,91.85,1,0.0865,0.0174
+20261008-173556-f03-multicanal-10cm-r4,mfsk,100,0.5,1,48,90.42,1,0.0929,0.0172

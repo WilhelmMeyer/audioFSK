@@ -1,0 +1,15 @@
+{
+  "recorded": "20261008-174438",
+  "kind": "ruido",
+  "mode": "nenhum",
+  "fs": 48000,
+  "label": "g00-piso-fim",
+  "link": "desconhecido",
+  "device": "None",
+  "secs": 8.0,
+  "rms": 0.0005916949012316763,
+  "peak": 0.00288036628626287,
+  "payload_hex": "",
+  "payload_len": 0,
+  "samples": 384000
+}

@@ -1,0 +1,2 @@
+stem,modo,baud,gain,fec_repeat,bytes,acerto_bits,bloco_ok,pico_rx,rms_rx
+20261008-162936-f06-16fsk-ifk-v4,mary,100,0.5,1,48,89.09,1,0.3085,0.0501

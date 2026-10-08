@@ -1,0 +1,21 @@
+posicao,condicao,gravacao,classe,n_erros_classe,n_erros,n_simbolos,pct_dos_erros,pct_simbolos_errados
+antiga,sem IFK,20261008-162232-f04-16fsk-b,n-1,51,87,300,58.62,29.00
+antiga,sem IFK,20261008-162232-f04-16fsk-b,n-2,13,87,300,14.94,29.00
+antiga,sem IFK,20261008-162232-f04-16fsk-b,vizinho,2,87,300,2.30,29.00
+antiga,sem IFK,20261008-162232-f04-16fsk-b,repeticao,0,87,300,0.00,29.00
+antiga,sem IFK,20261008-162232-f04-16fsk-b,outro,21,87,300,24.14,29.00
+antiga,com IFK,20261008-162241-f06-16fsk-ifk,n-1,19,87,300,21.84,29.00
+antiga,com IFK,20261008-162241-f06-16fsk-ifk,n-2,30,87,300,34.48,29.00
+antiga,com IFK,20261008-162241-f06-16fsk-ifk,vizinho,5,87,300,5.75,29.00
+antiga,com IFK,20261008-162241-f06-16fsk-ifk,repeticao,0,87,300,0.00,29.00
+antiga,com IFK,20261008-162241-f06-16fsk-ifk,outro,33,87,300,37.93,29.00
+10 cm,sem IFK,20261008-164832-f04-16fsk-10cm,n-1,0,0,300,0.00,0.00
+10 cm,sem IFK,20261008-164832-f04-16fsk-10cm,n-2,0,0,300,0.00,0.00
+10 cm,sem IFK,20261008-164832-f04-16fsk-10cm,vizinho,0,0,300,0.00,0.00
+10 cm,sem IFK,20261008-164832-f04-16fsk-10cm,repeticao,0,0,300,0.00,0.00
+10 cm,sem IFK,20261008-164832-f04-16fsk-10cm,outro,0,0,300,0.00,0.00
+10 cm,com IFK,20261008-164852-f06-16fsk-ifk-10cm,n-1,0,3,300,0.00,1.00
+10 cm,com IFK,20261008-164852-f06-16fsk-ifk-10cm,n-2,2,3,300,66.67,1.00
+10 cm,com IFK,20261008-164852-f06-16fsk-ifk-10cm,vizinho,0,3,300,0.00,1.00
+10 cm,com IFK,20261008-164852-f06-16fsk-ifk-10cm,repeticao,0,3,300,0.00,1.00
+10 cm,com IFK,20261008-164852-f06-16fsk-ifk-10cm,outro,1,3,300,33.33,1.00

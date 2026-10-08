@@ -1,0 +1,2 @@
+stem,modo,baud,gain,fec_repeat,bytes,acerto_bits,bloco_ok,pico_rx,rms_rx
+20261008-163211-f02-votada-v4,mfsk,100,0.5,1,48,99.08,1,0.1324,0.0297

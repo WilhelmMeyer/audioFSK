@@ -1,0 +1,20 @@
+{
+  "recorded": "20261008-170850",
+  "kind": "chirp",
+  "label": "g02-varredura",
+  "mode": "mfsk",
+  "baud": 0,
+  "fs": 48000,
+  "chirp": [
+    400.0,
+    4200.0,
+    10.0
+  ],
+  "gain": null,
+  "device": "None",
+  "rms": 0.03965640440583229,
+  "peak": 0.177223801612854,
+  "payload_hex": "",
+  "payload_len": 0,
+  "samples": 581632
+}
