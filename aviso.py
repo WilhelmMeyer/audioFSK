@@ -6,17 +6,20 @@ stay quiet for a recording gives no sign that it is being recorded. This puts
 a notice on screen for exactly the interval the audio device is in use, and
 replaces it with a short "liberado" when it is released.
 
-Two backends, one interface:
+One backend on both systems: a small always-on-top banner in the corner,
+drawn with tkinter by this same file run as a child process, there only while
+the device is in use. It closes when told to, and also when its parent dies --
+it watches its own stdin, a pipe from the parent -- so a crashed test cannot
+leave it on screen. GNOME notifications were tried first and dropped: a
+critical one never leaves by itself, so "still running" and "finished but not
+dismissed" looked the same, which is the one thing this exists to tell apart.
 
-- Linux with a desktop: `notify-send`, one bubble replaced in place.
-- Windows (and Linux without `notify-send`): a small always-on-top banner,
-  drawn by this same file run as a child process with tkinter. It closes when
-  told to, and also when its parent dies -- it watches its own stdin, which is
-  a pipe from the parent -- so a crashed test cannot leave it on screen.
+When an `aviso.py --servidor` is listening on localhost (Windows, see
+`_Remoto`), the notice goes there instead of a banner of our own.
 
 Runtime only, like `app.py`: no DSP, and nothing here may fail or slow a
 test. `inicio`/`fim` only post the wanted state to a worker thread, so they
-return at once (spawning PowerShell or Python on Windows takes most of a
+return at once (spawning Python on Windows takes most of a
 second, which would otherwise land inside a capture's timing). Do not call
 them from a PortAudio callback all the same. With no display at all every
 call is a no-op.
@@ -32,13 +35,11 @@ import atexit
 import contextlib
 import os
 import queue
-import shutil
 import subprocess
 import sys
 import threading
 
 _WIN = sys.platform == 'win32'
-_NOTIFY = None if _WIN else shutil.which('notify-send')
 _DESKTOP = _WIN or bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
 _ATIVO = _DESKTOP and os.environ.get('AUDIOFSK_AVISO', '1') != '0'
 
@@ -50,27 +51,6 @@ _lock = threading.Lock()
 
 
 # --- backends: run only on the worker thread
-
-class _NotifySend:
-    def __init__(self):
-        self.id = None
-
-    def show(self, titulo, corpo, ativo):
-        cmd = [_NOTIFY, '-a', 'audioFSK', '-p', '-h', 'boolean:suppress-sound:true',
-               '-i', 'audio-input-microphone',
-               '-u', 'critical' if ativo else 'normal']
-        if not ativo:
-            cmd.append('-e')
-        if self.id is not None:
-            cmd += ['-r', str(self.id)]
-        out = subprocess.run(cmd + [titulo, corpo], capture_output=True,
-                             text=True, timeout=3).stdout.strip()
-        if out.isdigit():
-            self.id = int(out)
-
-    def close(self):
-        pass
-
 
 class _Banner:
     def __init__(self):
@@ -145,7 +125,7 @@ class _Remoto:
 
 
 def _run():
-    backend = _NotifySend() if _NOTIFY else _Remoto() if _WIN else _Banner()
+    backend = _Remoto()
     while True:
         items = [_q.get()]
         while True:                          # coalesce: the latest state wins
@@ -182,15 +162,11 @@ def _flush():
     """At exit, let the last notice reach the screen, then take a banner down
     once it has been read."""
     try:
-        if _NOTIFY:
-            _q.put(None)
-            _q.join()
-        else:
-            # The 'off' banner times itself out; just let it be spawned.
-            import time
-            t0 = time.time()
-            while _q.unfinished_tasks and time.time() - t0 < 3:
-                time.sleep(0.05)
+        # The 'off' banner times itself out; just let it be spawned.
+        import time
+        t0 = time.time()
+        while _q.unfinished_tasks and time.time() - t0 < 3:
+            time.sleep(0.05)
     except Exception:                        # noqa: BLE001
         pass
 
