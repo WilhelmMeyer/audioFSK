@@ -223,6 +223,10 @@ def main():
                     help="liga as varreduras de sincronismo nas duas pontas do "
                          "frame mary, e carimba isso no JSON para o align.py "
                          "saber que deve procura-las")
+    ap.add_argument('--ifk', action='store_true',
+                    help="mary: tom de repeticao, nunca o tom do simbolo "
+                         "anterior (IFK); manda 'ifk on' ao outro lado e "
+                         "carimba no JSON")
     ap.add_argument('--out', default='captures')
     ap.add_argument('--label', default='', help="goes in the filename; name the setup")
     args = ap.parse_args()
@@ -257,6 +261,15 @@ def main():
     ask(ctl, f"marygap {args.gap if args.gap is not None else 0.0}")
     ask(ctl, f"maryband {args.band if args.band is not None else 0.0}")
     ask(ctl, f"marychord {'on' if args.chord else 'off'}")
+    # Sent every run, and checked when it is meant to be on: an agent that has
+    # not been pulled answers "comando desconhecido" and transmits without
+    # IFK, and a recording stamped `ifk` over a plain burst would then be read
+    # the wrong way by every offline tool, silently.
+    reply = ask(ctl, f"ifk {'on' if args.ifk else 'off'}")
+    if args.ifk and not (reply or '').startswith('ifk LIGADO'):
+        ctl.close()
+        sys.exit(f"[capture] o outro lado nao ligou o ifk: {reply!r} "
+                 "-- pull + restart nele primeiro")
     ask(ctl, f"mfskgroup {'on' if args.grouped else 'off'}")
     if args.gain is not None:
         ask(ctl, f"gain {args.gain}")
@@ -319,6 +332,7 @@ def main():
                               gap=args.gap or 0.0,
                               band=args.band or 0.0,
                               chord=bool(args.chord),
+                              ifk=bool(args.ifk),
                               sync_chirp=bool(args.sync_chirp),
                               sync_hush=SYNC_HUSH if args.sync_chirp else 0.0,
                               sync_span_symbols=(sync_span(len(payload), args.repeat)

@@ -701,6 +701,41 @@ def _gray(i):
 _GRAY = [_gray(i) for i in range(1 << MARY_BITS)]
 _UNGRAY = {g: i for i, g in enumerate(_GRAY)}
 
+# IFK by repetition tone: the tone sent is never the tone of the previous
+# symbol. A seventeenth tone, one step above the last, means "same value as the
+# previous symbol"; it is sent when the value repeats and the previous tone was
+# not itself the repetition tone, and is never sent twice running. The receiver
+# then leaves the tone it *detected* last out of the comparison.
+#
+# Why: the room has a tail. Measured over 31 B->A recordings of the linear
+# chain, at a frozen clock on the right offset, the previous symbol's tone sits
+# +5.9 dB above a tone nobody sent inside window n (the following tone, as a
+# control, +0.7 dB), and when the detector is wrong it picks that previous tone
+# 29.5% of the time against 6.7% by chance. Neighbours of the previous tone sit
+# *below* chance, and the error rate does not depend on tone distance -- so only
+# the previous tone itself is excluded, not its neighbours. Expected gain, from
+# oracles on the same corpus: ~12% fewer symbol errors excluding the true
+# previous tone, ~6.5% excluding the detected one.
+#
+# Same 162.5 Hz step and the same probe geometry as the sixteen; only the rule
+# that chooses which tone sounds is new.
+MARY_REPEAT_TONE = 3487.5
+
+
+def ifk_tones(values):
+    """Tone index for each value under the IFK rule, starting a fresh frame.
+
+    Index 16 is the repetition tone. One function for the transmitter and for
+    every offline tool that has to know what was on the air.
+    """
+    rep = 1 << MARY_BITS
+    out, prev_v, prev_t = [], None, None
+    for v in values:
+        t = rep if (v == prev_v and prev_t != rep) else _GRAY[v]
+        out.append(t)
+        prev_v, prev_t = v, t
+    return out
+
 
 class MaryModulator:
     """One tone per symbol, at full amplitude. Four bits per symbol.
@@ -720,10 +755,15 @@ class MaryModulator:
     """
 
     def __init__(self, fs=48000, baud=100, tones=MARY_TONES, gap=0.0,
-                 chord=False):
+                 chord=False, ifk=False):
+        if ifk and chord:
+            raise ValueError("ifk e chord nao combinam: o IFK escolhe um tom")
         self.fs = fs
         self.baud = baud
-        self.tones = tuple(tones)
+        self.ifk = bool(ifk)
+        # The repetition tone is appended only when IFK is on, so with it off
+        # the oscillator bank, and therefore every sample, is what it was.
+        self.tones = tuple(tones) + ((MARY_REPEAT_TONE,) if self.ifk else ())
         self.gap = gap
         self.chord = chord
         self.samples_per_symbol = int(fs / baud)
@@ -734,9 +774,21 @@ class MaryModulator:
         # off. Restarting a tone's phase when it returns would splice a
         # discontinuity into it, which is a click and out-of-band energy.
         self.phase = np.zeros(len(self.tones))
+        self.restart_ifk()
 
     def reset(self):
         self.phase[:] = 0.0
+        self.restart_ifk()
+
+    def restart_ifk(self):
+        """Forget the previous symbol, so the next one is sent absolute.
+
+        Call at the head of every frame. The modulator outlives a burst, and a
+        frame that opened with the repetition tone would be relative to a
+        symbol the receiver never heard -- the idle tail of the last one.
+        """
+        self.prev_value = None
+        self.prev_tone = None
 
     def _advance(self):
         w = 2 * np.pi * np.array(self.tones) / self.fs
@@ -758,6 +810,10 @@ class MaryModulator:
             out /= len(idxs)
         else:
             idx = _GRAY[v]
+            if (self.ifk and v == self.prev_value
+                    and self.prev_tone != 1 << MARY_BITS):
+                idx = 1 << MARY_BITS
+            self.prev_value, self.prev_tone = v, idx
             w = 2 * np.pi * self.tones[idx] / self.fs
             out = np.sin(w * n + self.phase[idx])
         self._advance()
@@ -796,7 +852,20 @@ class MaryDemodulator:
     def __init__(self, fs=48000, baud=100, tones=MARY_TONES, guard=0.15,
                  contrast_min=0.15, floor_alpha=0.02, gap=0.0, band=0.0,
                  chord=False, steer=True, skip=0, floor_fixed=None,
-                 period=None, floor_norm=False, floor_clip=None, floor_top=1):
+                 period=None, floor_norm=False, floor_clip=None, floor_top=1,
+                 ifk=False):
+        if ifk and chord:
+            raise ValueError("ifk e chord nao combinam: o IFK escolhe um tom")
+        # IFK by repetition tone: see `ifk_tones`. With it on, the tone this
+        # demodulator *detected* in the previous symbol is left out of the
+        # comparison, and a win by the repetition tone means "the value decided
+        # last time". The running floor is untouched -- it still updates every
+        # tone but the loudest, the excluded one included. Leaving the excluded
+        # tone out of the floor too is a separate change, not made here.
+        self.ifk = bool(ifk)
+        self.rep = (1 << MARY_BITS) if self.ifk else None
+        if self.ifk:
+            tones = tuple(tones) + (MARY_REPEAT_TONE,)
         # `steer=False` freezes the symbol clock: every window is taken exactly
         # one symbol after the last, and `skip` says where the first one
         # starts. That is only correct when something else has already found
@@ -918,6 +987,31 @@ class MaryDemodulator:
         # receiver as misaligned when the misalignment was in the bookkeeping.
         self.consumed = 0
         self.last_window = 0
+        # IFK state: the tone detected and the value decided in the previous
+        # symbol. `used_*` are what the symbol just yielded was decided
+        # against, for the soft path, which runs after the state has moved on.
+        self.prev_idx = None
+        self.prev_val = 0
+        self.used_excl = None
+        self.used_ref = 0
+        self.value = 0
+
+    def _commit(self, idx):
+        """Record the decision for the symbol about to be yielded.
+
+        Called exactly once per symbol, just before the yield, and never from
+        `_score` -- the steered path scores three candidate windows per symbol
+        and all three must be judged against the same excluded tone.
+        """
+        self.used_excl, self.used_ref = self.prev_idx, self.prev_val
+        if self.chord:
+            v = idx
+        elif self.ifk and idx == self.rep:
+            v = self.prev_val
+        else:
+            v = _UNGRAY[idx]
+        self.value = v
+        self.prev_idx, self.prev_val = idx, v
 
     def _energies(self, start):
         # One-entry memo. This is 90% of the demodulator's cost and the same
@@ -983,6 +1077,12 @@ class MaryDemodulator:
         # on a channel whose response swings 17 dB between neighbours.
         norm = e / np.maximum(self.floor, 1e-30)
         scores = self._nibble_scores(norm)
+        if self.ifk and self.prev_idx is not None:
+            # The previous symbol's tone cannot be this symbol's, by
+            # construction of the transmitter, and it is the tone the room's
+            # tail is most likely to hand the decision. Out of the race.
+            scores = scores.copy()
+            scores[self.prev_idx] = -np.inf
         order = np.argsort(scores)
         top, second = scores[order[-1]], scores[order[-2]]
         contrast = (top - second) / max(top + second, 1e-30)
@@ -1042,6 +1142,7 @@ class MaryDemodulator:
                 self.frozen_k += 1
                 self.buf = self.buf[at:]
                 self.consumed += at
+                self._commit(idx)
                 yield idx, contrast, norm
             return
 
@@ -1074,6 +1175,7 @@ class MaryDemodulator:
             step = self.samples_per_symbol + adjust
             self.consumed += step
             self.buf = self.buf[step:]
+            self._commit(idx)
             yield idx, self.contrast, norm
 
     def demodulate(self, samples):
@@ -1081,8 +1183,10 @@ class MaryDemodulator:
         for idx, contrast, _norm in self._symbols(samples):
             # In chord mode the winning index *is* the nibble, since the
             # patterns are indexed by value. With single tones it is a tone
-            # index and Gray coding has to be undone first.
-            v = idx if self.chord else _UNGRAY[idx]
+            # index and Gray coding has to be undone first -- or, under IFK,
+            # the repetition tone resolved to the previous value. `_commit`
+            # did both.
+            v = self.value
             self.bits += [(v >> j) & 1 for j in range(MARY_BITS)]
         while len(self.bits) >= 8:
             chunk = self.bits[:8]
@@ -1107,6 +1211,21 @@ class MaryDemodulator:
             # off the values that carry it, whatever they are made of.
             log_e = np.log(np.maximum(self._nibble_scores(norm), 1e-30))
             place = (lambda v: v) if self.chord else (lambda v: _GRAY[v])
+            if self.ifk:
+                # Evidence for value v is the better of its own tone and, when
+                # v is the value decided last symbol, the repetition tone --
+                # the two ways the transmitter could have said it. The tone
+                # detected last symbol is out, as in the hard decision, so the
+                # hard decision is exactly the argmax of these sixteen.
+                # A max rather than a log-sum: max-log like the rest of this
+                # function, and the transmitter never sends both.
+                log_e = log_e.copy()
+                if self.used_excl is not None:
+                    log_e[self.used_excl] = -np.inf
+                metric = np.array([log_e[_GRAY[v]] for v in range(1 << MARY_BITS)])
+                metric[self.used_ref] = max(metric[self.used_ref], log_e[self.rep])
+                log_e = metric
+                place = lambda v: v
             for j in range(MARY_BITS):
                 ones = [log_e[place(v)] for v in range(1 << MARY_BITS) if (v >> j) & 1]
                 zeros = [log_e[place(v)] for v in range(1 << MARY_BITS) if not (v >> j) & 1]

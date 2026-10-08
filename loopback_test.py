@@ -16,7 +16,8 @@ import recording
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
-                   MaryModulator, MaryDemodulator, MARY_TONES)
+                   MaryModulator, MaryDemodulator, MARY_TONES, MARY_BITS,
+                   _GRAY, ifk_tones)
 
 FS = 48000
 
@@ -295,6 +296,100 @@ def test_fec():
               "sync nao encontrado" if start is None else repr(got))
 
 
+def mary_values(bits):
+    bits = list(bits) + [0] * (-len(bits) % MARY_BITS)
+    return [sum(b << j for j, b in enumerate(bits[i:i + MARY_BITS]))
+            for i in range(0, len(bits), MARY_BITS)]
+
+
+def measured_tail(sig, noise_db, seed, comb_db=6.0):
+    """The tail measured on the B->A linear chain, plus a comb and noise.
+
+    Each of the last four transmitted symbols is re-injected whole, one
+    symbol later each time, at -14/-14/-15/-15 dB -- what 31 recordings showed
+    of tones n-1..n-4 inside window n, about 14 dB under the current tone. A
+    delayed copy rather than an exponential reverb, because the measured
+    residue does not decay over those four symbols. The comb gives each tone
+    its own gain, as the room does, and the noise sets the baseline error
+    rate: on a clean channel both paths score zero and the test shows nothing.
+    """
+    rng = np.random.default_rng(seed)
+    f = np.fft.rfftfreq(len(sig), 1 / FS)
+    grid = np.arange(500.0, 4000.0, 81.25)
+    h = 10 ** (np.interp(f, grid, rng.normal(0, comb_db, len(grid))) / 20)
+    x = np.fft.irfft(np.fft.rfft(sig) * h, n=len(sig))
+    y = x.copy()
+    sps = FS // 100
+    for k, db in enumerate((-14, -14, -15, -15), 1):
+        y[k * sps:] += 10 ** (db / 20) * x[:-k * sps]
+    return y + rng.normal(0, 10 ** (noise_db / 20), len(y))
+
+
+def test_ifk():
+    """IFK by repetition tone: never the previous symbol's tone.
+
+    Round trip first, on a payload full of repeated nibbles so the repetition
+    tone actually sounds and chains of it are exercised. Then the measured
+    tail, scored at a frozen clock on the right offset: the share of symbols
+    decided as the previous transmitted tone is what IFK exists to remove.
+    """
+    print()
+    print("IFK (tom de repeticao) sobre M-ary:")
+    msg = b"aa\x00\x00\x00\x00\xff\xff\x11\x11 ola ifk, zzzz"
+    vals = mary_values([(b >> i) & 1 for b in msg for i in range(8)])
+    tones = ifk_tones(vals)
+    check("nunca o mesmo tom duas vezes seguidas",
+          all(a != b for a, b in zip(tones, tones[1:])),
+          f"{tones.count(16)} tons de repeticao em {len(tones)}")
+    mod = MaryModulator(fs=FS, baud=100, ifk=True)
+    audio = np.concatenate([mod.modulate(msg), mod.idle(6)])
+    for block in (2048, 777):
+        out = run(MaryDemodulator(fs=FS, baud=100, ifk=True), audio, block=block)
+        check(f"ifk bloco {block} ida e volta", msg in out, f"{out[:len(msg) + 2]!r}")
+    out = run(MaryDemodulator(fs=FS, baud=100), audio, block=2048)
+    check("sem ifk no receptor nao le um transmissor com ifk", msg not in out)
+
+    rng = np.random.default_rng(7)
+    stats = {}
+    for ifk in (False, True):
+        stats[ifk] = np.zeros(5)
+    for seed in range(6):
+        payload = bytes(rng.integers(0, 256, 48).tolist())
+        bits = fec.preamble_bits('mary', symbol_bits=MARY_BITS) + list(fec.frame(payload, repeat=1))
+        vals = mary_values(bits)
+        for ifk in (False, True):
+            tx = ifk_tones(vals) if ifk else [_GRAY[v] for v in vals]
+            mod = MaryModulator(fs=FS, baud=100, ifk=ifk)
+            y = measured_tail(np.concatenate([mod.modulate_bits(bits), mod.idle(6)]),
+                              6.0, 100 + seed)
+            d = MaryDemodulator(fs=FS, baud=100, ifk=ifk, steer=False, skip=0)
+            dec, dv, llr = [], [], []
+            for i in range(0, len(y), 2048):
+                for idx, _c, n in d._symbols(y[i:i + 2048]):
+                    dec.append(idx)
+                    dv.append(d.value)
+            d = MaryDemodulator(fs=FS, baud=100, ifk=ifk, steer=False, skip=0)
+            llr = np.concatenate([d.demodulate_soft(y[i:i + 2048])
+                                  for i in range(0, len(y), 2048)])
+            n = len(vals) - 1
+            err = sum(dv[k] != vals[k] for k in range(1, len(vals)))
+            prev = sum(dv[k] != vals[k] and dec[k] == tx[k - 1]
+                       for k in range(1, len(vals)))
+            hard = (llr[:len(bits)] > 0).astype(int)
+            start = fec.find_sync(llr)
+            ok = start is not None and fec.decode(llr[start:], 48, repeat=1) == payload
+            stats[ifk] += (err / n, prev / n, np.mean(hard == np.array(bits)), ok, 1)
+    for ifk in (False, True):
+        s = stats[ifk]
+        print(f"        ifk={'on ' if ifk else 'off'}: simbolos errados {s[0] / s[4]:.1%}, "
+              f"no tom anterior {s[1] / s[4]:.1%}, bits antes do FEC {s[2] / s[4]:.1%}, "
+              f"blocos {int(s[3])}/{int(s[4])}")
+    off, on = stats[False], stats[True]
+    check("cauda medida: ifk corta os erros no tom anterior", on[1] * 4 < off[1])
+    check("cauda medida: ifk nao piora o erro de simbolo", on[0] <= off[0])
+    check("cauda medida: ifk entrega os blocos", on[3] == on[4])
+
+
 def test_int16_transfer():
     """The wire format for bringing a capture back over the serial cable.
 
@@ -395,6 +490,7 @@ def main():
     test_mfsk()
     test_mary()
     test_fec()
+    test_ifk()
     test_xfer()
     test_int16_transfer()
     test_distortion()

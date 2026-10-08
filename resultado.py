@@ -86,7 +86,8 @@ def demodulator(meta):
         return MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
                                gap=meta.get('gap', 0.0),
                                band=meta.get('band', 0.0),
-                               chord=meta.get('chord', False))
+                               chord=meta.get('chord', False),
+                               ifk=bool(meta.get('ifk')))
     return MFSKDemodulator(fs=meta['fs'], baud=meta['baud'],
                            parallel=meta.get('parallel', False),
                            grouped=meta.get('grouped', False))

@@ -83,7 +83,8 @@ def genie_floor(samples, payload, meta, sps, repeat, skip):
     already achieves, pilots are not worth their air time, and that is the
     only reason to compute it.
     """
-    want = spectro.tx_tone_indices(payload, repeat)
+    want = spectro.tx_tone_indices(payload, repeat, ifk=bool(meta.get('ifk')))
+    ntones = len(MARY_TONES) + (1 if meta.get('ifk') else 0)
     # Deliberately the *same* offset the frozen-clock column used, not one
     # found independently. Two alignments and two divisors changing at once
     # produce a difference that cannot be attributed to either -- which is
@@ -91,11 +92,12 @@ def genie_floor(samples, payload, meta, sps, repeat, skip):
     # look ten points worse than the blind one for reasons that were partly
     # its worse alignment.
     start = skip
-    ones = np.ones(len(MARY_TONES))
+    ones = np.ones(ntones)
     d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'], steer=False,
                         skip=start, floor_fixed=ones,
                         gap=meta.get('gap', 0.0), band=meta.get('band', 0.0),
-                        chord=bool(meta.get('chord')))
+                        chord=bool(meta.get('chord')),
+                        ifk=bool(meta.get('ifk')))
     # With the divisor pinned at one, the `norm` the demodulator yields is the
     # raw per-tone energy -- no separate accessor needed.
     decided, energies = [], []
@@ -130,8 +132,8 @@ def genie_floor(samples, payload, meta, sps, repeat, skip):
     #          perfect version of what the blind running estimate already
     #          approximates, and dividing by it is the likelihood ratio the
     #          decision actually wants.
-    sig = np.zeros(len(MARY_TONES));  nsig = np.zeros(len(MARY_TONES))
-    noi = np.zeros(len(MARY_TONES));  nnoi = np.zeros(len(MARY_TONES))
+    sig = np.zeros(ntones);  nsig = np.zeros(ntones)
+    noi = np.zeros(ntones);  nnoi = np.zeros(ntones)
     for j, t in enumerate(want):
         k = lag + j
         if k >= len(energies):
@@ -139,7 +141,7 @@ def genie_floor(samples, payload, meta, sps, repeat, skip):
         e = energies[k]
         sig[t] += e[t]
         nsig[t] += 1
-        for u in range(len(MARY_TONES)):
+        for u in range(ntones):
             if u != t:
                 noi[u] += e[u]
                 nnoi[u] += 1
@@ -158,7 +160,8 @@ def probe(samples, payload, meta, step):
     sps = int(fs / baud)
     repeat = meta.get('fec_repeat', 1) or 1
     kw = dict(fs=fs, baud=baud, gap=meta.get('gap', 0.0),
-              band=meta.get('band', 0.0), chord=bool(meta.get('chord')))
+              band=meta.get('band', 0.0), chord=bool(meta.get('chord')),
+              ifk=bool(meta.get('ifk')))
 
     d = MaryDemodulator(**kw)
     llr = soft(d, samples)

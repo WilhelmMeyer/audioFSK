@@ -41,7 +41,7 @@ import netlink
 import xfer
 from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
-                   MaryModulator, MaryDemodulator, MARY_BITS,
+                   MaryModulator, MaryDemodulator, MARY_BITS, MARY_REPEAT_TONE,
                    chirp, find_chirp, find_chirp_pair, SYNC_CHIRP)
 from serial_link import Control, pack, unpack
 
@@ -83,6 +83,10 @@ MFSK_GROUPED = False  # low five tones mean 0, high five mean 1
 # way in but the link. Off by default, both ends keep decoding exactly as
 # before after a pull; `syncsweep on` is then sent to each side explicitly.
 SYNC_SWEEP = False
+# IFK by repetition tone on the M-ary layer (see `modem.ifk_tones`). Changes
+# which tone carries each symbol, so both machines must agree -- and for the
+# same reason as the sweeps it is born off and turned on with `b ifk on`.
+MARY_IFK = False
 SYNC_HUSH = 0.03      # silence between each sweep and the frame, seconds
 
 TONE_CHUNK = 32       # bytes of 0x55 per modulated chunk, ~0.27 s
@@ -129,9 +133,10 @@ class AudioNode:
             # 14 dB each; this one spends it all on the tone that carries the
             # symbol.
             'mary': (MaryModulator(fs=FS, baud=MFSK_BAUD, gap=MARY_GAP,
-                                   chord=MARY_CHORD),
+                                   chord=MARY_CHORD, ifk=MARY_IFK),
                      MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=MARY_GAP,
-                                     band=MARY_BAND, chord=MARY_CHORD)),
+                                     band=MARY_BAND, chord=MARY_CHORD,
+                                     ifk=MARY_IFK)),
         }
         self.mode = 'fsk'
         self.gain = gain
@@ -146,6 +151,7 @@ class AudioNode:
         self.mary_gap = MARY_GAP
         self.mary_band = MARY_BAND
         self.mary_chord = MARY_CHORD
+        self.mary_ifk = MARY_IFK
         self.mfsk_grouped = MFSK_GROUPED
         self.sync_sweep = SYNC_SWEEP
         self.sync_hush = SYNC_HUSH
@@ -251,7 +257,9 @@ class AudioNode:
             MFSKModulator(fs=FS, baud=MFSK_BAUD, grouped=self.mfsk_grouped),
             MFSKDemodulator(fs=FS, baud=MFSK_BAUD, grouped=self.mfsk_grouped))
         if self.mode == 'mfsk':
-            self.mod, self.demod = self.layers['mfsk']
+            # `mod` and `demod` are properties read off `layers`, so the new
+            # pair is already live. Assigning to them raised, the agent
+            # replied ERRO, and the rebuild had in fact taken effect.
             self.rx_buffer.clear()
 
     def rebuild_mary(self):
@@ -265,11 +273,14 @@ class AudioNode:
         """
         self.layers['mary'] = (
             MaryModulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
-                          chord=self.mary_chord),
+                          chord=self.mary_chord, ifk=self.mary_ifk),
             MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
-                            band=self.mary_band, chord=self.mary_chord))
+                            band=self.mary_band, chord=self.mary_chord,
+                            ifk=self.mary_ifk))
         if self.mode == 'mary':
-            self.mod, self.demod = self.layers['mary']
+            # `mod` and `demod` are properties read off `layers`, so the new
+            # pair is already live. Assigning to them raised, the agent
+            # replied ERRO, and the rebuild had in fact taken effect.
             self.rx_buffer.clear()
 
     def set_mary_gap(self, frac):
@@ -397,6 +408,9 @@ class AudioNode:
         k = len(MFSK_PAIRS)
         if self.mode == 'mary':
             mod = self.layers[self.fec_layer][0]
+            # Every frame opens absolute: under IFK the first symbol must not
+            # be relative to the previous burst's idle tail.
+            mod.restart_ifk()
             bits = fec.frame(data, repeat=repeat)
             pre = fec.preamble_bits('mary', symbol_bits=MARY_BITS)
             samples = np.concatenate([mod.modulate_bits(pre),
@@ -488,6 +502,7 @@ class AudioNode:
             skip = at + hush
         d = MaryDemodulator(fs=FS, baud=MFSK_BAUD, gap=self.mary_gap,
                             band=self.mary_band, chord=self.mary_chord,
+                            ifk=self.mary_ifk,
                             steer=False, skip=skip, period=period)
         llr = np.concatenate([d.demodulate_soft(audio[i:i + BLOCK])
                               for i in range(0, len(audio), BLOCK)])
@@ -605,7 +620,8 @@ class AudioNode:
             for guard in (0.10, 0.15, 0.25, 0.35, 0.45):
                 for alpha in (0.02, 0.08):
                     try_one(MaryDemodulator(fs=FS, baud=MFSK_BAUD, guard=guard,
-                                            floor_alpha=alpha),
+                                            floor_alpha=alpha,
+                                            ifk=self.mary_ifk),
                             f"guard {guard:.2f} alpha {alpha:.2f}")
         else:
             par = self.fec_layer == 'mfsk-par'
@@ -867,6 +883,7 @@ class AudioNode:
             # side that has them on against a side that does not is a link
             # that stopped working for a reason no meter shows.
             f"sweep   {'ON' if self.sync_sweep else 'off'} (mary)",
+            f"ifk     {'ON' if self.mary_ifk else 'off'} (mary)",
             (f"fecrx   ARMADO em {self.fec_layer}, esperando {self.fec_nbytes} "
              f"bytes ({sum(len(a) for a in self.fec_llr)} valores ouvidos)"
              if self.fec_rx else "fecrx   off"),
@@ -949,6 +966,7 @@ HELP = """comandos (prefixe com 'r ' para a outra maquina, 'b ' para as duas)
   maryband <Hz>       mede uma faixa +-Hz ao redor de cada tom (ex 20)
   marychord on|off    nibble como 3 tons em vez de 1; os DOIS lados
   syncsweep on|off    varredura nas duas pontas do frame mary; os DOIS lados
+  ifk on|off          mary: tom de repeticao, nunca o tom anterior; os DOIS lados
   mfskgroup on|off    mfsk: 5 graves = 0, 5 agudos = 1; os DOIS lados
   grave <seg> [rot]   grava o microfone deste lado em disco (nao bloqueia)
   envia <stem> <url>  manda a gravacao pela rede, em vez do cabo
@@ -1249,7 +1267,23 @@ def execute(node, cmd):
             return f"maryband invalido: {arg!r}"
         node.rebuild_mary()
         return f"mary banda = +-{node.mary_band:.0f} Hz por tom"
+    if verb == "ifk":
+        # Both machines, like syncsweep: a receiver without IFK reads the
+        # repetition tone as nothing it knows and decodes nonsense, and one
+        # with IFK against a plain transmitter throws away the right tone
+        # every time a value repeats. Neither is detectable at the decoder.
+        if not arg:
+            return f"ifk {'on' if node.mary_ifk else 'off'}"
+        on = arg.split()[0].lower() in ("on", "1", "true", "sim")
+        if on and node.mary_chord:
+            return "ifk nao combina com marychord -- 'marychord off' primeiro"
+        node.mary_ifk = on
+        node.rebuild_mary()
+        return (f"ifk {'LIGADO' if on else 'desligado'} "
+                f"(so em mary; tom de repeticao {MARY_REPEAT_TONE} Hz)")
     if verb == "marychord":
+        if flag() and node.mary_ifk:
+            return "marychord nao combina com ifk -- 'ifk off' primeiro"
         node.mary_chord = flag()
         node.rebuild_mary()
         return (f"mary acorde {'ON (3 tons por nibble)' if node.mary_chord else 'off (1 tom por nibble)'}")

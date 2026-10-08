@@ -104,6 +104,9 @@ def main():
         # costs one serial round trip at setup and removes a failure that
         # would read as a channel that got worse.
         setups.append("syncsweep off")
+        # Same for IFK: it changes which tone carries each symbol, and this
+        # receiver's demodulator is built without it.
+        setups.append("ifk off")
     for setup in setups:
         print(f"  remoto: {setup:16s} -> {rem.cmd(setup)}")
 

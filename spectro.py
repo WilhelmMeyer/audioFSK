@@ -49,7 +49,7 @@ import numpy as np
 import fec
 import recording
 from modem import (MARY_TONES, MARY_BITS, MFSK_PAIRS, _GRAY, _UNGRAY,
-                   MFSKDemodulator, MaryDemodulator)
+                   MFSKDemodulator, MaryDemodulator, ifk_tones)
 
 
 def write_png(path, rgb):
@@ -159,7 +159,7 @@ def mfsk_decided(samples, meta):
     return out
 
 
-def tx_tone_indices(payload, repeat):
+def tx_tone_indices(payload, repeat, ifk=False):
     """The tone the transmitter sounded in each symbol slot, from the payload.
 
     Reconstructed rather than guessed: the preamble is a fixed alternation and
@@ -170,8 +170,11 @@ def tx_tone_indices(payload, repeat):
     """
     pre = fec.preamble_bits('mary', symbol_bits=MARY_BITS)
     bits = list(pre) + list(fec.frame(payload, repeat=repeat))
-    return [_GRAY[sum(int(b) << j for j, b in enumerate(bits[i:i + MARY_BITS]))]
-            for i in range(0, len(bits) - (MARY_BITS - 1), MARY_BITS)]
+    values = [sum(int(b) << j for j, b in enumerate(bits[i:i + MARY_BITS]))
+              for i in range(0, len(bits) - (MARY_BITS - 1), MARY_BITS)]
+    # Under IFK the tone depends on the previous value as well; index 16 is
+    # the repetition tone.
+    return ifk_tones(values) if ifk else [_GRAY[v] for v in values]
 
 
 def find_start(samples, fs, sps, tones, want, guard=0.15, search=2.5):
