@@ -1,0 +1,2 @@
+stem,modo,baud,gain,fec_repeat,bytes,acerto_bits,bloco_ok,pico_rx,rms_rx,sincronismo,periodo,span_simbolos,span_json,acerto_bits_gate,bloco_ok_gate
+20261008-213122-h05-multicanal-r4,mfsk,100,0.5,1,48,91.47,1,0.1362,0.0174,duas varreduras,479.997,355.0,355.0,91.85,1
