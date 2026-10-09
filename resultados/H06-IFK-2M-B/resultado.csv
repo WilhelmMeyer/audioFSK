@@ -1,0 +1,2 @@
+stem,modo,baud,gain,fec_repeat,bytes,acerto_bits,bloco_ok,pico_rx,rms_rx,sincronismo,periodo,span_simbolos,span_json,acerto_bits_gate,bloco_ok_gate
+20261008-223913-h06-ifk-r4,mary,100,0.5,1,48,85.68,0,0.0912,0.0159,duas varreduras,479.998,433.0,433.0,81.6,0
