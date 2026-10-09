@@ -387,7 +387,51 @@ def frame_symbols(nbytes, repeat, symbol_bits, idle_symbols=6):
     return len(pre) // symbol_bits + -(-nbits // symbol_bits) + idle_symbols
 
 
-def sweep_span(nbytes, repeat, symbol_bits, hush, sps):
+# The two 5x2 layers, named as `console.py` names their instance pairs. Their
+# coded frames are built differently from the tone layers' and so occupy a
+# different number of symbols -- see `chord_frame_symbols`.
+CHORD_LAYERS = ('mfsk', 'mfsk-par')
+
+
+def chord_frame_symbols(nbytes, repeat, npairs, parallel, idle_symbols=4):
+    """Symbols a coded frame occupies on the 5x2 layers (voted or parallel).
+
+    Not `frame_symbols`: these frames open with the 80-symbol alternation of
+    `preamble_bits('mfsk')` rather than 120, close on `idle(4)` rather than 6,
+    and the parallel body is `frame_parallel` laid five bits to a symbol.
+    Feeding a voted frame to `frame_symbols` comes out some forty symbols
+    long, and at `fecrep 2` that is a period 1.7% short -- inside the
+    receiver's 2% acceptance window, so accepted silently and wrong, which is
+    the drift `frame_symbols` exists to prevent.
+
+    Preamble and body each round up on their own, because the modulator pads
+    each `modulate_bits` call out to a whole symbol separately.
+    """
+    pre = preamble_bits('mfsk', npairs=npairs, parallel=parallel)
+    if parallel:
+        nbits = len(frame_parallel(bytes(nbytes), npairs, repeat=repeat))
+        return -(-len(pre) // npairs) + -(-nbits // npairs) + idle_symbols
+    return len(pre) + len(frame(bytes(nbytes), repeat=repeat)) + idle_symbols
+
+
+def layer_frame_symbols(layer, nbytes, repeat, symbol_bits=None, npairs=None):
+    """Symbols a coded frame occupies on `layer`, whichever layer it is.
+
+    `symbol_bits` is what the tone layers ('mary', 'fsk2') need, `npairs`
+    what the 5x2 layers ('mfsk', 'mfsk-par') need. The one entry point the
+    transmitter, the live receiver, the recorder and the offline scorers
+    share, so the count cannot come out two ways again.
+    """
+    if layer in CHORD_LAYERS:
+        if not npairs:
+            raise ValueError(f"camada {layer} precisa de npairs")
+        return chord_frame_symbols(nbytes, repeat, npairs, layer == 'mfsk-par')
+    if not symbol_bits:
+        raise ValueError(f"camada {layer} precisa de symbol_bits")
+    return frame_symbols(nbytes, repeat, symbol_bits)
+
+
+def sweep_span(nbytes, repeat, symbol_bits, hush, sps, layer=None, npairs=None):
     """Symbols between the two sync-sweep detections, as transmitted.
 
     The coded frame plus the two silences that separate it from the sweeps,
@@ -395,6 +439,33 @@ def sweep_span(nbytes, repeat, symbol_bits, hush, sps):
     receiver (`console.AudioNode._sweep_llr`) and the offline scorer
     (`resultado.py`) both call this, because the span is exactly the number
     that once came out two ways in two files and cost a whole symbol of drift.
-    `hush` is in samples, `sps` in samples per symbol.
+    `hush` is in samples, `sps` in samples per symbol. `layer` is needed only
+    for the 5x2 layers, whose frames are built differently; left out, the
+    frame is a tone layer's, as it always was here.
     """
-    return frame_symbols(nbytes, repeat, symbol_bits) + 2 * hush / sps
+    if layer in CHORD_LAYERS:
+        body = layer_frame_symbols(layer, nbytes, repeat, npairs=npairs)
+    else:
+        body = frame_symbols(nbytes, repeat, symbol_bits)
+    return body + 2 * hush / sps
+
+
+def decode_block(llr, nbytes, repeat, npairs=None):
+    """Sync word, then Viterbi: (bytes, start), or (None, None) without sync.
+
+    `npairs` set means a parallel 5x2 block, whose sync word is read by voting
+    across the pairs (`find_sync_parallel`) and whose copies are gathered off
+    their pairs (`decode_parallel`); unset, every other coded frame. One
+    function because the live receiver, the file transfer and the offline
+    tools must all take the same branch for the same block.
+    """
+    llr = np.asarray(llr, dtype=np.float64)
+    if npairs:
+        start = find_sync_parallel(llr, npairs)
+        if start is None:
+            return None, None
+        return decode_parallel(llr[start:], nbytes, npairs, repeat=repeat), start
+    start = find_sync(llr)
+    if start is None:
+        return None, None
+    return decode(llr[start:], nbytes, repeat=repeat), start

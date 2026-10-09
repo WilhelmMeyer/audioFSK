@@ -1,6 +1,8 @@
 import numpy as np
 import scipy.signal as signal
 
+import fec
+
 class FSKModulator:
     def __init__(self, fs=48000, baud=1200, f_space=2200, f_mark=1200):
         self.fs = fs
@@ -395,10 +397,21 @@ class MFSKDemodulator:
 
     def __init__(self, fs=48000, baud=100, tones_0=MFSK_TONES_0,
                  tones_1=MFSK_TONES_1, guard=0.15, contrast_min=0.3,
-                 parallel=False, grouped=False, floor_alpha=0.02):
+                 parallel=False, grouped=False, floor_alpha=0.02,
+                 steer=True, skip=0, period=None):
         if grouped:
             tones_0, tones_1 = MFSK_LOW, MFSK_HIGH
         self.grouped = grouped
+        # Frozen clock, exactly as `MaryDemodulator` has it: `steer=False`
+        # takes every window one `period` after the last, starting at absolute
+        # sample `skip`, with no early/late gate at all. Only correct once
+        # something else has found the frame -- the two sync sweeps, or a
+        # brute-force search offline -- and that is the point: it is how the
+        # sweeps' start and measured clock reach this layer, and how `align.py`
+        # asks how much of this layer's error is timing.
+        self.steer = steer
+        self.skip = int(skip)
+        self.period = None if period is None else float(period)
         self.floor_alpha = floor_alpha
         self.fs = fs
         self.baud = baud
@@ -445,6 +458,7 @@ class MFSKDemodulator:
         self.contrast = 0.0
         self.consumed = 0
         self.last_window = 0
+        self.frozen_k = 0
         # Only the grouped reading uses this. Comparing the sum of five low
         # tones against five high ones is an amplitude comparison, so it needs
         # each tone measured against what that frequency looks like when
@@ -471,7 +485,11 @@ class MFSKDemodulator:
         e0 = np.abs(self.probe_0 @ seg) ** 2
         e1 = np.abs(self.probe_1 @ seg) ** 2
         if not np.any(e0) and not np.any(e1):
-            return 1, 0.0
+            # Exact digital silence -- the hush either side of a sync sweep on
+            # a synthetic channel. This returned two values where every caller
+            # unpacks three, so it could only ever raise; no reading changes.
+            return 1, 0.0, (np.zeros(len(self.tones_0)) if self.parallel
+                            else 0.0)
 
         if self.grouped:
             return self._score_grouped(e0, e1)
@@ -583,6 +601,28 @@ class MFSKDemodulator:
             self.input_peak = float(np.max(np.abs(samples)))
         self.buf = np.concatenate((self.buf, samples))
 
+        if not self.steer:
+            period = self.period or float(self.samples_per_symbol)
+            while True:
+                # Absolute sample where window k belongs, rounded once, as in
+                # `MaryDemodulator`: accumulating a rounded step would let the
+                # rounding pile up into the very drift the period removes.
+                want = int(round(self.skip + self.frozen_k * period))
+                at = want - self.consumed
+                if at < 0:
+                    self.frozen_k += 1
+                    continue
+                if len(self.buf) < at + self.samples_per_symbol:
+                    return
+                bit, self.contrast, llr = self._score(at)
+                self.last_bit = bit
+                self.last_window = want
+                self.frozen_k += 1
+                self.buf = self.buf[at:]
+                self.consumed += at
+                yield bit, self.contrast, llr
+            return
+
         need = self.samples_per_symbol + 2 * self.delta
         while len(self.buf) >= need:
             bit_e, c_e, l_e = self._score(0)
@@ -639,7 +679,10 @@ class MFSKDemodulator:
         """
         vals = [llr for _b, _c, llr in self._symbols(samples)]
         if not vals:
-            return np.zeros((0, len(self.tones_0))) if self.parallel else np.zeros(0)
+            # Flat even when parallel, like every non-empty return: a (0, 5)
+            # array among flat ones made `np.concatenate` raise whenever a
+            # short block yielded no symbol.
+            return np.zeros(0)
         return np.array(vals).ravel() if self.parallel else np.array(vals)
 
 
@@ -1424,7 +1467,9 @@ def sweep_soft(samples, make_demod, span, hush, sps, block=2048,
     so that `console.py` (on the link) and `resultado.py` (offline, over a
     recording) run the same arithmetic and cannot drift apart. No I/O:
     `make_demod(steer=False, skip=..., period=...)` builds the receiver for
-    the right tone layer, `span` comes from `fec.sweep_span`, `hush` is the
+    the right layer -- a tone layer's `MaryDemodulator` or a 5x2 layer's
+    `MFSKDemodulator`, both of which take a frozen clock -- `span` comes from
+    `fec.sweep_span`, `hush` is the
     silence after each sweep in samples, `sps` the nominal samples/symbol.
 
     A period far from nominal means one of the peaks was not a sweep, and
@@ -1454,3 +1499,47 @@ def sweep_soft(samples, make_demod, span, hush, sps, block=2048,
     parts = [q for q in parts if len(q)]
     llr = np.concatenate(parts) if parts else np.zeros(0)
     return llr, skip, period, how
+
+
+def read_coded_frame(samples, make_demod, nbytes, repeat, layer, hush, sps,
+                     sweeps, symbol_bits=None, npairs=None, gate_llr=None,
+                     block=2048, template=None):
+    """One coded frame off stored audio, the way every receiver here reads it.
+
+    Returns (data, llr, how, period). `data` is None when the sync word was
+    not found; `how` is 'pair', 'lead' or None as in `sweep_soft`, and None
+    also means the early/late gate produced `llr`.
+
+    The order is fixed: with `sweeps`, both sweeps (start and measured
+    clock), then the leading sweep alone (start, nominal clock), then the
+    gate; without, the gate only. Then the sync word and Viterbi through
+    `fec.decode_block`, parallel when `layer` is 'mfsk-par'. `console.py`
+    (`fecrx`) and `recvfile.py` both call this, so the two receivers on this
+    link cannot take different branches for the same frame -- which is how
+    the file transfer once lagged behind the console without anyone noticing.
+
+    `make_demod(**kw)` builds a fresh receiver for `layer`, with `kw` empty
+    for the gate. `gate_llr`, when given, is the gate's reading already made
+    by a streaming receiver, used instead of a second pass over `samples` --
+    the live console has it in hand and re-reading would only cost time.
+    """
+    samples = np.asarray(samples, dtype=np.float64)
+    llr = how = period = None
+    if sweeps:
+        span = fec.sweep_span(nbytes, repeat, symbol_bits, hush, sps,
+                              layer=layer, npairs=npairs)
+        llr, _, period, how = sweep_soft(samples, make_demod, span, hush, sps,
+                                         block=block, template=template)
+    if llr is None:
+        how = period = None
+        if gate_llr is not None:
+            llr = np.asarray(gate_llr, dtype=np.float64)
+        else:
+            d = make_demod()
+            parts = [d.demodulate_soft(samples[i:i + block])
+                     for i in range(0, len(samples), block)]
+            parts = [q for q in parts if len(q)]
+            llr = np.concatenate(parts) if parts else np.zeros(0)
+    data, _ = fec.decode_block(llr, nbytes, repeat,
+                               npairs=npairs if layer == 'mfsk-par' else None)
+    return data, llr, how, period
