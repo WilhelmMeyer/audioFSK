@@ -18,7 +18,8 @@ from modem import (FSKModulator, FSKDemodulator,
                    MFSKModulator, MFSKDemodulator, MFSK_PAIRS,
                    MaryModulator, MaryDemodulator, MARY_TONES, MARY_BITS,
                    _GRAY, ifk_tones, FSK2_TONES, FSK2_BITS, tone_layer,
-                   chirp, find_chirp_pair, SYNC_CHIRP)
+                   chirp, find_chirp, find_chirp_pair, SYNC_CHIRP,
+                   read_coded_frame)
 
 FS = 48000
 
@@ -479,6 +480,120 @@ def test_fsk2():
     check("ifk recusado com 2 tons", refused)
 
 
+def chord_fec_air(msg, repeat=1, parallel=False, sweeps=False):
+    """What console.py's fecsend puts on the air in `mode mfsk`, voted or
+    with `fecpar on`: the MFSK preamble, the coded frame, `idle(4)`, and the
+    two sweeps with their silences when `syncsweep on`. Built from the same
+    pieces `_fec_frame` uses, since console.py cannot be imported here."""
+    k = len(MFSK_PAIRS)
+    mod = MFSKModulator(fs=FS, baud=100, parallel=parallel)
+    bits = (fec.frame_parallel(msg, k, repeat=repeat) if parallel
+            else fec.frame(msg, repeat=repeat))
+    body = np.concatenate([
+        mod.modulate_bits(fec.preamble_bits('mfsk', npairs=k, parallel=parallel)),
+        mod.modulate_bits(list(bits)),
+        mod.idle(4)])
+    if not sweeps:
+        return body
+    lead = chirp(FS, *SYNC_CHIRP)
+    hush = np.zeros(int(0.03 * FS))
+    return np.concatenate([lead, hush, body, hush, lead])
+
+
+def resample_ppm(sig, ppm):
+    """The far machine's crystal off by `ppm`: the same audio, played slower."""
+    n = len(sig)
+    t = np.arange(int(n * (1 + ppm * 1e-6))) / (1 + ppm * 1e-6)
+    return np.interp(t, np.arange(n), sig)
+
+
+def test_chord_sweeps():
+    """The two sync sweeps on the 5x2 layers, voted and parallel.
+
+    The frame length is checked against `fec.layer_frame_symbols` first,
+    because the two-sweep period divides the measured interval by it -- and
+    the tone layers' count, applied to these frames, is some forty symbols
+    long for the voted one. Then the path actually taken is asserted, not just
+    the block: on a channel with no clock skew the leading sweep alone at the
+    nominal clock decodes too, so a wrong span would pass a decode-only test.
+    The drift case is the one that tells them apart.
+    """
+    print()
+    print("Varreduras nas camadas 5x2 (mfsk votada e paralela):")
+    k = len(MFSK_PAIRS)
+    sps, hush = 480, int(0.03 * FS)
+    msg = b"ola mfsk, como vai voce"
+    for par in (False, True):
+        layer = 'mfsk-par' if par else 'mfsk'
+        for rep in (1, 2):
+            n = len(chord_fec_air(msg, rep, par))
+            want = fec.layer_frame_symbols(layer, len(msg), rep, npairs=k) * sps
+            check(f"{layer} rep {rep}: quadro tem layer_frame_symbols simbolos",
+                  n == want, f"{n} amostras, esperado {want}")
+
+    def make(par):
+        return lambda **kw: MFSKDemodulator(fs=FS, baud=100, parallel=par, **kw)
+
+    for par in (False, True):
+        layer = 'mfsk-par' if par else 'mfsk'
+        # "limpo" has exact digital silence in the hush on both sides of the
+        # frame, which is the case where `_score` used to return two values.
+        for name, chan in (("limpo", lambda a: a),
+                           ("tilt + limiter + ruido", lambda a: limiter(tilt(a))
+                            + np.random.default_rng(2).normal(0, 0.05, len(a))),
+                           ("cauda medida + pente + ruido",
+                            lambda a: measured_tail(a, -30.0, 11))):
+            y = np.concatenate([np.zeros(4000),
+                                chan(chord_fec_air(msg, 1, par, sweeps=True)),
+                                np.zeros(6000)])
+            got, _llr, how, period = read_coded_frame(
+                y, make(par), len(msg), 1, layer, hush, float(sps), True,
+                npairs=k, template=chirp(FS, *SYNC_CHIRP))
+            check(f"{layer} {name}: duas varreduras, periodo ~480, decodifica",
+                  how == 'pair' and period is not None and abs(period - sps) < 0.1
+                  and got == msg, f"{how}, periodo {period}")
+        # Not asserted: that a receiver expecting sweeps falls back to the gate
+        # when none were sent. It does not, reliably, on any layer -- a frame
+        # with no sweep still correlates with the template at 5-8x its median
+        # here, and real plain recordings reach 46x against 21-97x for real
+        # sweeps, so `find_chirp`'s threshold of 4 takes a false leading sweep.
+        # Both ends agreeing (`b syncsweep on`, checked by capture.py and
+        # recvfile.py) is what protects the link, not the fallback.
+
+    # A far crystal 1000 ppm slow: over a 48-byte voted frame's 1285 symbols
+    # that is 617 samples, more than a symbol -- the leading sweep alone at the
+    # nominal clock walks off the frame, the pair measures the period and
+    # stays on it. The gate tracks it too; no synthetic case was found where
+    # the gate loses and the sweeps win, which on the air is the collapse the
+    # sweeps insure against. The tone layers' count used as the span would be
+    # tens of symbols long, a period several percent short, and refused.
+    msg = bytes(range(48))
+    y = np.concatenate([np.zeros(4000),
+                        resample_ppm(chord_fec_air(msg, 1, False, sweeps=True), 1000),
+                        np.zeros(6000)])
+    y = y + np.random.default_rng(4).normal(0, 0.01, len(y))
+    tmpl = chirp(FS, *SYNC_CHIRP)
+    span = fec.sweep_span(len(msg), 1, None, hush, sps, layer='mfsk', npairs=k)
+    pair = find_chirp_pair(y, tmpl, min_gap=int(0.5 * span * sps))
+    period = None if pair is None else (pair[1] - pair[0]) / span
+    check("deriva 1000 ppm: periodo medido ~480.48", period is not None
+          and abs(period - 480.48) < 0.1, f"periodo {period}")
+    wrong = fec.sweep_span(len(msg), 1, 1, hush, sps)   # tone-layer count, 1 bit
+    check("contado como camada de tons o vao sairia errado em mais de 1%",
+          pair is not None and abs((pair[1] - pair[0]) / wrong - 480.48) > 4.8,
+          f"{len(msg)} bytes: {span:.0f} contra {wrong:.0f} simbolos")
+    at = find_chirp(y, tmpl)
+    lead = MFSKDemodulator(fs=FS, baud=100, steer=False, skip=at + hush)
+    llr = np.concatenate([lead.demodulate_soft(y[i:i + 2048])
+                          for i in range(0, len(y), 2048)])
+    got_lead, _ = fec.decode_block(llr, len(msg), 1)
+    got, _llr, how, _p = read_coded_frame(y, make(False), len(msg), 1, 'mfsk',
+                                          hush, float(sps), True, npairs=k)
+    check("deriva: so a primeira varredura perde, o par recupera",
+          got_lead != msg and how == 'pair' and got == msg,
+          f"primeira {'ok' if got_lead == msg else 'perdeu'}, par {how}")
+
+
 def test_int16_transfer():
     """The wire format for bringing a capture back over the serial cable.
 
@@ -581,6 +696,7 @@ def main():
     test_fec()
     test_ifk()
     test_fsk2()
+    test_chord_sweeps()
     test_xfer()
     test_int16_transfer()
     test_distortion()
