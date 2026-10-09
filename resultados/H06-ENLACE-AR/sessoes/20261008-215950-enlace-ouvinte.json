@@ -1,0 +1,20 @@
+{
+  "recorded": "20261008-215950",
+  "mode": "enlace",
+  "label": "enlace-ouvinte",
+  "papel": "ouvinte",
+  "saudado": false,
+  "aberto": false,
+  "confirmado": false,
+  "contrato_tx": null,
+  "contrato_rx": null,
+  "recebidos": 0,
+  "diario": [
+    "[ouvinte    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s",
+    "[saudacao] papel ouvinte, entrada 'Microfone (Realtek(R) Audio)', sa\u00edda 'Speakers/Headphones (Realtek(R)', lat\u00eancia 0.090s, 7 bytes a enviar"
+  ],
+  "nota": "sess\u00e3o do enlace; n\u00e3o \u00e9 uma captura para bench/resultado",
+  "payload_hex": "6f6920646f2042",
+  "payload_len": 7,
+  "samples": 14395392
+}

@@ -87,7 +87,16 @@ GAP = int(0.10 * FS)                  # entre segmentos de um mesmo turno
 # elo mais fraco, o contrário do que precisa ser. Com o filtro, no mesmo
 # ruído, 0,46 contra 0,22 do maior falso. Ida e volta (sosfiltfilt) para não
 # atrasar o pico: a posição da marca é o relógio do quadro.
-LIMIAR = 0.36
+# Um limiar por marca, e não um só. Medido no ar em 2026-10-08, Linux->Windows
+# a ~2 m (o sentido ruim): chamada 0,20-0,33 contra o pior falso em dados
+# reais 0,18; quadro 0,30-0,36 contra 0,16-0,21 nos dados desse sentido e até
+# 0,31 nos dados 16-FSK do outro (H04). O 0,36 único do simulador deixava a
+# chamada de fora em todas as 56 tentativas de uma sessão de 5 minutos. Os
+# erros não custam o mesmo: uma chamada falsa custa uma troca (o CRC do OLA
+# recusa), uma chamada perdida custa a sessão -- por isso a chamada fica
+# rente ao falso. Uma marca de quadro falsa vira um segmento ilegível.
+LIMIARES = {'chamada': 0.17, 'resposta': 0.17, 'quadro': 0.21, 'sonda': 0.26}
+LIMIAR = min(LIMIARES.values())
 _BANDA = butter(4, (500.0, 3700.0), btype='bandpass', fs=FS, output='sos')
 
 # --- Quadros ----------------------------------------------------------------
@@ -105,16 +114,23 @@ class Descritor:
     nbytes: int
     ganho: float
     nome: str = ''
+    baud: int = BAUD
+    guarda: float = 0.15
+    pre: int = PRE_SYM
+
+    @property
+    def sps(self):
+        return FS // self.baud
 
     @property
     def nsym(self):
         nb = _frame_len(self.nbytes, self.rep)
-        return PRE_SYM + -(-nb // self.bits) + IDLE_SYM
+        return self.pre + -(-nb // self.bits) + IDLE_SYM
 
     @property
     def amostras(self):
         """Duração no ar, marcas inclusas."""
-        return 2 * LQ + 2 * HUSH + self.nsym * SPS
+        return 2 * LQ + 2 * HUSH + self.nsym * self.sps
 
     @property
     def segundos(self):
@@ -131,13 +147,13 @@ def _frame_len(nbytes, rep):
     return _FRAME_LEN[k]
 
 
-def _preambulo(bits):
+def _preambulo(bits, n=PRE_SYM):
     """Valores do preâmbulo. Percorre todos os tons, não só os extremos: o
     preâmbulo aqui não ensina o relógio (as marcas ensinam), ele assenta o
     piso de cada tom, e um tom que nunca soa nunca fica fora da atualização do
     piso -- o que faz cada tom convergir no mesmo ritmo."""
     m = 1 << bits
-    return [(i * 7) % m if m > 2 else i % 2 for i in range(PRE_SYM)]
+    return [(i * 7) % m if m > 2 else i % 2 for i in range(n)]
 
 
 def _valores_em_bits(vals, bits):
@@ -153,12 +169,12 @@ def modula_quadro(desc, corpo):
     entre elas dá o período do símbolo medido, como em `syncsweep`."""
     if len(corpo) != desc.nbytes:
         raise ValueError(f"corpo de {len(corpo)} bytes num quadro de {desc.nbytes}")
-    mod = MaryModulator(fs=FS, baud=BAUD, tones=desc.tons, bits=desc.bits)
+    mod = MaryModulator(fs=FS, baud=desc.baud, tones=desc.tons, bits=desc.bits)
     s = np.concatenate([
-        mod.modulate_bits(_valores_em_bits(_preambulo(desc.bits), desc.bits)),
+        mod.modulate_bits(_valores_em_bits(_preambulo(desc.bits, desc.pre), desc.bits)),
         mod.modulate_bits(list(fec.frame(corpo, repeat=desc.rep))),
         mod.idle(IDLE_SYM)])
-    assert len(s) == desc.nsym * SPS, (len(s), desc.nsym * SPS)
+    assert len(s) == desc.nsym * desc.sps, (len(s), desc.nsym * desc.sps)
     m = MOLDES['quadro']
     z = np.zeros(HUSH)
     return np.concatenate([m, z, s, z, m]) * desc.ganho
@@ -197,17 +213,18 @@ def le_quadro(audio, p1, desc, p2=None):
     o corpo vale; o llr volta mesmo quando não vale, porque a sondagem conta
     bits errados sobre um conteúdo que já conhece.
     """
-    nominal = LQ + 2 * HUSH + desc.nsym * SPS
+    sps = desc.sps
+    nominal = LQ + 2 * HUSH + desc.nsym * sps
     r = 1.0 if p2 is None else (p2 - p1) / nominal
     if not 0.995 <= r <= 1.005:
         return None, None
-    fim = p1 + int((LQ + 2 * HUSH + (desc.nsym + 1) * SPS) * r)
+    fim = p1 + int((LQ + 2 * HUSH + (desc.nsym + 1) * sps) * r)
     seg = np.asarray(audio[p1:fim], dtype=np.float64)
-    if len(seg) < (LQ + HUSH + desc.nsym * SPS) * r:
+    if len(seg) < (LQ + HUSH + desc.nsym * sps) * r:
         return None, None
-    d = _Demod(fs=FS, baud=BAUD, tones=desc.tons, bits=desc.bits,
-               steer=False, skip=int(round((LQ + HUSH) * r)),
-                        period=SPS * r)
+    d = _Demod(fs=FS, baud=desc.baud, tones=desc.tons, bits=desc.bits,
+               guard=desc.guarda, steer=False, skip=int(round((LQ + HUSH) * r)),
+               period=sps * r)
     partes = [d.demodulate_soft(seg[i:i + 2048]) for i in range(0, len(seg), 2048)]
     partes = [q for q in partes if len(q)]
     if not partes:
@@ -216,7 +233,7 @@ def le_quadro(audio, p1, desc, p2=None):
     # Onde a palavra de sincronismo deve terminar, procurada só a dois
     # símbolos de distância: as marcas já disseram onde o quadro está, e uma
     # busca larga só daria ao ruído do preâmbulo a chance de ganhar.
-    alvo = PRE_SYM * desc.bits + len(fec.SYNC)
+    alvo = desc.pre * desc.bits + len(fec.SYNC)
     want = 2.0 * fec.SYNC - 1.0
     melhor, onde = -2.0, None
     for e in range(alvo - 2 * desc.bits, alvo + 2 * desc.bits + 1):
@@ -281,8 +298,21 @@ def abre(corpo):
 # repetição, a camada de melhor resultado no ar, para um lugar em que as duas
 # frequências de um par caiam ambas em covas.
 
+# O lento: 16-FSK a 20 baud (50 ms por símbolo), guarda de 30%, repetição 2.
+# Feito para o Linux->Windows medido em 2026-10-08 a ~2 m, onde o 2-FSK a 100
+# baud chegava com 25-35% dos bits errados: num par, o tom alto quase nunca
+# vencia (2350 Hz chegava *mais fraco* quando enviado), e a cauda de um tom
+# ficava a poucos dB do seguinte por dezenas de ms. Dezesseis tons espalham o
+# risco de um tom comido por todo o bloco, onde o FEC o conserta; o símbolo
+# longo põe cinco vezes mais energia em cada decisão; a guarda pula o começo,
+# onde o tom anterior ainda soa. Preâmbulo curto: o relógio vem das marcas.
+LENTO_BAUD = 20
+LENTO_GUARDA = 0.30
+LENTO_PRE = 8
 ABORDAGENS = (
     Descritor((1700, 2350), 1, 1, CTRL_N, 0.30, 'fsk2 1700/2350 g0.30'),
+    Descritor(tuple(MARY_TONES), 4, 2, CTRL_N, 0.30, '16-FSK lento rep2 g0.30',
+              LENTO_BAUD, LENTO_GUARDA, LENTO_PRE),
     Descritor((1212, 1862), 1, 1, CTRL_N, 0.30, 'fsk2 1212/1862 g0.30'),
     Descritor(tuple(MARY_TONES), 4, 2, CTRL_N, 0.30, '16-FSK rep2 g0.30'),
     Descritor((1700, 2350), 1, 1, CTRL_N, 0.12, 'fsk2 1700/2350 g0.12'),
@@ -309,8 +339,9 @@ SONDA_G_DESC = tuple(Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, g, f'sonda g{g}
 # repetida duas vezes até ~25%. Aqui com folga, porque três sondas por
 # sentido são poucas e o contrato pode ser renegociado para baixo, nunca o
 # contrário sem nova sondagem.
-DEGRAUS = ('16-FSK rep1', '16-FSK rep2', '16-FSK rep4', '2-FSK rep1')
-LIMIARES_BER = (0.07, 0.15, 0.25)
+DEGRAUS = ('16-FSK rep1', '16-FSK rep2', '16-FSK rep4', '2-FSK rep1', '16-FSK lento')
+LENTO = len(DEGRAUS) - 1
+LIMIARES_BER = (0.07, 0.15, 0.25, 0.35)
 
 
 def _ordem_sonda(sessao):
@@ -459,7 +490,7 @@ class Contrato:
         tons = tuple(k for k in range(25) if v >> k & 1)
         if len(tons) != 16:
             raise ValueError("contrato sem 16 tons")
-        return cls(tons, ((v >> 25) & 31, (v >> 30) & 31), (v >> 35) & 3, (v >> 37) & 3)
+        return cls(tons, ((v >> 25) & 31, (v >> 30) & 31), (v >> 35) & 3, (v >> 37) & 7)
 
     def descritor(self, degrau=None, nbytes=DADOS_N):
         d = self.degrau if degrau is None else degrau
@@ -467,6 +498,10 @@ class Contrato:
         if d == 3:
             return Descritor(tuple(GRADE[k] for k in self.par), 1, 1, nbytes, g,
                              f'contrato 2-FSK {nbytes}B')
+        if d == LENTO:
+            return Descritor(tuple(GRADE[k] for k in self.tons), 4, 1, nbytes, g,
+                             f'contrato 16-FSK lento {nbytes}B',
+                             LENTO_BAUD, LENTO_GUARDA, LENTO_PRE)
         return Descritor(tuple(GRADE[k] for k in self.tons), 4, (1, 2, 4)[d], nbytes, g,
                          f'contrato {DEGRAUS[d]} {nbytes}B')
 
@@ -495,8 +530,12 @@ def decide(margem, sondas_g):
         degrau = 1
     elif ber < LIMIARES_BER[2]:
         degrau = 2
-    else:
+    elif ber < LIMIARES_BER[3]:
         degrau = 3
+    else:
+        # Nem o 16-FSK a 100 baud foi lido com menos de 35% de erro: o canal
+        # não segura símbolo de 10 ms. Começa no lento.
+        degrau = LENTO
     return Contrato(tuple(escolhe_16(margem)), escolhe_par(margem), gi, degrau)
 
 
@@ -576,7 +615,7 @@ class Ouvido:
                 en = np.sqrt(np.maximum(e[q + lt] - e[q], 0.0)) * np.linalg.norm(m)
                 s = np.where(ruim | (en <= 0), 0.0, c / np.maximum(en, 1e-12))
                 h = lt // 2
-                for i in np.flatnonzero(s >= LIMIAR):
+                for i in np.flatnonzero(s >= LIMIARES[tipo]):
                     pos = a + i
                     if not r0 <= pos < r1:
                         continue
@@ -605,7 +644,11 @@ ESPERA = int(3.0 * FS)         # quanto esperar o começo de uma resposta
 FOLGA = int(1.0 * FS)          # quanto esperar outro segmento num turno
 import os as _os
 _DEPURA = bool(_os.environ.get('ENLACE_DEPURA'))
-SILENCIO_MORTO = 20 * FS       # canal aberto sem nada legível: dado por morto
+# Com o canal aberto, uma chamada só derruba a sessão se for forte: os dados
+# 16-FSK chegam a 0,18 no molde da chamada, rente ao limiar dela (0,17), e um
+# falso desses no meio de uma transferência reiniciava tudo.
+LIMIAR_RECOMECO = 0.30
+SILENCIO_MORTO = 40 * FS       # canal aberto sem nada legível: dado por morto (o lento leva 14 s por quadro)
 
 
 class Estacao:
@@ -626,6 +669,7 @@ class Estacao:
         self.eventos = []          # (t, texto)
         self.recebido = bytearray()
         self.fila = bytearray()
+        self.pendente_tx = None
         self.saudado = False
         self.aberto = False
         self.contrato_tx = None    # o contrato do sentido em que eu transmito
@@ -761,11 +805,17 @@ class Estacao:
             return                      # a do meu tipo, de um eco que já não espero
         self.ouvido_em = pos
         if tipo == 'chamada':
-            if self.papel == 'ouvinte' and self.aberto and \
+            if self.papel == 'ouvinte' and self.aberto and sc >= LIMIAR_RECOMECO and \
                     self.agora - self.progresso_em > SILENCIO_MORTO:
                 self.anota("chamada nova com o canal mudo há tempo; o outro lado "
                            "recomeçou -- recomeço também")
                 self.reinicia()
+            if self.papel == 'ouvinte' and not self.aberto and self.saudado:
+                # No meio da negociação. Com o limiar da chamada rente ao
+                # falso (0,17), os tons da sondagem chegam a 0,20 nela; se o
+                # outro lado de fato recomeçou, os prazos de 'aguarda_*'
+                # devolvem esta ponta à escuta e a chamada seguinte é ouvida.
+                return
             if self.papel == 'ouvinte' and not self.aberto:
                 self.anota(f"chamada ouvida (correlação {sc:.2f})")
                 g = GANHOS_CHAMADA[self.k_chamada % len(GANHOS_CHAMADA)]
@@ -790,7 +840,7 @@ class Estacao:
         """Descritores que podem estar no ar agora, por ordem de chance."""
         c = list(ABORDAGENS)
         if self.contrato_rx is not None:
-            for d in range(4):
+            for d in range(LENTO + 1):
                 for n in (DADOS_N, CTRL_N):
                     c.append(self.contrato_rx.descritor(d, n))
         return c
@@ -948,6 +998,13 @@ class Estacao:
     # --- prazos
 
     def _prazos(self):
+        if self.aberto and self.agora - self.progresso_em > 3 * SILENCIO_MORTO:
+            # Nem a chamada de quem recomeçou foi ouvida com força (ver
+            # LIMIAR_RECOMECO): sem nada legível por tanto tempo, recomeço
+            # sozinho em vez de esperar para sempre num canal morto.
+            self.anota("canal aberto sem nada legível há muito tempo; recomeçando")
+            self.reinicia()
+            return
         if (self.aberto and self.confirmado and self.fila and self.pendente_tx is None
                 and self.ocioso() and self.agora - self.ouvido_em > 2 * FS):
             self._toca(self._turno_dados(), apos=self.agora)
@@ -988,7 +1045,7 @@ class Estacao:
                 self.reinicia()
                 return
             if self.aberto and self.confirmado and self.tentativas % 2 == 0 \
-                    and self.degrau_tx < 3:
+                    and self.degrau_tx < LENTO:
                 # Silêncio não é falha que o receptor possa contar: se nem a
                 # marca foi achada, ele não sabe que falei. Quem desce o
                 # degrau, então, sou eu; o receptor tenta todos os degraus
@@ -998,6 +1055,16 @@ class Estacao:
             self.anota(f"sem resposta em '{self.estado}'; repetindo o turno")
             self._toca(self._retransmite(),
                        apos=self.agora + int(self.rng.uniform(0, 1.0) * FS))
+        elif self.estado in ('aguarda_sonda', 'aguarda_contrato') and self.tentativas < 3:
+            # O turno do outro lado chegou ilegível (ou não chegou): ele vai
+            # repeti-lo, que é o que faz quem fala ao não ouvir resposta.
+            # Desistir aqui jogava fora a saudação inteira -- observado no ar
+            # em 2026-10-08, um CONTRATO lento perdido uma vez e a sessão
+            # voltou à estaca zero enquanto o outro lado ainda repetia.
+            self.tentativas += 1
+            self.anota(f"nada legível em '{self.estado}'; esperando a repetição "
+                       f"({self.tentativas}/3)")
+            self.espera_ate = self.agora + 2 * max(d.amostras for d in self._candidatos()) + ESPERA
         elif self.estado in ('aguarda_ola', 'aguarda_sonda', 'aguarda_contrato'):
             self.anota(f"nada mais em '{self.estado}'; voltando a escutar")
             self.reinicia()
@@ -1053,6 +1120,7 @@ class Estacao:
             if sondas:
                 self.contrato_rx = self._contrato_de(sondas[0], "chega")
                 self.estado = 'aguarda_contrato'
+                self.tentativas = 0
                 self._toca([self._quadro(self.ctrl, CONTRATO, self.contrato_rx.empacota(), mais=True),
                             modula_sonda(self.sessao)], depois=RESP)
             return
@@ -1107,6 +1175,13 @@ class Estacao:
         self.aberto = True
         self.confirmado = False
         self.seq_tx = 0
+        if self.pendente_tx is not None:
+            # Um pedaço que a sessão anterior mandou e nunca viu confirmado
+            # volta para a frente da fila. Sem isto, recomeçar a sessão o
+            # jogava fora -- no ar, em 2026-10-08, o outro lado recebeu o fim
+            # da mensagem e nunca o começo. O preço é que um pedaço entregue
+            # cujo ACK se perdeu chega duas vezes; perder é pior.
+            self.fila[0:0] = self.pendente_tx[1]
         self.pendente_tx = None
         self.ultimo_rx = 255
         self.degrau_tx = self.contrato_tx.degrau
@@ -1142,7 +1217,7 @@ class Estacao:
                 pedaco = bytes(carga[4:4 + n])
                 # O degrau em que este quadro chegou é o piso do que peço:
                 # se o outro lado já desceu, pedir mais rápido seria inútil.
-                for k in range(4):
+                for k in range(LENTO + 1):
                     if d == self.contrato_rx.descritor(k, d.nbytes):
                         self.degrau_rx = max(self.degrau_rx, k)
                 if seq == (self.ultimo_rx + 1) % 255 or (self.ultimo_rx == 255 and seq == 0):
@@ -1157,7 +1232,7 @@ class Estacao:
             progresso = True
             if self.pendente_tx is not None and ack == self.pendente_tx[0]:
                 self.pendente_tx = None
-            if pede < 4 and pede > self.degrau_tx:
+            if pede <= LENTO and pede > self.degrau_tx:
                 # Um piso, não uma ordem: quem recebe só sabe das falhas que
                 # chegou a ver, e quem transmite pode ter descido sozinho por
                 # silêncio. Tomar o pedido ao pé da letra fazia os dois
@@ -1177,7 +1252,7 @@ class Estacao:
             self.falhas_rx += 1
             self.sem_progresso += 1
             responder = True
-            if self.falhas_rx >= 2 and self.degrau_rx < 3:
+            if self.falhas_rx >= 2 and self.degrau_rx < LENTO:
                 self.degrau_rx += 1
                 self.falhas_rx = 0
                 self.anota(f"quadros ilegíveis; pedindo {DEGRAUS[self.degrau_rx]}")

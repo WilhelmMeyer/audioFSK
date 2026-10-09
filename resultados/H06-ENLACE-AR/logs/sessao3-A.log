@@ -1,0 +1,38 @@
+[chamador    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+[saudacao] papel chamador, entrada 'default', saída 'default', latência 0.009s, 207 bytes a enviar
+[chamador    0.26s] chamando (ganho 0.3)
+[chamador    0.94s] latência de saída medida no eco: +0.083s além da declarada
+[chamador    2.43s] resposta ouvida (correlação 0.65); enviando OLA em fsk2 1700/2350 g0.30
+[chamador    4.91s]   ilegível em 2.06s: final=False, tentou=[]
+[chamador    5.93s] turno: -, 1 ilegível(is)
+[chamador   12.93s] turno: ['OLA_OK']
+[chamador   12.93s] OLA_OK lido em fsk2 1700/2350 g0.30; saudação concluída, sondando
+[chamador   44.84s] turno: ['CONTRATO', 'SONDA']
+[chamador   44.84s] contrato para o que EU envio: 888-3975 Hz, sombras [1212, 2025, 2512, 3000], par 1700/2350, ganho 0.45, 16-FSK rep2
+[chamador   44.84s] sondagem lida: bits errados g0.12:5%*, g0.2:9%*, g0.3:3%*, g0.45:5%*; margens [46, 38, 32, 29, 35, 23, 25, 32, 27, 36, 35, 31, 31, 19, 34, 43, 39, 39, 40, 44, 42, 45, 41, 41, 45] dB
+[chamador   44.84s] contrato para o que me chega: 888-3812 Hz, sombras [1375, 1538, 2675], par 1700/2350, ganho 0.3, 16-FSK rep1
+[chamador   60.93s] turno: ['DADOS']
+[chamador   60.93s] dados seq 0: 31 bytes (contrato 16-FSK rep1 40B)
+[chamador   60.93s] CANAL ABERTO: contrato confirmado pelos dois lados
+[chamador   71.94s]   ilegível em 67.90s: final=False, tentou=[('contrato 16-FSK rep1 40B', np.float64(3.25))]
+[chamador   72.96s] turno: -, 1 ilegível(is)
+[chamador   83.93s] turno: ['DADOS']
+[chamador   83.93s] dados seq 1: 13 bytes (contrato 16-FSK rep1 40B)
+[chamador   93.44s] turno: ['ACK']
+[chamador  103.42s] turno: ['ACK']
+[chamador  105.43s]   ilegível em 103.21s: final=False, tentou=[]
+[chamador  106.45s] turno: -, 1 ilegível(is)
+[chamador  119.38s] sem resposta em 'aberto'; repetindo o turno
+[chamador  130.43s] turno: ['ACK']
+[chamador  130.43s] o outro lado pede o degrau 16-FSK rep4 para o que envio
+[chamador  144.94s] turno: ['ACK']
+[chamador  162.43s]   ilegível em 156.91s: final=False, tentou=[]
+[chamador  163.46s] turno: -, 1 ilegível(is)
+[chamador  177.92s] turno: ['ACK']
+[chamador  177.92s] o outro lado pede o degrau 2-FSK rep1 para o que envio
+[chamador  192.94s]   ilegível em 190.03s: final=False, tentou=[]
+[chamador  193.96s] turno: -, 1 ilegível(is)
+[chamador  208.94s] turno: ['ACK']
+[saudacao] tudo enviado e confirmado em 209.0s; recebidos 44 bytes
+[saudacao] interrompido
+[saudacao] sessão gravada em sessoes-enlace/20261008-231059-enlace-chamador

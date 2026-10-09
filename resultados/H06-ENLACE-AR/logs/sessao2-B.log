@@ -1,0 +1,44 @@
+[ouvinte    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+[saudacao] papel ouvinte, entrada 'Microfone (Realtek(R) Audio)', saída 'Speakers/Headphones (Realtek(R)', latência 0.090s, 7 bytes a enviar
+[ouvinte   69.93s] chamada ouvida (correlação 0.19)
+[ouvinte   70.91s] latência de saída medida no eco: +0.154s além da declarada
+[ouvinte   76.93s]   ilegível em 71.63s: final=False, tentou=[]
+[ouvinte   77.95s] turno: -, 1 ilegível(is)
+[ouvinte   88.83s] turno: ['OLA']
+[ouvinte   88.83s] OLA lido em 16-FSK lento rep2 g0.30; saudação concluída, respondendo OLA_OK
+[ouvinte  113.02s] turno: ['SONDA']
+[ouvinte  113.02s] sondagem lida: bits errados g0.12:50%, g0.2:38%, g0.3:37%, g0.45:40%; margens [25, 25, 27, 25, 24, 19, 23, 26, 26, 15, 18, 14, 30, 33, 29, 29, 22, 30, 43, 28, 27, 39, 41, 36, 42] dB
+[ouvinte  113.02s] contrato para o que me chega: 888-3650 Hz, sombras [2025, 2350], par 1700/2512, ganho 0.3, 16-FSK lento
+[ouvinte  146.90s]   ilegível em 137.20s: final=False, tentou=[('16-FSK lento rep2 g0.30', np.float64(8.93))]
+[ouvinte  147.93s] turno: -, 1 ilegível(is)
+[ouvinte  147.93s] nada mais em 'aguarda_contrato'; voltando a escutar
+[ouvinte  168.96s]   ilegível em 159.87s: final=True, tentou=[('fsk2 1700/2350 g0.12', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.30', None)]
+[ouvinte  169.98s] turno: -, 1 ilegível(is)
+[ouvinte  182.57s]   ilegível em 173.48s: final=True, tentou=[('fsk2 1700/2350 g0.12', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.30', None)]
+[ouvinte  183.59s] turno: -, 1 ilegível(is)
+[ouvinte  196.27s]   ilegível em 187.16s: final=True, tentou=[('fsk2 1700/2350 g0.12', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.30', None)]
+[ouvinte  197.29s] turno: -, 1 ilegível(is)
+[ouvinte  209.62s]   ilegível em 200.54s: final=True, tentou=[('fsk2 1700/2350 g0.12', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.30', None)]
+[ouvinte  210.65s] turno: -, 1 ilegível(is)
+[ouvinte  216.41s]   ilegível em 213.26s: final=False, tentou=[]
+[ouvinte  217.43s] turno: -, 1 ilegível(is)
+[ouvinte  231.68s] turno: ['SONDA']
+[ouvinte  250.24s]   ilegível em 241.13s: final=True, tentou=[('fsk2 1700/2350 g0.12', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.30', None)]
+[ouvinte  251.26s] turno: -, 1 ilegível(is)
+[ouvinte  263.72s]   ilegível em 254.62s: final=True, tentou=[('fsk2 1700/2350 g0.12', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.30', None)]
+[ouvinte  264.75s] turno: -, 1 ilegível(is)
+[ouvinte  269.44s] chamada ouvida (correlação 0.36)
+[ouvinte  269.44s]   ilegível em 264.02s: final=False, tentou=[]
+[ouvinte  270.42s] latência de saída medida no eco: +0.170s além da declarada
+[ouvinte  270.46s] turno: -, 1 ilegível(is)
+[ouvinte  280.02s] turno: ['OLA']
+[ouvinte  280.02s] OLA lido em 16-FSK lento rep2 g0.30; saudação concluída, respondendo OLA_OK
+[ouvinte  304.21s] turno: ['SONDA']
+[ouvinte  304.21s] sondagem lida: bits errados g0.12:17%*, g0.2:10%*, g0.3:15%*, g0.45:13%*; margens [28, 35, 34, 21, 18, 30, 27, 35, 31, 31, 26, 38, 31, 30, 33, 27, 32, 33, 33, 31, 40, 35, 44, 45, 41] dB
+[ouvinte  304.21s] contrato para o que me chega: 1375-3812 Hz, sombras [], par 1700/2350, ganho 0.2, 16-FSK rep2
+[ouvinte  343.94s] turno: ['CONTRATO', 'DADOS']
+[ouvinte  343.94s] contrato para o que EU envio: 888-3488 Hz, sombras [1375], par 1700/2350, ganho 0.2, 16-FSK rep1
+[ouvinte  343.94s] dados seq 0: 19 bytes (contrato 16-FSK rep2 40B)
+[ouvinte  343.94s] CANAL ABERTO: contrato confirmado pelos dois lados
+[ouvinte  355.93s] turno: ['DADOS']
+[saudacao] sessão gravada em sessoes-enlace\20261008-230410-enlace-ouvinte

@@ -1,0 +1,3 @@
+[ouvinte    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+[saudacao] papel ouvinte, entrada 'Microfone (Realtek(R) Audio)', saída 'Speakers/Headphones (Realtek(R)', latência 0.090s, 7 bytes a enviar
+[saudacao] sessão gravada em sessoes-enlace\20261008-215950-enlace-ouvinte

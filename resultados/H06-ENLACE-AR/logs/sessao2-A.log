@@ -1,0 +1,35 @@
+[chamador    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+[saudacao] papel chamador, entrada 'default', saída 'default', latência 0.009s, 50 bytes a enviar
+[chamador    0.64s] chamando (ganho 0.3)
+[chamador    1.41s] latência de saída medida no eco: +0.101s além da declarada
+[chamador    2.90s] resposta ouvida (correlação 0.38); enviando OLA em fsk2 1700/2350 g0.30
+[chamador   11.18s] sem OLA_OK; tentando 16-FSK lento rep2 g0.30
+[chamador   30.51s] turno: ['OLA_OK']
+[chamador   30.51s] OLA_OK lido em 16-FSK lento rep2 g0.30; saudação concluída, sondando
+[chamador   67.93s] turno: ['CONTRATO', 'SONDA']
+[chamador   67.93s] contrato para o que EU envio: 888-3650 Hz, sombras [2025, 2350], par 1700/2512, ganho 0.3, 16-FSK lento
+[chamador   67.93s] sondagem lida: bits errados g0.12:14%*, g0.2:11%*, g0.3:13%*, g0.45:16%*; margens [35, 35, 32, 22, 29, 23, 26, 15, 16, 29, 33, 24, 36, 21, 27, 35, 30, 40, 42, 40, 36, 25, 36, 37, 36] dB
+[chamador   67.93s] contrato para o que me chega: 888-3650 Hz, sombras [1700, 1862], par 1212/2188, ganho 0.2, 16-FSK rep2
+[chamador   95.32s] sem resposta em 'aberto'; repetindo o turno
+[chamador  122.62s] sem resposta em 'aberto'; repetindo o turno
+[chamador  149.72s] sem resposta em 'aberto'; repetindo o turno
+[chamador  176.64s] sem resposta em 'aberto'; repetindo o turno
+[chamador  187.95s] canal aberto sem nada legível há muito tempo; recomeçando
+[chamador  188.33s] chamando (ganho 0.15)
+[chamador  201.94s] resposta ouvida (correlação 0.64); enviando OLA em 16-FSK lento rep2 g0.30
+[chamador  221.74s] turno: ['OLA_OK']
+[chamador  221.74s] OLA_OK lido em 16-FSK lento rep2 g0.30; saudação concluída, sondando
+[chamador  259.11s] turno: ['CONTRATO', 'SONDA']
+[chamador  259.11s] contrato para o que EU envio: 1375-3812 Hz, sombras [], par 1700/2350, ganho 0.2, 16-FSK rep2
+[chamador  259.11s] sondagem lida: bits errados g0.12:5%*, g0.2:3%*, g0.3:5%*, g0.45:6%*; margens [45, 38, 32, 27, 36, 21, 34, 33, 28, 40, 33, 35, 31, 28, 35, 37, 40, 32, 38, 44, 43, 47, 42, 41, 42] dB
+[chamador  259.11s] contrato para o que me chega: 888-3488 Hz, sombras [1375], par 1700/2350, ganho 0.2, 16-FSK rep1
+[chamador  279.94s]   ilegível em 275.90s: final=False, tentou=[('contrato 16-FSK rep1 40B', np.float64(3.25))]
+[chamador  280.96s] turno: -, 1 ilegível(is)
+[chamador  291.93s]   ilegível em 287.93s: final=False, tentou=[('contrato 16-FSK rep1 40B', np.float64(3.25))]
+[chamador  292.95s] turno: -, 1 ilegível(is)
+[chamador  292.95s] quadros ilegíveis; pedindo 16-FSK rep2
+[chamador  302.63s] sem resposta em 'aberto'; repetindo o turno
+[chamador  312.79s] sem resposta em 'aberto'; repetindo o turno
+[chamador  323.46s] sem resposta em 'aberto'; repetindo o turno
+[chamador  333.31s] sem resposta em 'aberto'; repetindo o turno
+[saudacao] sessão gravada em sessoes-enlace/20261008-230457-enlace-chamador

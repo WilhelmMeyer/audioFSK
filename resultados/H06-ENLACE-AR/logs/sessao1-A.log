@@ -1,0 +1,78 @@
+[chamador    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+[saudacao] papel chamador, entrada 'default', saída 'default', latência 0.009s, 33 bytes a enviar
+[chamador    0.47s] chamando (ganho 0.3)
+[chamador    1.41s] latência de saída medida no eco: +0.107s além da declarada
+[chamador    5.89s] chamando (ganho 0.15)
+[chamador    6.40s] latência de saída medida no eco: +0.091s além da declarada
+[chamador   11.90s] chamando (ganho 0.5)
+[chamador   12.93s] latência de saída medida no eco: +0.118s além da declarada
+[chamador   17.07s] chamando (ganho 0.3)
+[chamador   17.92s] latência de saída medida no eco: +0.080s além da declarada
+[chamador   21.93s] chamando (ganho 0.15)
+[chamador   22.91s] latência de saída medida no eco: +0.107s além da declarada
+[chamador   26.79s] chamando (ganho 0.5)
+[chamador   27.43s] latência de saída medida no eco: +0.091s além da declarada
+[chamador   32.17s] chamando (ganho 0.3)
+[chamador   37.46s] chamando (ganho 0.15)
+[chamador   43.39s] chamando (ganho 0.5)
+[chamador   48.51s] chamando (ganho 0.3)
+[chamador   49.41s] latência de saída medida no eco: +0.091s além da declarada
+[chamador   53.72s] chamando (ganho 0.15)
+[chamador   59.69s] chamando (ganho 0.5)
+[chamador   65.45s] chamando (ganho 0.3)
+[chamador   71.13s] chamando (ganho 0.15)
+[chamador   75.90s] chamando (ganho 0.5)
+[chamador   81.71s] chamando (ganho 0.3)
+[chamador   82.43s] latência de saída medida no eco: +0.102s além da declarada
+[chamador   87.30s] chamando (ganho 0.15)
+[chamador   93.10s] chamando (ganho 0.5)
+[chamador   99.20s] chamando (ganho 0.3)
+[chamador  105.09s] chamando (ganho 0.15)
+[chamador  105.94s] latência de saída medida no eco: +0.094s além da declarada
+[chamador  110.29s] chamando (ganho 0.5)
+[chamador  115.63s] chamando (ganho 0.3)
+[chamador  120.87s] chamando (ganho 0.15)
+[chamador  125.57s] chamando (ganho 0.5)
+[chamador  126.42s] latência de saída medida no eco: +0.094s além da declarada
+[chamador  130.26s] chamando (ganho 0.3)
+[chamador  135.77s] chamando (ganho 0.15)
+[chamador  141.61s] chamando (ganho 0.5)
+[chamador  147.54s] chamando (ganho 0.3)
+[chamador  148.44s] latência de saída medida no eco: +0.094s além da declarada
+[chamador  153.17s] chamando (ganho 0.15)
+[chamador  158.68s] chamando (ganho 0.5)
+[chamador  164.48s] chamando (ganho 0.3)
+[chamador  170.58s] chamando (ganho 0.15)
+[chamador  171.43s] latência de saída medida no eco: +0.094s além da declarada
+[chamador  175.49s] chamando (ganho 0.5)
+[chamador  180.99s] chamando (ganho 0.3)
+[chamador  181.93s] latência de saída medida no eco: +0.084s além da declarada
+[chamador  186.33s] chamando (ganho 0.15)
+[chamador  191.57s] chamando (ganho 0.5)
+[chamador  197.50s] chamando (ganho 0.3)
+[chamador  203.14s] chamando (ganho 0.15)
+[chamador  208.81s] chamando (ganho 0.5)
+[chamador  209.41s] latência de saída medida no eco: +0.089s além da declarada
+[chamador  213.80s] chamando (ganho 0.3)
+[chamador  214.40s] latência de saída medida no eco: +0.116s além da declarada
+[chamador  219.18s] chamando (ganho 0.15)
+[chamador  219.90s] latência de saída medida no eco: +0.100s além da declarada
+[chamador  224.00s] chamando (ganho 0.5)
+[chamador  229.50s] chamando (ganho 0.3)
+[chamador  234.28s] chamando (ganho 0.15)
+[chamador  234.92s] latência de saída medida no eco: +0.094s além da declarada
+[chamador  240.30s] chamando (ganho 0.5)
+[chamador  245.80s] chamando (ganho 0.3)
+[chamador  251.78s] chamando (ganho 0.15)
+[chamador  257.37s] chamando (ganho 0.5)
+[chamador  257.92s] latência de saída medida no eco: +0.094s além da declarada
+[chamador  263.08s] chamando (ganho 0.3)
+[chamador  267.99s] chamando (ganho 0.15)
+[chamador  273.79s] chamando (ganho 0.5)
+[chamador  274.43s] latência de saída medida no eco: +0.089s além da declarada
+[chamador  279.13s] chamando (ganho 0.3)
+[chamador  284.20s] chamando (ganho 0.15)
+[chamador  289.79s] chamando (ganho 0.5)
+[chamador  294.53s] chamando (ganho 0.3)
+[chamador  299.78s] chamando (ganho 0.15)
+[saudacao] sessão gravada em sessoes-enlace/20261008-220000-enlace-chamador

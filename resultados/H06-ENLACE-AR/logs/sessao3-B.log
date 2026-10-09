@@ -1,0 +1,51 @@
+[ouvinte    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+[saudacao] papel ouvinte, entrada 'Microfone (Realtek(R) Audio)', saída 'Speakers/Headphones (Realtek(R)', latência 0.090s, 44 bytes a enviar
+[ouvinte    7.42s] chamada ouvida (correlação 0.34)
+[ouvinte    8.92s] latência de saída medida no eco: +0.162s além da declarada
+[ouvinte   13.91s] turno: ['OLA']
+[ouvinte   13.91s] OLA lido em fsk2 1700/2350 g0.30; saudação concluída, respondendo OLA_OK
+[ouvinte   32.73s] turno: ['SONDA']
+[ouvinte   32.73s] sondagem lida: bits errados g0.12:21%, g0.2:18%*, g0.3:15%*, g0.45:13%*; margens [27, 41, 31, 28, 23, 32, 30, 37, 27, 20, 28, 30, 15, 33, 31, 20, 28, 30, 37, 34, 40, 40, 45, 48, 46] dB
+[ouvinte   32.73s] contrato para o que me chega: 888-3975 Hz, sombras [1212, 2025, 2512, 3000], par 1700/2350, ganho 0.45, 16-FSK rep2
+[ouvinte   62.42s] turno: ['CONTRATO', 'DADOS']
+[ouvinte   62.42s] contrato para o que EU envio: 888-3812 Hz, sombras [1375, 1538, 2675], par 1700/2350, ganho 0.3, 16-FSK rep1
+[ouvinte   62.42s] dados seq 0: 31 bytes (contrato 16-FSK rep2 40B)
+[ouvinte   62.42s] CANAL ABERTO: contrato confirmado pelos dois lados
+[ouvinte   73.94s] turno: ['DADOS']
+[ouvinte   73.94s] dados seq 1: 31 bytes (contrato 16-FSK rep2 40B)
+[ouvinte   85.93s] turno: ['DADOS']
+[ouvinte   96.94s] turno: ['DADOS']
+[ouvinte   96.94s] dados seq 2: 31 bytes (contrato 16-FSK rep2 40B)
+[saudacao] tudo enviado e confirmado em 97.0s; recebidos 93 bytes
+[ouvinte  106.41s]   ilegível em 100.06s: final=False, tentou=[('contrato 16-FSK rep2 40B', np.float64(5.702))]
+[ouvinte  107.43s] turno: -, 1 ilegível(is)
+[ouvinte  116.44s] turno: ['DADOS']
+[ouvinte  116.44s] dados seq 3: 31 bytes (contrato 16-FSK rep2 40B)
+[ouvinte  118.40s]   ilegível em 116.19s: final=False, tentou=[]
+[ouvinte  119.42s] turno: -, 1 ilegível(is)
+[ouvinte  127.91s]   ilegível em 121.88s: final=False, tentou=[('contrato 16-FSK lento 12B', np.float64(5.138))]
+[ouvinte  133.42s]   ilegível em 128.43s: final=False, tentou=[]
+[ouvinte  134.44s] turno: -, 2 ilegível(is)
+[ouvinte  134.44s] quadros ilegíveis; pedindo 16-FSK rep4
+[ouvinte  148.44s] turno: ['DADOS']
+[ouvinte  148.44s] dados seq 4: 31 bytes (contrato 16-FSK rep4 40B)
+[ouvinte  157.44s]   ilegível em 151.69s: final=False, tentou=[('contrato 16-FSK lento 12B', np.float64(5.11))]
+[ouvinte  158.46s] turno: -, 1 ilegível(is)
+[ouvinte  160.43s]   ilegível em 158.11s: final=False, tentou=[]
+[ouvinte  161.45s] turno: -, 1 ilegível(is)
+[ouvinte  161.45s] quadros ilegíveis; pedindo 2-FSK rep1
+[ouvinte  163.93s]   ilegível em 161.57s: final=False, tentou=[]
+[ouvinte  164.95s] turno: -, 1 ilegível(is)
+[ouvinte  181.42s] turno: ['DADOS']
+[ouvinte  181.42s] dados seq 5: 31 bytes (contrato 16-FSK rep4 40B)
+[ouvinte  195.93s] turno: ['DADOS']
+[ouvinte  195.93s] dados seq 6: 21 bytes (contrato 2-FSK 40B)
+[ouvinte  211.93s]   ilegível em 200.46s: final=False, tentou=[('contrato 2-FSK 40B', np.float64(10.812))]
+[ouvinte  212.95s] turno: -, 1 ilegível(is)
+[ouvinte  254.08s]   ilegível em 240.36s: final=True, tentou=[('contrato 16-FSK rep1 12B', None), ('contrato 16-FSK rep2 40B', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('contrato 16-FSK rep1 40B', None), ('contrato 2-FSK 12B', None), ('contrato 16-FSK rep4 40B', None), ('contrato 16-FSK lento 12B', None), ('contrato 2-FSK 40B', None), ('contrato 16-FSK rep2 12B', None), ('contrato 16-FSK rep4 12B', None), ('fsk2 1700/2350 g0.30', None), ('contrato 16-FSK lento 40B', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1212/1862 g0.30', None)]
+[ouvinte  255.10s] turno: -, 1 ilegível(is)
+[ouvinte  255.10s] quadros ilegíveis; pedindo 16-FSK lento
+[ouvinte  279.34s]   ilegível em 265.60s: final=True, tentou=[('contrato 16-FSK rep1 12B', None), ('contrato 16-FSK rep2 40B', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('contrato 16-FSK rep1 40B', None), ('contrato 2-FSK 12B', None), ('contrato 16-FSK rep4 40B', None), ('contrato 16-FSK lento 12B', None), ('contrato 2-FSK 40B', None), ('contrato 16-FSK rep2 12B', None), ('contrato 16-FSK rep4 12B', None), ('fsk2 1700/2350 g0.30', None), ('contrato 16-FSK lento 40B', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1212/1862 g0.30', None)]
+[ouvinte  280.36s] turno: -, 1 ilegível(is)
+[ouvinte  315.95s] canal aberto sem nada legível há muito tempo; recomeçando
+[saudacao] sessão gravada em sessoes-enlace\20261008-231757-enlace-ouvinte
