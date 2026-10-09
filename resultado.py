@@ -90,8 +90,9 @@ def git_commit():
 def demodulator(meta, **kw):
     """The receiver the recording's own metadata calls for.
 
-    `kw` (steer, skip, period) reaches only the tone layers: it is how the
-    sweep reading builds a frozen-clock receiver through the same factory.
+    `kw` (steer, skip, period) is how the sweep reading builds a
+    frozen-clock receiver through the same factory, on every layer that has a
+    coded frame -- the 5x2 ones included, since they have a frozen clock too.
     """
     if meta['mode'] == 'mary':
         return MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
@@ -107,7 +108,7 @@ def demodulator(meta, **kw):
                                **tone_layer(meta['mode']), **kw)
     return MFSKDemodulator(fs=meta['fs'], baud=meta['baud'],
                            parallel=meta.get('parallel', False),
-                           grouped=meta.get('grouped', False))
+                           grouped=meta.get('grouped', False), **kw)
 
 
 def soft(demod, samples):
@@ -156,9 +157,20 @@ def preamble(meta):
                       dtype=np.int8)
 
 
+def frame_layer(meta):
+    """The coded frame's layer, named as `console.AudioNode.fec_layer` names it."""
+    if meta['mode'] in TONE_LAYERS:
+        return meta['mode']
+    return 'mfsk-par' if meta.get('parallel') else 'mfsk'
+
+
 def swept(meta, payload):
-    """Whether this recording carries the two sync sweeps the receiver reads."""
-    return bool(meta.get('sync_chirp') and meta['mode'] in TONE_LAYERS
+    """Whether this recording carries the two sync sweeps the receiver reads.
+
+    Every coded layer can carry them now, the 5x2 ones included; Bell 202
+    (`fsk`) has no coded frame and never does.
+    """
+    return bool(meta.get('sync_chirp') and meta['mode'] != 'fsk'
                 and meta.get('kind') == 'fec' and payload)
 
 
@@ -176,8 +188,10 @@ def sweep_llr(samples, payload, meta):
     fs, baud = meta['fs'], meta['baud']
     sps = fs / baud
     hush = int(meta.get('sync_hush', 0.0) * fs)
+    layer = frame_layer(meta)
     span = fec.sweep_span(len(payload), meta.get('fec_repeat', 1) or 1,
-                          symbol_bits(meta), hush, sps)
+                          symbol_bits(meta), hush, sps, layer=layer,
+                          npairs=len(MFSK_PAIRS))
     llr, _, period, how = sweep_soft(
         samples, lambda **kw: demodulator(meta, **kw), span, hush, sps,
         block=BLOCK, template=chirp(fs))

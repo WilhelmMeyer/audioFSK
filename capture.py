@@ -29,7 +29,7 @@ import sounddevice as sd
 import aviso
 import fec
 import recording
-from modem import MARY_BITS, TONE_LAYERS
+from modem import MFSK_PAIRS, SYNC_CHIRP, TONE_LAYERS
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -141,7 +141,14 @@ _seq = [0]
 SYNC_HUSH = 0.03            # o mesmo silencio que `console.py` poe ao redor de cada varredura
 
 
-def sync_span(nbytes, repeat, symbol_bits=MARY_BITS):
+def sync_layer(mode, parallel):
+    """A camada do quadro, com o nome que `console.AudioNode.fec_layer` usa."""
+    if mode in TONE_LAYERS:
+        return mode
+    return 'mfsk-par' if parallel else 'mfsk'
+
+
+def sync_span(nbytes, repeat, layer):
     """Quantos simbolos separam as duas varreduras, contados como o
     transmissor os montou.
 
@@ -161,9 +168,14 @@ def sync_span(nbytes, repeat, symbol_bits=MARY_BITS):
 
     O termo final sao os dois silencios que cercam as varreduras, que separam
     o decaimento de cada varredura do primeiro simbolo de dado.
+
+    Pela `fec.sweep_span` com a camada, porque o quadro 5x2 (voto ou
+    paralelo) tem outro preambulo, outro idle e, no paralelo, cinco bits por
+    simbolo: contado como mary, o voto sairia ~40 simbolos longo.
     """
-    return (fec.frame_symbols(nbytes, repeat, symbol_bits)
-            + 2 * (SYNC_HUSH * FS) / (FS / 100))
+    bits = TONE_LAYERS[layer][1] if layer in TONE_LAYERS else None
+    return fec.sweep_span(nbytes, repeat, bits, int(SYNC_HUSH * FS), FS / 100,
+                          layer=layer, npairs=len(MFSK_PAIRS))
 
 
 def ask(ctl, cmd, timeout=8.0):
@@ -226,8 +238,9 @@ def main():
                          "measure what the link does to each frequency")
     ap.add_argument('--sync-chirp', action='store_true',
                     help="liga as varreduras de sincronismo nas duas pontas do "
-                         "frame mary, e carimba isso no JSON para o align.py "
-                         "saber que deve procura-las")
+                         "quadro fec (mary, fsk2, mfsk, mfsk --parallel) e "
+                         "carimba isso no JSON para o align.py e o "
+                         "resultado.py saberem que devem procura-las")
     ap.add_argument('--ifk', action='store_true',
                     help="mary: tom de repeticao, nunca o tom do simbolo "
                          "anterior (IFK); manda 'ifk on' ao outro lado e "
@@ -240,6 +253,13 @@ def main():
         sys.exit("[capture] --ifk e --chord nao combinam")
     if args.mode == 'fsk2' and (args.ifk or args.chord or args.parallel):
         sys.exit("[capture] fsk2 tem 2 tons: sem --ifk, --chord ou --parallel")
+    # Recusado, nao carimbado: as varreduras so existem em quadro fec, e o
+    # Bell 202 (`fsk`) nao tem quadro fec. Antes isto gravava
+    # `sync_chirp=True` sobre um burst sem varredura nenhuma, e todo leitor
+    # offline ia procura-las.
+    if args.sync_chirp and (not args.fec or args.mode == 'fsk' or args.chirp):
+        sys.exit("[capture] --sync-chirp so vale com --fec em mary, fsk2 ou "
+                 "mfsk (com ou sem --parallel); nao existe em fsk nem em --chirp")
 
     if args.device is not None and args.device.isdigit():
         args.device = int(args.device)
@@ -268,7 +288,16 @@ def main():
         # explicitly every run rather than assumed, for the same reason
         # `fecrep` is -- a mismatch is undetectable at the decoder and reads as
         # a channel that got worse.
-        ask(ctl, f"syncsweep {'on' if args.sync_chirp else 'off'}")
+        reply = ask(ctl, f"syncsweep {'on' if args.sync_chirp else 'off'}")
+        # Conferido, como o ifk: um agente sem pull responde "LIGADO (so em
+        # mary...)" e em mfsk transmite sem varredura -- a gravacao sairia
+        # carimbada com algo que nao foi ao ar.
+        if args.sync_chirp and not (
+                (reply or '').startswith('syncsweep LIGADO')
+                and (args.mode in TONE_LAYERS or 'mfsk' in reply)):
+            ctl.close()
+            sys.exit(f"[capture] o outro lado nao ligou as varreduras em "
+                     f"{args.mode}: {reply!r} -- pull + restart nele primeiro")
     # Sent every run, including when they are off. These are settings both
     # machines must agree on, and the agent keeps whatever the previous run
     # left it at -- so a capture that only ever turns a knob *on* leaves it on
@@ -338,6 +367,9 @@ def main():
                 airtime = (31 + 80 + coded) / baud
         else:
             airtime = (len(payload) + 16) * 10 / baud
+        if args.sync_chirp:
+            # Duas varreduras e dois silencios a mais no ar.
+            airtime += 2 * (SYNC_CHIRP[2] + SYNC_HUSH)
         duration = airtime + args.tail + 1.0
 
         with Recorder(args.device) as rec:
@@ -363,7 +395,7 @@ def main():
                               sync_hush=SYNC_HUSH if args.sync_chirp else 0.0,
                               sync_span_symbols=(sync_span(
                                   len(payload), args.repeat,
-                                  TONE_LAYERS.get(args.mode, (None, MARY_BITS))[1])
+                                  sync_layer(args.mode, args.parallel))
                                   if args.sync_chirp else 0.0),
                               grouped=bool(args.grouped),
                               baud=baud, fs=FS, seed=seed, gain=args.gain,

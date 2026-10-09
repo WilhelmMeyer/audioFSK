@@ -19,6 +19,12 @@ happened to land, while bit accuracy is stable. Blocks recovered are reported
 too, as the thing anyone actually cares about, but do not tune on them.
 
     ./venv/bin/python align.py captures-self
+    ./venv/bin/python align.py captures --mode mfsk       # 5x2 votada
+    ./venv/bin/python align.py captures --mode mfsk-par   # 5x2 multicanal
+
+The 5x2 layers get the timing columns only -- gate, best frozen offset, and
+the sweeps when the capture carries them. The floor oracles are a property of
+the 16-tone detector's running floor, which the pair vote does not have.
 """
 
 import argparse
@@ -29,8 +35,10 @@ import numpy as np
 import fec
 import recording
 import spectro
-from modem import (MaryDemodulator, MARY_TONES, chirp, find_chirp,
-                   find_chirp_pair, SYNC_CHIRP, TONE_LAYERS)
+from modem import (MaryDemodulator, MARY_TONES, MFSKDemodulator, MFSK_PAIRS,
+                   chirp, find_chirp, find_chirp_pair, SYNC_CHIRP, TONE_LAYERS)
+
+CHORD_MODES = fec.CHORD_LAYERS     # 'mfsk' (voted), 'mfsk-par' (parallel)
 
 BLOCK = 2048
 
@@ -43,7 +51,7 @@ def soft(demod, samples):
     return np.concatenate(parts) if parts else np.zeros(0)
 
 
-def bit_accuracy(llr, payload, repeat):
+def bit_accuracy(llr, payload, repeat, want=None):
     """Fraction of transmitted bits that came back with the right sign.
 
     Measured at the alignment that agrees best, always -- never at the one
@@ -59,7 +67,9 @@ def bit_accuracy(llr, payload, repeat):
     with the Viterbi decoder's repair work excluded. Blocks recovered stay the
     honest end-to-end number and are reported separately.
     """
-    want = np.asarray(fec.frame(payload, repeat=repeat), dtype=np.int8)
+    if want is None:
+        want = fec.frame(payload, repeat=repeat)
+    want = np.asarray(want, dtype=np.int8)
     llr = np.asarray(llr, dtype=np.float64)
     if len(llr) < len(want):
         return None
@@ -245,16 +255,135 @@ def probe(samples, payload, meta, step):
     return gate_acc, gate_ok, best, genie, chirp_res, pair_res
 
 
+def probe_chord(samples, payload, meta, step, layer):
+    """Timing alone on a 5x2 capture: gate, best frozen offset, sweeps.
+
+    Returns (gate, best, lead, pair), each (accuracy, block ok, extra) or
+    Nones; `extra` is the skip for `best` and `lead` and the period for
+    `pair`. Same ruler as the 16-tone probe -- best slide, always -- against
+    the frame as the transmitter laid it out, `frame_parallel` when the pairs
+    carry their own bits. The two-sweep span comes from `fec.sweep_span` with
+    the layer, as the live receiver computes it, never from the JSON.
+    """
+    fs, baud = meta['fs'], meta['baud']
+    sps = int(fs / baud)
+    repeat = meta.get('fec_repeat', 1) or 1
+    npairs = len(MFSK_PAIRS)
+    par = layer == 'mfsk-par'
+    want = (fec.frame_parallel(payload, npairs, repeat=repeat) if par
+            else fec.frame(payload, repeat=repeat))
+    kw = dict(fs=fs, baud=baud, parallel=par,
+              grouped=bool(meta.get('grouped')) and not par)
+
+    def read(**frozen):
+        llr = soft(MFSKDemodulator(**kw, **frozen), samples)
+        acc = bit_accuracy(llr, payload, repeat, want=want)
+        got, _ = fec.decode_block(llr, len(payload), repeat,
+                                  npairs=npairs if par else None)
+        return acc, got == payload
+
+    g_acc, g_ok = read()
+    best = (None, False, None)
+    for skip in range(0, sps, step):
+        acc, ok = read(steer=False, skip=skip)
+        if acc is not None and (best[0] is None or acc > best[0]):
+            best = (acc, ok, skip)
+
+    lead = pair = (None, None, None)
+    if meta.get('sync_chirp'):
+        tmpl = chirp(fs, *SYNC_CHIRP)
+        hush = int(meta.get('sync_hush', 0.0) * fs)
+        at = find_chirp(samples, tmpl)
+        if at is not None:
+            acc, ok = read(steer=False, skip=at + hush)
+            lead = (acc, ok, at + hush)
+        span = fec.sweep_span(len(payload), repeat, None, hush, sps,
+                              layer=layer, npairs=npairs)
+        found = find_chirp_pair(samples, tmpl, min_gap=int(0.5 * span * sps))
+        if found is not None:
+            first, second = found
+            period = (second - first) / span
+            if 0.98 * sps <= period <= 1.02 * sps:
+                skip2 = first + int(round(hush * period / sps))
+                acc, ok = read(steer=False, skip=skip2, period=period)
+                pair = (acc, ok, period)
+    return (g_acc, g_ok, None), best, lead, pair
+
+
+def main_chord(caps, step, mode):
+    """The 5x2 report: how much of the error a better clock could remove."""
+    cols = {'gate': [], 'best': [], 'lead': [], 'pair': []}
+    blocks = dict.fromkeys(cols, 0)
+    lead_err, periods = [], []
+    print(f"{'gravacao':<18} {'gate':>7} {'travado':>8} {'1 varr':>8} "
+          f"{'2 varr':>8} {'skip':>6}")
+    for samples, payload, meta in caps:
+        res = dict(zip(cols, probe_chord(samples, payload, meta, step, mode)))
+        if res['gate'][0] is None or res['best'][0] is None:
+            print(f"{meta['recorded']:<18}  captura curta demais, ignorada")
+            continue
+        cells = []
+        for name, (acc, ok, _x) in res.items():
+            if acc is None:
+                cells.append(f"{'--':>7}")
+                continue
+            cols[name].append(acc)
+            blocks[name] += bool(ok)
+            cells.append(f"{100*acc:6.1f}%")
+        if res['lead'][0] is not None:
+            sps = int(meta['fs'] / meta['baud'])
+            d = (res['lead'][2] - res['best'][2]) % sps
+            lead_err.append(min(d, sps - d))
+        if res['pair'][0] is not None:
+            periods.append(res['pair'][2])
+        print(f"{meta['recorded']:<18} {cells[0]} {cells[1]:>8} {cells[2]:>8} "
+              f"{cells[3]:>8} {res['best'][2]:6d}")
+
+    n = len(cols['gate'])
+    names = {'gate': "gate early/late, como esta hoje           ",
+             'best': "relogio travado no melhor offset          ",
+             'lead': "varredura no inicio, relogio nominal      ",
+             'pair': "duas varreduras: inicio E periodo medidos "}
+    print(f"\nmedia de bits certos ({mode})")
+    for name, label in names.items():
+        if cols[name]:
+            print(f"  {label}  {100*np.mean(cols[name]):5.1f}%   "
+                  f"{blocks[name]}/{len(cols[name])} blocos")
+    if lead_err:
+        sps = int(caps[0][2]['fs'] / caps[0][2]['baud'])
+        print(f"    erro medio da varredura contra o melhor offset: "
+              f"{np.mean(lead_err):.0f} amostras de {sps}")
+    if periods:
+        print(f"    periodo medido: {np.mean(periods):.2f} amostras por simbolo, "
+              f"desvio {np.std(periods):.2f}")
+    if n:
+        print("\nlinha 2 - linha 1 = o que uma sincronizacao melhor pode render "
+              "nesta camada.")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('directory', nargs='?', default='captures-self')
-    ap.add_argument('--mode', default='mary', choices=sorted(TONE_LAYERS),
-                    help="camada a pontuar: mary (16-FSK) ou fsk2 (2-FSK); "
-                         "uma por diretorio, o resumo supoe um conjunto so")
+    ap.add_argument('--mode', default='mary',
+                    choices=sorted(TONE_LAYERS) + list(CHORD_MODES),
+                    help="camada a pontuar: mary (16-FSK), fsk2 (2-FSK), mfsk "
+                         "(5x2 votada) ou mfsk-par (5x2 multicanal); uma por "
+                         "diretorio, o resumo supoe um conjunto so")
     ap.add_argument('--step', type=int, default=16,
                     help="passo da busca, em amostras (480 = um simbolo)")
     args = ap.parse_args()
+
+    if args.mode in CHORD_MODES:
+        par = args.mode == 'mfsk-par'
+        caps = [c for c in recording.load_all(args.directory)
+                if c[2].get('kind') == 'fec' and c[2].get('mode') == 'mfsk'
+                and bool(c[2].get('parallel')) == par]
+        if not caps:
+            sys.exit(f"[align] nenhuma captura {args.mode} com --fec em "
+                     f"{args.directory}/")
+        main_chord(caps, args.step, args.mode)
+        return
 
     caps = [c for c in recording.load_all(args.directory)
             if c[2].get('kind') == 'fec' and c[2].get('mode') == args.mode]
