@@ -457,7 +457,7 @@ def test_fsk2():
         check(f"{name} decodifica o bloco (rep 1)", got == msg,
               f"{len(llr)} valores")
 
-    # The sweeps, read the way console.py's `_sweep_llr` and align.py read
+    # The sweeps, read the way console.py's `fec_read` and align.py read
     # them: start from the first, period from the interval over the span
     # capture.py stamps.
     y = measured_tail(fsk2_fec_air(msg, sweeps=True), 0.0, 12)

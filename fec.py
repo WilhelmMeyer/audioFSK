@@ -436,7 +436,7 @@ def sweep_span(nbytes, repeat, symbol_bits, hush, sps, layer=None, npairs=None):
 
     The coded frame plus the two silences that separate it from the sweeps,
     in symbols so it divides straight into the measured interval. The live
-    receiver (`console.AudioNode._sweep_llr`) and the offline scorer
+    receiver (`console.AudioNode.fec_read`) and the offline scorer
     (`resultado.py`) both call this, because the span is exactly the number
     that once came out two ways in two files and cost a whole symbol of drift.
     `hush` is in samples, `sps` in samples per symbol. `layer` is needed only

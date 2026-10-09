@@ -134,7 +134,7 @@ def score_gate(samples, payload, meta):
 def score_sweep(samples, meta, nbytes):
     """What the sweeps get: a frozen clock at a measured period.
 
-    Mirrors `AudioNode._sweep_llr`, which is what actually runs on the link.
+    Mirrors `AudioNode.fec_read`, which is what actually runs on the link.
     The span is recomputed here from the payload length rather than read from
     the recording's metadata, precisely so a disagreement between the two
     shows up as a period out of range instead of being papered over.

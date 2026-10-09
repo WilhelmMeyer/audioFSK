@@ -177,7 +177,7 @@ def swept(meta, payload):
 def sweep_llr(samples, payload, meta):
     """The soft stream as the live receiver reads a swept frame.
 
-    Same function `console.AudioNode._sweep_llr` calls -- `modem.sweep_soft`,
+    Same function `console.AudioNode.fec_read` reaches -- `modem.sweep_soft`,
     with the span from `fec.sweep_span` -- so the number here is the one the
     link would have produced, not a reimplementation of it. The span is
     computed from the payload length as the receiver computes it, never read

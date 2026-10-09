@@ -576,7 +576,9 @@ class AudioNode:
             # absent for a reason that is not an error: the far side may not
             # have `syncsweep on` yet. The gate still decodes what the gate
             # can, and the note says which path produced the answer so a bad
-            # block is not blamed on the wrong half.
+            # block is not blamed on the wrong half. Rarer than it reads: a
+            # frame with no sweep usually clears `find_chirp`'s threshold
+            # anyway, and then the note says "uma varredura" at a false start.
             note = "varredura nao encontrada, caindo no gate"
         else:
             note = ""
@@ -1293,11 +1295,12 @@ def execute(node, cmd):
         node.set_mary_gap(frac)
         return f"mary gap = {frac} ({int(frac * 100)}% de silencio por simbolo)"
     if verb == "syncsweep":
-        # Both machines, always, and this one bites harder than the others: a
-        # receiver expecting sweeps that finds none falls back to the gate and
-        # merely loses the improvement, but a transmitter sending them to a
-        # receiver that is not looking puts 80 ms of swept tone where the
-        # first preamble symbols should be. Send it to both ends -- `b
+        # Both machines, always. A transmitter sending them to a receiver that
+        # is not looking puts 80 ms of swept tone where the first preamble
+        # symbols should be; and a receiver expecting sweeps that finds none
+        # is meant to fall back to the gate but usually does not -- a frame
+        # with no sweep still clears `find_chirp`'s threshold, so it reads
+        # from a false leading sweep. Send it to both ends -- `b
         # syncsweep on` -- and never to one.
         if not arg:
             return f"syncsweep {'on' if node.sync_sweep else 'off'}"
