@@ -59,3 +59,5 @@ contagem de simbolos.
 ## Leitura (2026-10-08)
 
 IFK pareado, 16-FSK com varreduras, ~2 m, 4 pares em ordem alternada. Bits com IFK / sem: 84,35/77,60 (+6,8), 82,93/80,60 (+2,3), 81,43/81,52 (-0,1), 81,52/81,10 (+0,4). IFK a favor em 3 de 4, media +2,4 pontos; nenhum bloco fecha em nenhum dos dois. O canal estava pior que nas gravacoes de 2 m de H04-4MODOS-200CM uma hora antes (pico 0,09-0,11 contra 0,14-0,15; 16-FSK sem IFK 77,6-81,5% contra 87-90%): posicao ou sala mudou, verificar com o usuario.
+
+Verificado depois com a sessao do enlace/saudacao: nenhum ajuste de entrada no Linux nem de nada no Windows foi mexido, e nenhum som dela caiu entre 22:26:48 e 22:28:21 (toques avulsos em ~22:21:20 e a partir de 22:29:12). O usuario estava presente na sala durante este teste e nao durante a curva H04: a queda de ~3 dB e atribuida a isso. IFK a 2 m fica inconclusivo quanto a blocos.
