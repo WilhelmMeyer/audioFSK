@@ -12,6 +12,18 @@ crosses the air, which is still the thing under test.
 
 Reception ends a packet the moment its CRC checks out, so a clean packet costs
 only its own air time and a bad one costs the timeout.
+
+With `--fec`, every layer the console can code on is available here too --
+`--mode mary|fsk2|mfsk`, `--parallel` for the 5x2 multichannel layer -- and
+`--sync-chirp` / `--ifk` turn on the two wire changes the console has, on
+*both* ends: they are sent to the far side at setup and refused if it does
+not confirm. Off by default, so an old invocation sends `syncsweep off` and
+`ifk off` exactly as before. A packet is read by `modem.read_coded_frame`,
+the function `console.py`'s `fecrx` calls, so the two receivers cannot take
+different branches for the same frame.
+
+    python recvfile.py --port COM4 --remote-file testcard.bmp --out got.bmp \
+        --fec --mode mfsk --parallel --sync-chirp --repeat 2
 """
 
 import argparse
@@ -25,12 +37,14 @@ import sounddevice as sd
 import aviso
 import fec
 import xfer
-from modem import MFSKDemodulator, MaryDemodulator, MARY_BITS
+from modem import (MFSKDemodulator, MaryDemodulator, MFSK_PAIRS, SYNC_CHIRP,
+                   TONE_LAYERS, chirp, read_coded_frame, tone_layer)
 from serial_link import Control, pack, unpack
 
 FS = 48000
 BLOCK = 2048
 MFSK_BAUD = 100
+SYNC_HUSH = 0.03      # the silence console.py puts around each sweep, seconds
 
 
 class Remote:
@@ -73,8 +87,18 @@ def main():
                    help="ganho de saida da outra maquina (0.5 mede melhor em mary)")
     p.add_argument("--fec", action="store_true",
                    help="pacotes com correcao de erro em vez do fluxo 8N1")
-    p.add_argument("--mode", choices=("mfsk", "mary"), default="mfsk",
-                   help="camada fisica; mary = 16 tons, 4 bits por simbolo")
+    p.add_argument("--mode", choices=("mfsk", "mary", "fsk2"), default="mfsk",
+                   help="camada fisica; mary = 16 tons, 4 bits por simbolo; "
+                        "fsk2 = 2 tons com a maquinaria do mary (so com --fec)")
+    p.add_argument("--parallel", action="store_true",
+                   help="mfsk com --fec: cada par de tons leva o seu bit "
+                        "(5x2 multicanal) em vez de votar")
+    p.add_argument("--sync-chirp", action="store_true",
+                   help="com --fec: varreduras de sincronismo nas duas pontas "
+                        "de cada pacote; liga 'syncsweep' do outro lado e le "
+                        "com o relogio que elas medem")
+    p.add_argument("--ifk", action="store_true",
+                   help="mary: tom de repeticao (IFK); liga 'ifk' do outro lado")
     p.add_argument("--repeat", type=int, default=1,
                    help="repeticoes de cada bit codificado; tem de bater com o "
                         "que a outra maquina usa, ou nada decodifica")
@@ -83,6 +107,17 @@ def main():
     p.add_argument("--retries", type=int, default=4, help="tentativas por pacote")
     p.add_argument("--margin", type=float, default=3.0, help="segundos extras de escuta por pacote")
     args = p.parse_args()
+
+    if args.parallel and (args.mode != "mfsk" or not args.fec):
+        p.error("--parallel so com --mode mfsk --fec")
+    if args.sync_chirp and not args.fec:
+        p.error("--sync-chirp so com --fec: as varreduras cercam um quadro fec")
+    if args.ifk and args.mode != "mary":
+        p.error("--ifk so em --mode mary")
+    if args.mode == "fsk2" and not args.fec:
+        p.error("fsk2 so com --fec (o fluxo 8N1 do console nao tem fsk2 aqui)")
+    # The layer a coded packet uses, named as `console.AudioNode.fec_layer`.
+    layer = ("mfsk-par" if args.parallel else "mfsk") if args.mode == "mfsk" else args.mode
 
     rem = Remote(args.port, args.sync_baud)
     if rem.cmd("ping") != "pong":
@@ -97,20 +132,40 @@ def main():
     setups = [f"mode {args.mode}", "spk on", f"gain {args.gain}", "mic off"]
     if args.fec:
         setups.append(f"fecrep {args.repeat}")
+        # Same hazard as fecrep: the far side keeps whatever `fecpar` the last
+        # session left, and a parallel frame read as a voted one (or the
+        # reverse) is garbage that fails the CRC.
+        setups.append(f"fecpar {'on' if args.parallel else 'off'}")
         # And for the same reason, off rather than unmentioned. `fecpkt` goes
         # through the same `_fec_frame` as `fecsend`, so a far side left with
         # `syncsweep on` would put 80 ms of swept tone at each end of every
         # packet -- which this receiver does not look for, and which lands
         # where the first preamble symbols should be. Sending it explicitly
         # costs one serial round trip at setup and removes a failure that
-        # would read as a channel that got worse.
-        setups.append("syncsweep off")
+        # would read as a channel that got worse. With --sync-chirp it is
+        # sent on, and this receiver then looks for them.
+        setups.append(f"syncsweep {'on' if args.sync_chirp else 'off'}")
     # Same for IFK, and outside the FEC branch: it changes which tone carries
     # every M-ary symbol, coded or not, and this receiver's demodulator is
-    # built without it.
-    setups.append("ifk off")
+    # built to match -- with it only under --ifk.
+    setups.append(f"ifk {'on' if args.ifk else 'off'}")
     for setup in setups:
-        print(f"  remoto: {setup:16s} -> {rem.cmd(setup)}")
+        reply = rem.cmd(setup)
+        print(f"  remoto: {setup:16s} -> {reply}")
+        # The two wire changes are checked, not assumed, as capture.py checks
+        # them: an agent without the pull answers "comando desconhecido" to
+        # ifk, and "so em mary" to syncsweep while sending no sweep in mfsk.
+        # Either way every packet would fail and read as a bad channel.
+        if setup == "ifk on" and not (reply or "").startswith("ifk LIGADO"):
+            print(f"o outro lado nao ligou o ifk: {reply!r} -- pull + restart "
+                  "nele primeiro", file=sys.stderr)
+            return 1
+        if setup == "syncsweep on" and not (
+                (reply or "").startswith("syncsweep LIGADO")
+                and (args.mode in TONE_LAYERS or "mfsk" in reply)):
+            print(f"o outro lado nao ligou as varreduras em {layer}: {reply!r} "
+                  "-- pull + restart nele primeiro", file=sys.stderr)
+            return 1
 
     info = rem.cmd(f"fileinfo {args.remote_file}")
     if not info or "size=" not in info:
@@ -140,22 +195,34 @@ def main():
 
     packet_bytes = packet_len(0)
 
+    npairs = len(MFSK_PAIRS)
+    symbol_bits = TONE_LAYERS[args.mode][1] if args.mode in TONE_LAYERS else None
     if args.fec:
         # A coded block is one sync word, the rate-1/3 code repeated, plus the
         # preamble the receiver needs to lock its symbol clock. That preamble
         # is paid once per packet, which is why a bigger packet is cheaper per
-        # byte -- 28% of the air time at 32 bytes, 19% at 64.
-        bits_per_symbol = MARY_BITS if args.mode == "mary" else 1
-        coded = len(fec.frame(b"x" * packet_bytes, repeat=args.repeat))
-        per_packet = (120 + coded / bits_per_symbol + 6) / MFSK_BAUD
+        # byte -- 28% of the air time at 32 bytes, 19% at 64. Counted by the
+        # function the transmitter builds the frame from, sweeps included.
+        per_packet = fec.layer_frame_symbols(layer, packet_bytes, args.repeat,
+                                             symbol_bits=symbol_bits,
+                                             npairs=npairs) / MFSK_BAUD
+        if args.sync_chirp:
+            per_packet += 2 * (SYNC_CHIRP[2] + SYNC_HUSH)
     else:
         per_packet = xfer.air_seconds(packet_bytes, MFSK_BAUD)
     print(f"~{per_packet:.1f}s de audio por pacote, ~{per_packet * npackets / 60:.1f} min no melhor caso\n")
 
-    if args.mode == "mary":
-        demod = MaryDemodulator(fs=FS, baud=MFSK_BAUD)
-    else:
-        demod = MFSKDemodulator(fs=FS, baud=MFSK_BAUD)
+    def make_demod(**kw):
+        """A fresh receiver for this layer; `kw` is the sweeps' frozen clock."""
+        if args.mode == "mary":
+            return MaryDemodulator(fs=FS, baud=MFSK_BAUD, ifk=args.ifk, **kw)
+        if args.mode == "fsk2":
+            return MaryDemodulator(fs=FS, baud=MFSK_BAUD, **tone_layer("fsk2"),
+                                   **kw)
+        return MFSKDemodulator(fs=FS, baud=MFSK_BAUD, parallel=args.parallel,
+                               **kw)
+
+    demod = make_demod()
     chunks = {}
     started = time.time()
     retries_used = 0
@@ -240,12 +307,17 @@ def main():
 
                 if args.fec:
                     audio = np.concatenate(soft) if soft else np.zeros(0)
-                    llr = demod.demodulate_soft(audio)
-                    start = fec.find_sync(llr)
-                    if start is not None:
-                        block = fec.decode(llr[start:], packet_len(seq),
-                                           repeat=args.repeat)
+                    block, llr, how, period = read_coded_frame(
+                        audio, make_demod, packet_len(seq), args.repeat, layer,
+                        int(SYNC_HUSH * FS), FS / MFSK_BAUD, args.sync_chirp,
+                        symbol_bits=symbol_bits, npairs=npairs, block=BLOCK,
+                        template=chirp(FS, *SYNC_CHIRP))
+                    if block is not None:
                         got = xfer.parse(block, want_seq=seq)
+                    if args.sync_chirp:
+                        print("      " + {"pair": f"duas varreduras, {period or 0:.2f} amostras/simbolo",
+                                          "lead": "uma varredura, relogio nominal"}
+                              .get(how, "varredura nao encontrada, caindo no gate"))
                     buf = llr
 
                 if got:
