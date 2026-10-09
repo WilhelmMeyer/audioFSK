@@ -31,3 +31,37 @@ Limiar por marca (chamada 0,17, quadro 0,21); abordagem `16-FSK lento` (20 baud,
 - **Tráfego simultâneo** na sessão 3 (o usuário ouviu as duas pontas tocando juntas): marcas "ilegíveis" 2 s depois de quadros bons e uma repetição por prazo do lado A. Cruzar as duas gravações para ver quem tocou quando.
 - Depois que A parou, B gastou CPU tentando ~14 descritores em cada marca falsa e o relógio dele ficou 320 s atrás do tempo real.
 - Um OLA 2-FSK foi declarado ilegível antes de qualquer tentativa (`tentou=[]`), pelo `_calou`.
+
+## Como refazer (comandos exatos da sessão 3)
+
+Windows (B), por SSH a partir do Linux, com o `enlace.py`/`saudacao.py` deste commit copiados para `~/enlace_teste` (depois de um `pull` no Windows dá para rodar direto do repositório):
+
+```bash
+scp enlace.py saudacao.py Home@100.114.48.25:enlace_teste/
+ssh Home@100.114.48.25 "cd enlace_teste && set PYTHONPATH=C:\Users\Home\WorkSpace\audioFSK&& set \"ENLACE_DEPURA=1\" && ..\Workspace\audioFSK\venv\Scripts\python.exe -u saudacao.py --papel ouvinte --enviar \"oi do B: recebi o chamado e respondo pelo ar\" --receber-em got-B.bin --duracao 640" > enlace-B3.log 2>&1
+```
+
+Linux (A), depois que B imprimir `[saudacao] papel ouvinte`:
+
+```bash
+ENLACE_DEPURA=1 ./venv/bin/python -u saudacao.py --papel chamador --enviar "<207 bytes>" --receber-em got-A.bin --duracao 615 > enlace-A3.log 2>&1
+```
+
+Microfone do Windows (endpoint padrão de captura), ler e ajustar:
+
+```bash
+scp resultados/H06-ENLACE-AR/scripts/micvol.ps1 Home@100.114.48.25:micvol.ps1
+ssh Home@100.114.48.25 "powershell -NoProfile -ExecutionPolicy Bypass -File micvol.ps1"            # lê
+ssh Home@100.114.48.25 "powershell -NoProfile -ExecutionPolicy Bypass -File micvol.ps1 -set -14"   # dB
+```
+
+Teste avulso (Linux toca, Windows grava 40 s e devolve):
+
+```bash
+scp resultados/H06-ENLACE-AR/scripts/grava_tmp.py Home@100.114.48.25:grava_tmp.py
+ssh Home@100.114.48.25 "Workspace\audioFSK\venv\Scripts\python.exe grava_tmp.py 40 rec.npy" &
+./venv/bin/python resultados/H06-ENLACE-AR/scripts/toca_lento.py tocado_lento.npy
+scp Home@100.114.48.25:rec.npy . && ./venv/bin/python resultados/H06-ENLACE-AR/scripts/le_lento.py rec.npy
+```
+
+Os scripts de `scripts/` foram escritos no scratchpad e têm caminhos absolutos dele dentro (`/tmp/claude-1000/...`); ajustar antes de reusar. Simulador do protocolo: `./venv/bin/python simula_enlace.py` (5 cenários, SUCCESS!).
