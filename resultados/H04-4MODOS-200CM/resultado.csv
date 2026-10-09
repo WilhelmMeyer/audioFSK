@@ -1,0 +1,2 @@
+stem,modo,baud,gain,fec_repeat,bytes,acerto_bits,bloco_ok,pico_rx,rms_rx
+20261008-215041-h04-multicanal-r4,mfsk,100,0.5,1,48,69.36,0,0.0569,0.0095
