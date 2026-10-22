@@ -431,26 +431,25 @@ details.mais > div { display: grid; gap: 12px; }
         <legend class="nome">Papel desta estação</legend>
         <div class="chave" role="radiogroup">
           <input type="radio" name="papel" id="p-chamador" value="chamador" checked>
-          <label for="p-chamador" class="l-chamador">Chamador<small>toca a chamada</small></label>
+          <label for="p-chamador" class="l-chamador" title="toca a chamada">Chamador</label>
           <input type="radio" name="papel" id="p-ouvinte" value="ouvinte">
-          <label for="p-ouvinte" class="l-ouvinte">Ouvinte<small>espera e responde</small></label>
+          <label for="p-ouvinte" class="l-ouvinte" title="espera e responde">Ouvinte</label>
         </div>
       </fieldset>
 
       <div class="campo">
         <label for="texto">Texto a enviar</label>
-        <textarea id="texto" name="texto" placeholder="Mensagem que vai pelo ar quando o canal abrir"></textarea>
-        <small id="conta-texto">0 bytes</small>
+        <textarea id="texto" name="texto" placeholder="mensagem"></textarea>
+        <small id="conta-texto">0 B</small>
       </div>
 
       <div class="campo">
         <label for="arquivo">Arquivo a enviar</label>
         <input type="file" id="arquivo" name="arquivo">
-        <small>Vai depois do texto, no mesmo fluxo de bytes.</small>
       </div>
 
       <div class="campo">
-        <label for="modo">Modo dos dados</label>
+        <label for="modo" title="as duas pontas precisam do mesmo modo">Modo dos dados</label>
         <select id="modo" name="modo_dados">
           <option value="auto">auto — escada de degraus</option>
           <option value="16fsk">16-FSK</option>
@@ -458,7 +457,6 @@ details.mais > div { display: grid; gap: 12px; }
           <option value="votada">5×2-FSK votada</option>
           <option value="multicanal">5×2-FSK multicanal</option>
         </select>
-        <small>As duas pontas precisam do mesmo modo.</small>
       </div>
 
       <details class="mais">
@@ -501,13 +499,12 @@ details.mais > div { display: grid; gap: 12px; }
 
   <section class="radio chapa" aria-labelledby="h-dial">
     <div class="cab">
-      <h2 class="rotulo" id="h-dial">Mostrador <small>400–4600 Hz · grade de 162,5 Hz</small><span class="piloto reg" id="p-reg" title="Registrador parado: nenhuma sessão gravando o microfone agora."><i class="lampada" id="l-reg"></i>registrador</span></h2>
+      <h2 class="rotulo" id="h-dial">Mostrador<span class="piloto reg" id="p-reg" title="Registrador parado: nenhuma sessão gravando o microfone agora."><i class="lampada" id="l-reg"></i>registrador</span></h2>
       <div class="legenda" aria-hidden="true">
-        <span><i style="background:var(--envio)"></i>contrato do que envio</span>
-        <span><i style="background:var(--chega)"></i>contrato do que me chega</span>
-        <span><i style="background:var(--chega);width:5px;height:12px"></i>margem por tom na sondagem (0–45 dB; vermelho &lt; 12)</span>
-        <span><i style="background:var(--ambar)"></i>espectro agora</span>
-        <span><i style="background:var(--alarme);width:3px"></i>tom dominante</span>
+        <span><i style="background:var(--envio)"></i>envio</span>
+        <span><i style="background:var(--chega)"></i>chega</span>
+        <span title="margem por tom na sondagem, 0–45 dB; vermelho abaixo de 12"><i style="background:var(--chega);width:5px;height:12px"></i>margem</span>
+        <span><i style="background:var(--ambar)"></i>espectro</span>
       </div>
     </div>
     <div class="moldura">
@@ -546,7 +543,7 @@ details.mais > div { display: grid; gap: 12px; }
           </div>
         </div>
         <canvas id="forma" aria-label="Forma de onda dos últimos 200 ms"></canvas>
-        <div class="forma-esc" id="forma-esc">200 ms</div>
+        <div class="forma-esc" id="forma-esc" title="200 ms; escala em fração do fundo de escala"></div>
       </div>
     </div>
 
@@ -576,23 +573,19 @@ details.mais > div { display: grid; gap: 12px; }
           <div class="contador">última marca há <output id="c-marca">—</output></div>
           <div class="contador">quadros ilegíveis <output id="c-ileg">—</output></div>
         </div>
-        <div class="contratos">
-          <div class="contrato envio"><span>envio</span><div id="k-tx">sem contrato</div></div>
-          <div class="contrato chega"><span>chega</span><div id="k-rx">sem contrato</div></div>
-        </div>
       </div>
     </div>
   </section>
 
   <section class="registro" aria-label="Registro">
     <div class="chapa">
-      <h2 class="rotulo">Diário <small id="d-fonte"></small></h2>
-      <div class="fita" id="fita" tabindex="0" aria-live="off"><div class="vazia">O diário da sessão aparece aqui, linha a linha, como o painel o publica.</div></div>
-      <div class="fita-pe"><span id="d-total">0 linhas</span><label><input type="checkbox" id="segue" checked style="accent-color: var(--envio)"> acompanhar o fim</label></div>
+      <h2 class="rotulo">Diário<i class="lampada" id="d-fonte" title="" style="margin-left:auto;align-self:center"></i></h2>
+      <div class="fita" id="fita" tabindex="0" aria-live="off"></div>
+      <div class="fita-pe"><span id="d-total"></span><label><input type="checkbox" id="segue" checked style="accent-color: var(--envio)"> acompanhar o fim</label></div>
     </div>
     <div class="chapa chegou">
       <h2 class="rotulo">O que chegou</h2>
-      <p class="info" id="r-info">A sessão escreve o que recebeu quando conclui.</p>
+      <p class="info" id="r-info"></p>
       <pre id="r-texto"></pre>
     </div>
   </section>
@@ -713,13 +706,14 @@ function desenhaEscala() {
 
 function faixa(g, c, y, cor, corClara, rotulo) {
   if (!c || c.f0 == null) {
-    const t = el('text', {x: geo.w / 2, y: y + 15, 'text-anchor': 'middle', fill: '#5b4736', style: 'font: italic 400 12.5px var(--f-ui)'}, g);
+    const t = el('text', {x: geo.w / 2, y: y + 15, 'text-anchor': 'middle', opacity: .7, fill: '#5b4736', style: 'font: italic 400 12.5px var(--f-ui)'}, g);
     t.textContent = rotulo;
     return;
   }
   const w = geo.w, passo = fx(562.5 + 162.5, w) - fx(562.5, w);
   const x0 = fx(c.f0, w) - passo / 2, x1 = fx(c.f1, w) + passo / 2;
-  el('rect', {x: x0, y: y + 3, width: x1 - x0, height: 16, rx: 3, fill: corClara, opacity: .55}, g);
+  el('rect', {x: x0, y: y + 3, width: x1 - x0, height: 16, rx: 3, fill: corClara, opacity: .55}, g)
+    .appendChild(Object.assign(document.createElementNS(NS, 'title'), {textContent: c.texto}));
   for (const f of c.tons) {
     const x = fx(f, w);
     el('rect', {x: x - passo * .32, y: y + 5, width: passo * .64, height: 12, rx: 2, fill: cor}, g);
@@ -743,8 +737,8 @@ function pintaContratos() {
   g.innerHTML = ''; gm.innerHTML = '';
   const e = st.estado || {}, d = st.lido || {};
   const tx = parseContrato(e.contrato_tx || d.tx), rx = parseContrato(e.contrato_rx || d.rx);
-  faixa(g, tx, geo.yTx, '#a6532f', '#d39a78', 'sem contrato de envio');
-  faixa(g, rx, geo.yRx, '#4d6b8c', '#93abc4', 'sem contrato de recepção');
+  faixa(g, tx, geo.yTx, '#a6532f', '#d39a78', 'envio');
+  faixa(g, rx, geo.yRx, '#4d6b8c', '#93abc4', 'chega');
   // margens da sondagem: o que ESTA estação mediu da outra, logo pertencem ao sentido que chega
   if (d.margens && d.margens.length === GRADE.length) {
     const w = geo.w;
@@ -868,7 +862,7 @@ function poeForma(forma, pico) {
     const x = i / n * W, y0 = H / 2 - mx / esc * H / 2, y1 = H / 2 - mn / esc * H / 2;
     fc.fillRect(x, y0, Math.max(1, W / n), Math.max(1, y1 - y0));
   }
-  $('forma-esc').textContent = `200 ms · escala ±${esc >= 1 ? '1' : '1/' + Math.round(1 / esc)} do fundo de escala`;
+  $('forma-esc').textContent = `±${esc >= 1 ? '1' : '1/' + Math.round(1 / esc)}`;
 }
 
 /* ---------- fases ---------- */
@@ -896,13 +890,13 @@ function pintaFases() {
     concluida: !!(e.concluido || d.concluida),
   };
   const det = {
-    chamada: d.chamada || (d.latencia ? `latência medida no eco ${d.latencia}` : ''),
-    saudacao: d.saudacao || '',
-    sondagem: d.sondagem || '',
-    contrato: d.modo ? `modo de dados ${d.modo} nas duas pontas` : '',
-    aberto: (e.aberto || d.aberto) ? 'contrato confirmado pelos dois lados' : '',
-    dados: e.enviados_total != null && (e.aberto || d.aberto) ? `${e.enviados_total - e.a_enviar} de ${e.enviados_total} bytes saíram · ${e.recebidos} chegaram · ${d.dados} quadro(s) de dados ouvidos` : '',
-    concluida: d.concluida || (e.fim ? `fim: ${e.fim}` : ''),
+    chamada: d.chamada ? d.chamada.replace(/^.* correlação /, 'correlação ') : '',
+    saudacao: d.saudacao ? d.saudacao.replace(/^.* lido em /, '') : '',
+    sondagem: '',
+    contrato: d.modo || '',
+    aberto: '',
+    dados: '',
+    concluida: d.concluida ? d.concluida.replace(/, .*/, '') : (e.fim && !(e.concluido || d.concluida) ? e.fim : ''),
   };
   let agora = -1;
   if (!terminada && ee) {
@@ -926,9 +920,9 @@ function pintaFases() {
   if (d.recomecos) {
     const li = document.createElement('li'); li.className = 'fase';
     const lamp = document.createElement('i'); lamp.className = 'lampada alarme';
-    const b = document.createElement('b'); b.textContent = `${d.recomecos} recomeço(s)`;
-    const p = document.createElement('p'); p.textContent = 'a estação voltou ao começo; as fases acima contam só a partir do último';
-    li.append(lamp, b, p); ol.appendChild(li);
+    const b = document.createElement('b'); b.textContent = d.recomecos === 1 ? '1 recomeço' : `${d.recomecos} recomeços`;
+    li.title = 'a estação voltou ao começo; as fases acima contam só a partir do último';
+    li.append(lamp, b); ol.appendChild(li);
   }
 }
 
@@ -961,18 +955,12 @@ function pintaEstado() {
   const d = st.lido || {};
   setOut('c-ileg', String(d.ileg || 0), d.ileg > 0);
   const tx = e && e.contrato_tx || d.tx, rx = e && e.contrato_rx || d.rx;
-  $('k-tx').textContent = tx || 'sem contrato';
-  $('k-rx').textContent = rx || 'sem contrato';
 
   // botões
   const lancada = st.sessao && st.sessao.rodando;
   const livre = !vivo && !lancada;
   $('iniciar').disabled = !livre;
-  const m = $('msg');
-  if (!m.classList.contains('erro')) {
-    if (vivo) m.textContent = 'Há uma sessão no ar nesta máquina; pare-a para iniciar outra.';
-    else if (m.textContent.startsWith('Há uma sessão')) m.textContent = '';
-  }
+  $('iniciar').title = vivo ? 'já há uma sessão no ar nesta máquina' : '';
   for (const x of document.querySelectorAll('#form input, #form textarea, #form select')) x.disabled = !livre;
   $('b-pausa').disabled = !vivo;
   $('b-pausa').textContent = e && e.pausado ? 'Retomar' : 'Pausar';
@@ -1015,7 +1003,8 @@ async function cicloDiario() {
   if (!st.stem) return;
   try {
     const r = await pega(`/api/diario?desde=${st.diario.length}`);
-    $('d-fonte').textContent = r.fonte === 'painel' ? 'ao vivo, pelo painel' : r.fonte === 'disco' ? 'do disco' : '';
+    $('d-fonte').className = 'lampada' + (r.fonte === 'painel' ? ' acesa' : '');
+    $('d-fonte').title = r.fonte === 'painel' ? 'ao vivo, pelo painel' : 'lido do disco';
     if (r.total < st.diario.length) { st.diario = []; $('fita').innerHTML = ''; return; }
     if (!r.linhas.length) return;
     const fita = $('fita');
@@ -1076,11 +1065,12 @@ async function cicloRecebido() {
     const r = await pega('/api/recebido');
     const e = st.estado;
     if (!r.existe) {
-      $('r-info').textContent = e && e.recebidos ? `${e.recebidos} bytes chegaram até agora; a sessão escreve o conteúdo quando conclui.` :
-        'A sessão escreve o que recebeu quando conclui.';
+      $('r-info').textContent = e && e.recebidos ? `${e.recebidos} B` : '';
+      $('r-info').title = 'o conteúdo aparece quando a sessão conclui';
       return;
     }
-    $('r-info').textContent = `${r.bytes} bytes em ${r.nome}` + (r.legivel ? '' : ' · não é UTF-8, mostrado em hexadecimal');
+    $('r-info').textContent = `${r.bytes} B` + (r.legivel ? '' : ' · hex');
+    $('r-info').title = r.nome;
     $('r-texto').textContent = r.legivel ? r.texto : r.hex.replace(/(..)/g, '$1 ').replace(/((?:.. ){16})/g, '$1\n');
   } catch (err) {}
 }
@@ -1095,7 +1085,7 @@ function pintaPapel() {
 }
 for (const r of document.querySelectorAll('input[name=papel]')) r.addEventListener('change', pintaPapel);
 $('texto').addEventListener('input', () => {
-  $('conta-texto').textContent = `${new TextEncoder().encode($('texto').value).length} bytes`;
+  $('conta-texto').textContent = `${new TextEncoder().encode($('texto').value).length} B`;
 });
 function msg(t, erro) { const m = $('msg'); m.textContent = t; m.classList.toggle('erro', !!erro); }
 function lerArquivo(f) {
@@ -1116,10 +1106,10 @@ $('form').addEventListener('submit', async (ev) => {
     p.arquivo_nome = f.name; p.arquivo_b64 = await lerArquivo(f);
   }
   $('iniciar').disabled = true;
-  msg('Lançando saudacao.py…');
+  msg('');
   try {
     const r = await pega('/api/inicia', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(p)});
-    msg(`Sessão lançada, pid ${r.pid}. O painel responde em alguns segundos.`);
+    msg('');
     st.audioProx = -1;
   } catch (err) {
     msg(err.message, true);
