@@ -977,7 +977,11 @@ class Estacao:
                 self.turno_fim = None              # outro segmento do mesmo turno
             p = self.pendente
             if p['tipo'] == 'quadro':
-                if not self._tenta_quadro(p, final=self.agora >= p['prazo']):
+                # O prazo vale sobre o áudio já varrido, não sobre o presente: a
+                # varredura anda ~0,9 s atrás, e um prazo contado do presente
+                # lia pela abertura antes de a marca de fechamento -- que cai
+                # justo no fim do candidato mais longo -- ter sido procurada.
+                if not self._tenta_quadro(p, final=self.ouvido.varrido >= p['prazo']):
                     return
             else:
                 if self.agora < p['prazo']:
@@ -1036,28 +1040,42 @@ class Estacao:
         """Lê o quadro pendente em cada candidato: pela marca de fechamento
         quando ela chegou, e só pela abertura (relógio nominal) se `nominal`.
         Cada (candidato, fechamento) é tentado uma vez. True se um passou no
-        CRC; nesse caso o segmento já foi registrado."""
+        CRC; nesse caso o segmento já foi registrado.
+
+        Primeiro todos os que têm fechamento, depois os nominais, do mais
+        longo ao mais curto. A ordem importa porque um quadro pode conter
+        outro mais curto que passa no CRC: no 5x2 multicanal, `pair_map` põe
+        a cópia 0 inteira nos primeiros símbolos, então a cabeça de um rep4 é
+        um rep1 válido. Lido como rep1, o quadro "acaba" 6 s antes do fim de
+        verdade e a resposta sai por cima de quem ainda está tocando --
+        observado no simulador, a troca virou um laço de repetições e a sessão
+        recomeçou, entregando um pedaço duas vezes. A marca de fechamento é a
+        prova do comprimento; sem ela, errar para o mais longo só atrasa a
+        resposta, errar para o mais curto colide."""
         p1 = p['pos']
-        for d in self._candidatos():
+        cands = self._candidatos()
+        tentativas = []
+        for d in cands:
             p2 = self._fechamento(p1, d.amostras)
-            tentativas = []
             if p2 is not None and self.agora >= p2 + LQ + SPS:
-                tentativas.append(p2)
-            if nominal and self.agora >= p1 + d.amostras + SPS:
-                tentativas.append(None)
-            for q2 in tentativas:
-                if (d, q2) in p['tentou']:
-                    continue
-                p['tentou'].add((d, q2))
-                fim = p1 + int(d.amostras * 1.006) + SPS
-                audio = self.ouvido.trecho(p1, fim)
-                corpo, _ = le_quadro(audio, 0, d, None if q2 is None else q2 - p1)
-                if corpo is not None:
-                    if q2 is not None:
-                        self._usadas.add(q2)
-                    self._segmento(('quadro', corpo, d, None),
-                                   (q2 + LQ) if q2 is not None else p1 + d.amostras)
-                    return True
+                tentativas.append((d, p2))
+        if nominal:
+            for d in sorted(cands, key=lambda d: -d.amostras):
+                if self.agora >= p1 + d.amostras + SPS:
+                    tentativas.append((d, None))
+        for d, q2 in tentativas:
+            if (d, q2) in p['tentou']:
+                continue
+            p['tentou'].add((d, q2))
+            fim = p1 + int(d.amostras * 1.006) + SPS
+            audio = self.ouvido.trecho(p1, fim)
+            corpo, _ = le_quadro(audio, 0, d, None if q2 is None else q2 - p1)
+            if corpo is not None:
+                if q2 is not None:
+                    self._usadas.add(q2)
+                self._segmento(('quadro', corpo, d, None),
+                               (q2 + LQ) if q2 is not None else p1 + d.amostras)
+                return True
         return False
 
     def _calou(self, p1):

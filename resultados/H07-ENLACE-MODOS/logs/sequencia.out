@@ -1,0 +1,9 @@
+=== 16:35:19 sessão 16fsk
+    16fsk: B->A 44/44 idênticos; A->B 207/207 idênticos; tudo enviado e confirmado em 113.5s; 247 s de sessão
+=== 16:39:36 sessão 2fsk
+    2fsk: B->A 44/44 idênticos; A->B 207/207 idênticos; tudo enviado e confirmado em 251.5s; 425 s de sessão
+=== 16:46:51 sessão votada
+    votada: B->A 44/44 idênticos; A->B 207/207 idênticos; tudo enviado e confirmado em 190.5s; 315 s de sessão
+=== 16:52:16 sessão multicanal
+    multicanal: B->A 44/44 idênticos; A->B 124/207; A não concluiu; 1008 s de sessão
+=== 17:09:14 sequência terminada

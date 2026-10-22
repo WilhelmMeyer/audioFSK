@@ -1,0 +1,162 @@
+    0.00 [ouvinte    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+    0.00 [ouvinte    0.00s] modo de dados: multicanal (degraus: 5x2 multicanal rep1, 5x2 multicanal rep2, 5x2 multicanal rep4); a outra ponta precisa do mesmo
+    0.00 [saudacao] papel ouvinte, entrada 'Microfone (Realtek(R) Audio)', saída 'Speakers/Headphones (Realtek(R)', latência 0.090s, 44 bytes a enviar
+    0.00 [saudacao] pid 23580, painel em 127.0.0.1:7110, gravando em sessoes-enlace\20261022-165221-enlace-ouvinte.*
+    9.01 [ouvinte    8.92s] chamada ouvida (correlação 0.50)
+   10.80 [ouvinte   10.41s] latência de saída medida no eco: +0.188s além da declarada
+   19.50 [ouvinte   19.03s]   ilegível em 9.93s: final=True, tentou=[('fsk2 1700/2350 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('16-FSK lento rep2 g0.30', None)]
+   20.42 [ouvinte   20.05s] turno: -, 1 ilegível(is)
+   37.50 [ouvinte   36.99s]   ilegível em 27.90s: final=True, tentou=[('fsk2 1700/2350 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('16-FSK lento rep2 g0.30', None)]
+   38.38 [ouvinte   38.02s] turno: -, 1 ilegível(is)
+   38.38 [ouvinte   38.02s] nada mais em 'aguarda_ola'; voltando a escutar
+   43.33 [ouvinte   42.92s] turno: ['OLA']
+   43.33 [ouvinte   42.92s] OLA lido em 16-FSK rep2 g0.30; saudação concluída, respondendo OLA_OK
+   60.83 [ouvinte   60.07s] turno: ['SONDA']
+   60.83 [ouvinte   60.07s] sondagem lida: bits errados g0.12:2%*, g0.2:3%*, g0.3:3%*, g0.45:4%*; margens [23, 44, 26, 19, 19, 28, 33, 17, 20, 29, 29, 22, 29, 31, 26, 37, 36, 39, 31, 34, 36, 41, 42, 44, 40] dB
+   60.83 [ouvinte   60.07s] contrato para o que me chega: 1375-4462 Hz, sombras [1700, 1862, 2350, 2838], par 1538/2512, ganho 0.12, 16-FSK rep1
+   60.83 [ouvinte   60.07s] AVISO: venceu o menor ganho da escada; se o volume do outro lado estiver alto, baixá-lo e saudar de novo
+   81.95 [ouvinte   80.94s]   ilegível em 77.65s: final=False, tentou=[('16-FSK rep2 g0.30', None), ('contrato 5x2 multicanal rep1 12B', None), ('contrato 5x2 multicanal rep2 12B', None)]
+   82.89 [ouvinte   81.96s] turno: -, 1 ilegível(is)
+   82.89 [ouvinte   81.96s] nada legível em 'aguarda_contrato'; esperando a repetição (1/3)
+   94.06 [ouvinte   92.80s]   ilegível em 83.46s: final=True, tentou=[('fsk2 1700/2350 g0.30', None), ('contrato 5x2 multicanal rep2 40B', None), ('contrato 5x2 multicanal rep1 12B', None), ('contrato 5x2 multicanal rep1 40B', None), ('fsk2 1700/2350 g0.12', None), ('contrato 5x2 multicanal rep4 12B', None), ('contrato 5x2 multicanal rep2 12B', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('contrato 5x2 multicanal rep4 40B', None), ('16-FSK lento rep2 g0.30', None)]
+   94.75 [ouvinte   93.82s] turno: -, 1 ilegível(is)
+  100.39 [ouvinte   99.41s] turno: ['DADOS']
+  104.40 [ouvinte  103.47s] nada legível em 'aguarda_contrato'; esperando a repetição (2/3)
+  108.89 [ouvinte  107.90s] turno: ['DADOS']
+  124.41 [ouvinte  123.43s] turno: ['DADOS']
+  125.90 [ouvinte  124.97s] nada legível em 'aguarda_contrato'; esperando a repetição (3/3)
+  131.88 [ouvinte  130.90s] turno: ['DADOS']
+  139.39 [ouvinte  138.41s] turno: ['DADOS']
+  147.41 [ouvinte  146.43s] turno: ['DADOS']
+  147.42 [ouvinte  146.47s] nada mais em 'aguarda_contrato'; voltando a escutar
+  155.97 [ouvinte  154.92s]   ilegível em 150.70s: final=False, tentou=[('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.30', None), ('fsk2 1700/2350 g0.12', None)]
+  156.87 [ouvinte  155.95s] turno: -, 1 ilegível(is)
+  163.94 [ouvinte  162.90s]   ilegível em 158.26s: final=False, tentou=[('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.30', None), ('fsk2 1700/2350 g0.12', None)]
+  164.89 [ouvinte  163.93s] turno: -, 1 ilegível(is)
+  173.45 [ouvinte  172.42s]   ilegível em 165.85s: final=False, tentou=[('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.30', None), ('fsk2 1700/2350 g0.12', None)]
+  174.40 [ouvinte  173.44s] turno: -, 1 ilegível(is)
+  183.34 [ouvinte  182.40s] chamada ouvida (correlação 0.48)
+  185.12 [ouvinte  183.94s] latência de saída medida no eco: +0.202s além da declarada
+  188.63 [ouvinte  187.43s]   ilegível em 184.39s: final=False, tentou=[('16-FSK rep2 g0.30', np.float64(2.33))]
+  189.60 [ouvinte  188.46s] turno: -, 1 ilegível(is)
+  196.66 [ouvinte  195.41s]   ilegível em 190.72s: final=False, tentou=[('fsk2 1700/2350 g0.12', np.float64(4.092)), ('fsk2 1212/1862 g0.30', np.float64(4.092)), ('fsk2 1700/2350 g0.30', np.float64(4.092))]
+  197.60 [ouvinte  196.44s] turno: -, 1 ilegível(is)
+  204.67 [ouvinte  203.43s]   ilegível em 198.80s: final=False, tentou=[('fsk2 1700/2350 g0.12', np.float64(4.092)), ('fsk2 1212/1862 g0.30', np.float64(4.092)), ('fsk2 1700/2350 g0.30', np.float64(4.092))]
+  205.60 [ouvinte  204.46s] turno: -, 1 ilegível(is)
+  205.60 [ouvinte  204.46s] nada mais em 'aguarda_ola'; voltando a escutar
+  217.14 [ouvinte  215.94s] turno: ['OLA']
+  217.14 [ouvinte  215.94s] OLA lido em 16-FSK lento rep2 g0.30; saudação concluída, respondendo OLA_OK
+  241.68 [ouvinte  240.17s] turno: ['SONDA']
+  241.68 [ouvinte  240.17s] sondagem lida: bits errados g0.12:3%*, g0.2:3%*, g0.3:2%*, g0.45:4%*; margens [25, 38, 23, 19, 18, 29, 32, 14, 21, 29, 30, 22, 29, 33, 23, 38, 37, 37, 30, 31, 34, 32, 39, 43, 36] dB
+  241.68 [ouvinte  240.17s] contrato para o que me chega: 1375-4462 Hz, sombras [1700, 1862, 2350, 2838], par 1538/2188, ganho 0.12, 16-FSK rep1
+  241.68 [ouvinte  240.17s] AVISO: venceu o menor ganho da escada; se o volume do outro lado estiver alto, baixá-lo e saudar de novo
+  279.13 [ouvinte  277.42s] turno: ['CONTRATO', 'DADOS']
+  279.13 [ouvinte  277.42s] modo de dados confirmado nas duas pontas: multicanal
+  279.13 [ouvinte  277.42s] contrato para o que EU envio: 1212-3812 Hz, sombras [2025], par 1700/2512, ganho 0.12, 16-FSK rep1
+  279.13 [ouvinte  277.42s] dados seq 0: 31 bytes (contrato 5x2 multicanal rep1 40B)
+  279.13 [ouvinte  277.42s] CANAL ABERTO: contrato confirmado pelos dois lados
+  288.39 [ouvinte  286.42s] turno: ['DADOS']
+  288.39 [ouvinte  286.42s] dados seq 1: 31 bytes (contrato 5x2 multicanal rep1 40B)
+  297.17 [ouvinte  294.91s]   ilegível em 291.07s: final=False, tentou=[('contrato 5x2 multicanal rep1 40B', np.float64(3.292))]
+  298.17 [ouvinte  295.94s] turno: -, 1 ilegível(is)
+  306.98 [ouvinte  304.43s] turno: ['DADOS']
+  306.98 [ouvinte  304.43s] dados seq 2: 31 bytes (contrato 5x2 multicanal rep1 40B)
+  306.99 [saudacao] tudo enviado e confirmado em 307.0s; recebidos 93 bytes
+  314.71 [ouvinte  311.94s]   ilegível em 308.00s: final=False, tentou=[('contrato 5x2 multicanal rep1 40B', np.float64(3.292))]
+  315.68 [ouvinte  312.96s] turno: -, 1 ilegível(is)
+  322.88 [ouvinte  319.91s] turno: ['DADOS']
+  322.88 [ouvinte  319.91s] dados seq 3: 31 bytes (contrato 5x2 multicanal rep1 40B)
+  338.20 [ouvinte  334.93s] turno: ['DADOS']
+  346.41 [ouvinte  342.91s] turno: ['DADOS']
+  356.22 [ouvinte  352.43s] turno: ['DADOS']
+  366.06 [ouvinte  361.94s] turno: ['DADOS']
+  379.77 [ouvinte  375.34s] turno: ['DADOS']
+  389.33 [ouvinte  384.51s]   ilegível em 375.17s: final=True, tentou=[('fsk2 1700/2350 g0.30', None), ('contrato 5x2 multicanal rep2 40B', None), ('contrato 5x2 multicanal rep1 12B', None), ('contrato 5x2 multicanal rep1 40B', None), ('fsk2 1700/2350 g0.12', None), ('contrato 5x2 multicanal rep4 12B', None), ('contrato 5x2 multicanal rep2 12B', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('contrato 5x2 multicanal rep4 40B', None), ('16-FSK lento rep2 g0.30', None)]
+  390.09 [ouvinte  385.54s] turno: -, 1 ilegível(is)
+  411.83 [ouvinte  406.70s]   ilegível em 397.35s: final=True, tentou=[('fsk2 1700/2350 g0.30', None), ('contrato 5x2 multicanal rep2 40B', None), ('contrato 5x2 multicanal rep1 12B', None), ('contrato 5x2 multicanal rep1 40B', None), ('fsk2 1700/2350 g0.12', None), ('contrato 5x2 multicanal rep4 12B', None), ('contrato 5x2 multicanal rep2 12B', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('contrato 5x2 multicanal rep4 40B', None), ('16-FSK lento rep2 g0.30', None)]
+  412.52 [ouvinte  407.72s] turno: -, 1 ilegível(is)
+  412.52 [ouvinte  407.72s] quadros ilegíveis; pedindo 5x2 multicanal rep4
+  429.22 [ouvinte  424.02s] turno: ['DADOS']
+  429.22 [ouvinte  424.02s] o outro lado pede o degrau 5x2 multicanal rep2 para o que envio
+  438.85 [ouvinte  433.19s]   ilegível em 423.88s: final=True, tentou=[('fsk2 1700/2350 g0.30', None), ('contrato 5x2 multicanal rep2 40B', None), ('contrato 5x2 multicanal rep1 12B', None), ('contrato 5x2 multicanal rep1 40B', None), ('fsk2 1700/2350 g0.12', None), ('contrato 5x2 multicanal rep4 12B', None), ('contrato 5x2 multicanal rep2 12B', None), ('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('contrato 5x2 multicanal rep4 40B', None), ('16-FSK lento rep2 g0.30', None)]
+  439.56 [ouvinte  434.22s] turno: -, 1 ilegível(is)
+  474.49 [ouvinte  468.91s] chamada nova com o canal mudo há tempo; o outro lado recomeçou -- recomeço também
+  474.49 [ouvinte  468.91s] chamada ouvida (correlação 0.49)
+  479.80 [ouvinte  473.94s] chamada ouvida (correlação 0.50)
+  484.58 [ouvinte  478.42s] chamada ouvida (correlação 0.48)
+  489.85 [ouvinte  483.41s] chamada ouvida (correlação 0.49)
+  496.15 [ouvinte  489.43s] chamada ouvida (correlação 0.50)
+  501.44 [ouvinte  494.42s] chamada ouvida (correlação 0.48)
+  506.69 [ouvinte  499.41s] chamada ouvida (correlação 0.49)
+  511.50 [ouvinte  503.94s] chamada ouvida (correlação 0.50)
+  516.22 [ouvinte  508.42s] chamada ouvida (correlação 0.48)
+  521.51 [ouvinte  513.41s] chamada ouvida (correlação 0.49)
+  526.81 [ouvinte  518.40s] chamada ouvida (correlação 0.50)
+  532.13 [ouvinte  523.43s] chamada ouvida (correlação 0.47)
+  536.89 [ouvinte  527.91s] chamada ouvida (correlação 0.49)
+  542.16 [ouvinte  532.91s] chamada ouvida (correlação 0.50)
+  547.93 [ouvinte  538.41s] chamada ouvida (correlação 0.48)
+  554.21 [ouvinte  544.43s] chamada ouvida (correlação 0.49)
+  558.91 [ouvinte  548.91s] chamada ouvida (correlação 0.50)
+  564.18 [ouvinte  553.94s] chamada ouvida (correlação 0.48)
+  569.45 [ouvinte  558.93s] chamada ouvida (correlação 0.49)
+  574.66 [ouvinte  563.93s] chamada ouvida (correlação 0.50)
+  580.42 [ouvinte  569.43s] chamada ouvida (correlação 0.48)
+  585.67 [ouvinte  574.42s] chamada ouvida (correlação 0.49)
+  591.46 [ouvinte  579.93s] chamada ouvida (correlação 0.50)
+  596.72 [ouvinte  584.92s] chamada ouvida (correlação 0.48)
+  602.46 [ouvinte  590.42s] chamada ouvida (correlação 0.49)
+  608.21 [ouvinte  595.93s] chamada ouvida (correlação 0.50)
+  613.49 [ouvinte  600.92s] chamada ouvida (correlação 0.48)
+  619.31 [ouvinte  606.42s] chamada ouvida (correlação 0.49)
+  624.07 [ouvinte  610.90s] chamada ouvida (correlação 0.49)
+  629.84 [ouvinte  616.41s] chamada ouvida (correlação 0.48)
+  634.62 [ouvinte  620.93s] chamada ouvida (correlação 0.49)
+  640.42 [ouvinte  626.43s] chamada ouvida (correlação 0.50)
+  645.69 [ouvinte  631.42s] chamada ouvida (correlação 0.48)
+  651.44 [ouvinte  636.93s] chamada ouvida (correlação 0.49)
+  656.17 [ouvinte  641.41s] chamada ouvida (correlação 0.50)
+  661.48 [ouvinte  646.40s] chamada ouvida (correlação 0.48)
+  666.27 [ouvinte  650.92s] chamada ouvida (correlação 0.49)
+  671.00 [ouvinte  655.40s] chamada ouvida (correlação 0.50)
+  676.81 [ouvinte  660.91s] chamada ouvida (correlação 0.48)
+  683.13 [ouvinte  666.92s] chamada ouvida (correlação 0.49)
+  688.38 [ouvinte  671.91s] chamada ouvida (correlação 0.50)
+  693.67 [ouvinte  676.91s] chamada ouvida (correlação 0.47)
+  698.48 [ouvinte  681.43s] chamada ouvida (correlação 0.49)
+  704.25 [ouvinte  686.93s] chamada ouvida (correlação 0.50)
+  710.05 [ouvinte  692.44s] chamada ouvida (correlação 0.48)
+  715.85 [ouvinte  697.94s] chamada ouvida (correlação 0.49)
+  721.09 [ouvinte  702.93s] chamada ouvida (correlação 0.50)
+  726.31 [ouvinte  707.93s] chamada ouvida (correlação 0.48)
+  731.03 [ouvinte  712.41s] chamada ouvida (correlação 0.49)
+  736.78 [ouvinte  717.91s] chamada ouvida (correlação 0.50)
+  743.04 [ouvinte  723.93s] chamada ouvida (correlação 0.48)
+  748.74 [ouvinte  729.43s] chamada ouvida (correlação 0.49)
+  754.46 [ouvinte  734.93s] chamada ouvida (correlação 0.50)
+  760.25 [ouvinte  740.44s] chamada ouvida (correlação 0.48)
+  765.44 [ouvinte  745.43s] chamada ouvida (correlação 0.49)
+  770.18 [ouvinte  749.91s] chamada ouvida (correlação 0.50)
+  775.45 [ouvinte  754.90s] chamada ouvida (correlação 0.48)
+  781.24 [ouvinte  760.41s] chamada ouvida (correlação 0.49)
+  786.97 [ouvinte  765.91s] chamada ouvida (correlação 0.50)
+  792.76 [ouvinte  771.41s] chamada ouvida (correlação 0.48)
+  798.54 [ouvinte  776.92s] chamada ouvida (correlação 0.49)
+  804.34 [ouvinte  782.42s] chamada ouvida (correlação 0.50)
+  809.02 [ouvinte  786.90s] chamada ouvida (correlação 0.48)
+  814.35 [ouvinte  791.94s] chamada ouvida (correlação 0.49)
+  819.61 [ouvinte  796.93s] chamada ouvida (correlação 0.50)
+  824.90 [ouvinte  801.92s] chamada ouvida (correlação 0.48)
+  830.16 [ouvinte  806.91s] chamada ouvida (correlação 0.49)
+  835.93 [ouvinte  812.42s] chamada ouvida (correlação 0.50)
+  841.65 [ouvinte  817.92s] chamada ouvida (correlação 0.48)
+  847.44 [ouvinte  823.42s] chamada ouvida (correlação 0.49)
+  852.14 [ouvinte  827.90s] chamada ouvida (correlação 0.50)
+  857.41 [ouvinte  832.94s] chamada ouvida (correlação 0.48)
+  863.69 [ouvinte  838.91s] chamada ouvida (correlação 0.49)
+  868.42 [ouvinte  843.43s] chamada ouvida (correlação 0.50)
+  872.71 [ouvinte  847.40s] chamada ouvida (correlação 0.48)
+  878.47 [ouvinte  852.91s] chamada ouvida (correlação 0.49)
+  884.22 [ouvinte  858.41s] chamada ouvida (correlação 0.50)
+  889.49 [ouvinte  863.40s] chamada ouvida (correlação 0.48)
+  894.74 [ouvinte  868.44s] chamada ouvida (correlação 0.49)

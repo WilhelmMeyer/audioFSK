@@ -1,0 +1,30 @@
+    0.00 [chamador    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+    0.00 [chamador    0.00s] modo de dados: votada (degraus: 5x2 votada rep1, 5x2 votada rep2); a outra ponta precisa do mesmo
+    0.00 [saudacao] papel chamador, entrada 'default', saída 'default', latência 0.009s, 207 bytes a enviar
+    0.00 [saudacao] pid 3959028, painel em 127.0.0.1:7110, gravando em sessoes-enlace/20261022-164702-enlace-chamador.*
+    1.05 [chamador    1.02s] chamando (ganho 0.3)
+    1.96 [chamador    1.92s] latência de saída medida no eco: +0.114s além da declarada
+    3.46 [chamador    3.41s] resposta ouvida (correlação 0.80); enviando OLA em fsk2 1700/2350 g0.30
+   13.97 [chamador   13.91s] turno: ['OLA_OK']
+   13.97 [chamador   13.91s] OLA_OK lido em fsk2 1700/2350 g0.30; saudação concluída, sondando
+   46.52 [chamador   46.42s] turno: ['CONTRATO', 'SONDA']
+   46.52 [chamador   46.42s] modo de dados confirmado nas duas pontas: votada
+   46.52 [chamador   46.42s] contrato para o que EU envio: 1375-3975 Hz, sombras [1700], par 1538/2188, ganho 0.12, 16-FSK rep1
+   46.52 [chamador   46.42s] sondagem lida: bits errados g0.12:0%*, g0.2:0%*, g0.3:0%*, g0.45:0%*; margens [26, 38, 27, 21, 35, 32, 30, 34, 28, 34, 39, 36, 32, 35, 34, 35, 38, 44, 43, 43, 38, 33, 35, 32, 36] dB
+   46.52 [chamador   46.42s] contrato para o que me chega: 1212-3650 Hz, sombras [], par 1700/2350, ganho 0.12, 16-FSK rep1
+   46.52 [chamador   46.42s] AVISO: venceu o menor ganho da escada; se o volume do outro lado estiver alto, baixá-lo e saudar de novo
+   76.00 [chamador   75.90s] turno: ['DADOS']
+   76.00 [chamador   75.90s] dados seq 0: 31 bytes (contrato 5x2 votada rep1 40B)
+   76.00 [chamador   75.90s] CANAL ABERTO: contrato confirmado pelos dois lados
+  100.52 [chamador  100.44s] turno: ['DADOS']
+  100.52 [chamador  100.44s] dados seq 1: 13 bytes (contrato 5x2 votada rep1 40B)
+  118.45 [chamador  118.40s] turno: ['ACK']
+  136.46 [chamador  136.41s] turno: ['ACK']
+  154.46 [chamador  154.41s] turno: ['ACK']
+  172.48 [chamador  172.42s] turno: ['ACK']
+  190.50 [chamador  190.42s] turno: ['ACK']
+  190.50 [saudacao] tudo enviado e confirmado em 190.5s; recebidos 44 bytes
+  212.09 [chamador  211.80s]   ilegível em 190.65s: final=True, tentou=[('contrato 5x2 votada rep1 12B', None), ('fsk2 1212/1862 g0.30', None), ('contrato 5x2 votada rep1 40B', None), ('contrato 5x2 votada rep2 40B', None), ('fsk2 1700/2350 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('16-FSK rep2 g0.30', None), ('16-FSK lento rep2 g0.30', None), ('contrato 5x2 votada rep2 12B', None)]
+  212.85 [chamador  212.82s] turno: -, 1 ilegível(is)
+  235.72 [saudacao] nada ouvido por 45s depois de concluída; saindo
+[saudacao] sessão gravada em sessoes-enlace/20261022-164702-enlace-chamador

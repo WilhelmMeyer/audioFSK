@@ -1,0 +1,51 @@
+    0.00 [chamador    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+    0.00 [saudacao] papel chamador, entrada 'default', saída 'default', latência 0.009s, 207 bytes a enviar
+    0.00 [saudacao] pid 3795021, painel em 127.0.0.1:7110, gravando em sessoes-enlace/20261022-161117-enlace-chamador.*
+    0.41 [chamador    0.38s] chamando (ganho 0.3)
+    1.45 [chamador    1.41s] latência de saída medida no eco: +0.117s além da declarada
+    2.95 [chamador    2.90s] resposta ouvida (correlação 0.64); enviando OLA em fsk2 1700/2350 g0.30
+   13.50 [chamador   13.44s] turno: ['OLA_OK']
+   13.50 [chamador   13.44s] OLA_OK lido em fsk2 1700/2350 g0.30; saudação concluída, sondando
+   46.14 [chamador   45.99s] turno: ['CONTRATO', 'SONDA']
+   46.14 [chamador   45.99s] contrato para o que EU envio: 1538-4300 Hz, sombras [1862, 2025], par 1538/2512, ganho 0.2, 16-FSK rep1
+   46.14 [chamador   45.99s] sondagem lida: bits errados g0.12:0%*, g0.2:0%*, g0.3:0%*, g0.45:0%*; margens [39, 40, 39, 38, 40, 41, 36, 40, 31, 35, 39, 36, 34, 33, 31, 31, 35, 38, 41, 35, 21, 29, 13, 30, 33] dB
+   46.14 [chamador   45.99s] contrato para o que me chega: 888-3325 Hz, sombras [], par 1700/2350, ganho 0.12, 16-FSK rep1
+   46.14 [chamador   45.99s] AVISO: venceu o menor ganho da escada; se o volume do outro lado estiver alto, baixá-lo e saudar de novo
+   58.31 [chamador   58.28s] sem resposta em 'aberto'; repetindo o turno
+   69.97 [chamador   69.93s] sem resposta em 'aberto'; repetindo o turno
+   82.20 [chamador   82.18s] sem resposta em 'aberto'; repetindo o turno
+   94.23 [chamador   94.21s] sem resposta em 'aberto'; repetindo o turno
+  106.65 [chamador  106.62s] sem resposta em 'aberto'; repetindo o turno
+  119.07 [chamador  119.04s] sem resposta em 'aberto'; repetindo o turno
+  131.35 [chamador  131.33s] sem resposta em 'aberto'; repetindo o turno
+  143.39 [chamador  143.36s] sem resposta em 'aberto'; repetindo o turno
+  155.80 [chamador  155.78s] sem resposta em 'aberto'; voltando ao começo
+  156.14 [chamador  156.12s] chamando (ganho 0.15)
+  156.96 [chamador  156.93s] latência de saída medida no eco: +0.065s além da declarada
+  161.44 [chamador  161.41s] chamando (ganho 0.5)
+  161.96 [chamador  161.92s] latência de saída medida no eco: +0.079s além da declarada
+  163.96 [chamador  163.93s] resposta ouvida (correlação 0.74); enviando OLA em fsk2 1700/2350 g0.30
+  165.67 [chamador  165.59s]   ilegível em 156.48s: final=True, tentou=[('fsk2 1212/1862 g0.30', None), ('16-FSK rep2 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('fsk2 1700/2350 g0.30', None), ('16-FSK lento rep2 g0.30', None)]
+  166.64 [chamador  166.61s] turno: -, 1 ilegível(is)
+  172.23 [chamador  172.20s] sem OLA_OK; tentando 16-FSK lento rep2 g0.30
+  191.79 [chamador  191.74s] turno: ['OLA_OK']
+  191.79 [chamador  191.74s] OLA_OK lido em 16-FSK lento rep2 g0.30; saudação concluída, sondando
+  229.54 [chamador  229.46s] turno: ['CONTRATO', 'SONDA']
+  229.54 [chamador  229.46s] contrato para o que EU envio: 1538-4462 Hz, sombras [1862, 2025, 2188], par 1538/2512, ganho 0.2, 16-FSK rep1
+  229.54 [chamador  229.46s] sondagem lida: bits errados g0.12:0%*, g0.2:0%*, g0.3:0%*, g0.45:0%*; margens [39, 37, 34, 37, 40, 39, 37, 38, 31, 36, 41, 35, 36, 34, 33, 32, 33, 34, 39, 34, 17, 27, 11, 29, 31] dB
+  229.54 [chamador  229.46s] contrato para o que me chega: 888-3325 Hz, sombras [], par 1700/2350, ganho 0.12, 16-FSK rep1
+  229.54 [chamador  229.46s] AVISO: venceu o menor ganho da escada; se o volume do outro lado estiver alto, baixá-lo e saudar de novo
+  247.99 [chamador  247.94s] turno: ['DADOS']
+  247.99 [chamador  247.94s] dados seq 0: 31 bytes (contrato 16-FSK rep1 40B)
+  247.99 [chamador  247.94s] CANAL ABERTO: contrato confirmado pelos dois lados
+  256.99 [chamador  256.94s] turno: ['DADOS']
+  256.99 [chamador  256.94s] dados seq 1: 13 bytes (contrato 16-FSK rep1 40B)
+  264.45 [chamador  264.41s] turno: ['ACK']
+  272.98 [chamador  272.94s] turno: ['ACK']
+  280.45 [chamador  280.41s] turno: ['ACK']
+  287.46 [chamador  287.40s] turno: ['ACK']
+  294.97 [chamador  294.91s] turno: ['ACK']
+  302.46 [chamador  302.42s] turno: ['ACK']
+  302.46 [saudacao] tudo enviado e confirmado em 302.5s; recebidos 44 bytes
+  421.58 [saudacao] nada ouvido por 120s depois de concluída; saindo
+[saudacao] sessão gravada em sessoes-enlace/20261022-161117-enlace-chamador

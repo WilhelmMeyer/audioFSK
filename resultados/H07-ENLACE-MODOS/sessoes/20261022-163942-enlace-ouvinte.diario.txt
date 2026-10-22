@@ -1,0 +1,39 @@
+    0.00 [ouvinte    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+    0.00 [ouvinte    0.00s] modo de dados: 2fsk (degraus: 2-FSK rep1, 2-FSK rep2); a outra ponta precisa do mesmo
+    0.00 [saudacao] papel ouvinte, entrada 'Microfone (Realtek(R) Audio)', saída 'Speakers/Headphones (Realtek(R)', latência 0.090s, 44 bytes a enviar
+    0.00 [saudacao] pid 13192, painel em 127.0.0.1:7110, gravando em sessoes-enlace\20261022-163942-enlace-ouvinte.*
+    8.50 [ouvinte    8.41s] chamada ouvida (correlação 0.53)
+    9.77 [ouvinte    9.43s] latência de saída medida no eco: +0.189s além da declarada
+   15.30 [ouvinte   14.93s] turno: ['OLA']
+   15.30 [ouvinte   14.93s] OLA lido em fsk2 1700/2350 g0.30; saudação concluída, respondendo OLA_OK
+   23.99 [ouvinte   23.38s] nada legível em 'aguarda_sonda'; esperando a repetição (1/3)
+   39.47 [ouvinte   38.83s] turno: ['OLA']
+   39.47 [ouvinte   38.83s] OLA lido em 16-FSK lento rep2 g0.30; saudação concluída, respondendo OLA_OK
+   64.10 [ouvinte   63.10s] turno: ['SONDA']
+   64.10 [ouvinte   63.10s] sondagem lida: bits errados g0.12:1%*, g0.2:0%*, g0.3:1%*, g0.45:1%*; margens [24, 40, 26, 28, 32, 20, 34, 35, 30, 25, 30, 35, 25, 33, 33, 33, 40, 39, 38, 36, 37, 40, 42, 32, 34] dB
+   64.10 [ouvinte   63.10s] contrato para o que me chega: 888-3488 Hz, sombras [1375], par 1700/2350, ganho 0.12, 16-FSK rep1
+   64.10 [ouvinte   63.10s] AVISO: venceu o menor ganho da escada; se o volume do outro lado estiver alto, baixá-lo e saudar de novo
+  109.12 [ouvinte  107.90s] turno: ['CONTRATO', 'DADOS']
+  109.12 [ouvinte  107.90s] modo de dados confirmado nas duas pontas: 2fsk
+  109.12 [ouvinte  107.90s] contrato para o que EU envio: 1212-3812 Hz, sombras [1538], par 1700/2512, ganho 0.12, 16-FSK rep1
+  109.12 [ouvinte  107.90s] dados seq 0: 31 bytes (contrato 2-FSK rep1 40B)
+  109.12 [ouvinte  107.90s] CANAL ABERTO: contrato confirmado pelos dois lados
+  133.45 [ouvinte  131.93s] turno: ['DADOS']
+  133.45 [ouvinte  131.93s] dados seq 1: 31 bytes (contrato 2-FSK rep1 40B)
+  157.72 [ouvinte  155.90s]   ilegível em 144.22s: final=False, tentou=[('contrato 2-FSK rep1 40B', np.float64(10.826))]
+  158.68 [ouvinte  156.93s] turno: -, 1 ilegível(is)
+  182.53 [ouvinte  180.44s] turno: ['DADOS']
+  182.53 [ouvinte  180.44s] dados seq 2: 31 bytes (contrato 2-FSK rep1 40B)
+  182.54 [saudacao] tudo enviado e confirmado em 182.5s; recebidos 93 bytes
+  200.29 [ouvinte  197.93s] turno: ['DADOS']
+  200.29 [ouvinte  197.93s] dados seq 3: 31 bytes (contrato 2-FSK rep1 40B)
+  217.51 [ouvinte  214.91s] turno: ['DADOS']
+  217.51 [ouvinte  214.91s] dados seq 4: 31 bytes (contrato 2-FSK rep1 40B)
+  234.82 [ouvinte  231.94s] turno: ['DADOS']
+  234.82 [ouvinte  231.94s] dados seq 5: 31 bytes (contrato 2-FSK rep1 40B)
+  252.57 [ouvinte  249.43s] turno: ['DADOS']
+  252.57 [ouvinte  249.43s] dados seq 6: 21 bytes (contrato 2-FSK rep1 40B)
+  292.31 [ouvinte  288.94s] turno: ['ACK']
+  320.31 [ouvinte  316.93s] turno: ['ACK']
+  320.31 [ouvinte  316.93s] o outro lado pede o degrau 2-FSK rep2 para o que envio
+  364.38 [saudacao] nada ouvido por 45s depois de concluída; saindo

@@ -1,0 +1,39 @@
+    0.00 [chamador    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+    0.00 [saudacao] papel chamador, entrada 'default', saída 'default', latência 0.009s, 207 bytes a enviar
+    0.00 [saudacao] pid 3730474, painel em 127.0.0.1:7110, gravando em sessoes-enlace/20261022-155806-enlace-chamador.*
+    0.79 [chamador    0.77s] chamando (ganho 0.3)
+    1.45 [chamador    1.41s] latência de saída medida no eco: +0.107s além da declarada
+    2.94 [chamador    2.90s] resposta ouvida (correlação 0.74); enviando OLA em fsk2 1700/2350 g0.30
+   13.96 [chamador   13.91s] turno: ['OLA_OK']
+   13.96 [chamador   13.91s] OLA_OK lido em fsk2 1700/2350 g0.30; saudação concluída, sondando
+   46.33 [chamador   46.25s] turno: ['CONTRATO', 'SONDA']
+   46.33 [chamador   46.25s] contrato para o que EU envio: 888-3325 Hz, sombras [], par 1538/2188, ganho 0.2, 16-FSK rep1
+   46.33 [chamador   46.25s] sondagem lida: bits errados g0.12:0%*, g0.2:0%*, g0.3:1%*, g0.45:1%*; margens [41, 38, 33, 40, 38, 34, 36, 39, 39, 34, 40, 30, 43, 39, 44, 36, 35, 45, 38, 31, 38, 38, 32, 27, 20] dB
+   46.33 [chamador   46.25s] contrato para o que me chega: 888-3325 Hz, sombras [], par 1700/2350, ganho 0.12, 16-FSK rep1
+   46.33 [chamador   46.25s] AVISO: venceu o menor ganho da escada; se o volume do outro lado estiver alto, baixá-lo e saudar de novo
+   59.96 [chamador   59.90s] turno: ['DADOS']
+   59.96 [chamador   59.90s] dados seq 0: 31 bytes (contrato 16-FSK rep1 40B)
+   59.96 [chamador   59.90s] CANAL ABERTO: contrato confirmado pelos dois lados
+   70.45 [chamador   70.40s] turno: ['DADOS']
+   79.47 [chamador   79.40s] turno: ['DADOS']
+   79.47 [chamador   79.40s] dados seq 1: 13 bytes (contrato 16-FSK rep1 40B)
+   86.46 [chamador   86.40s] turno: ['ACK']
+   93.95 [chamador   93.91s] sem resposta em 'aberto'; repetindo o turno
+  101.46 [chamador  101.42s] turno: ['ACK']
+  109.04 [chamador  109.01s] sem resposta em 'aberto'; repetindo o turno
+  116.81 [chamador  116.78s] duas repetições sem resposta; desço para 16-FSK rep2
+  116.81 [chamador  116.78s] sem resposta em 'aberto'; repetindo o turno
+  124.58 [chamador  124.42s]   ilegível em 116.33s: final=False, tentou=[('fsk2 1700/2350 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('contrato 16-FSK rep1 12B', None), ('contrato 16-FSK rep1 40B', None), ('16-FSK rep2 g0.30', None), ('contrato 16-FSK lento 12B', None), ('fsk2 1212/1862 g0.30', None), ('contrato 2-FSK 12B', None), ('contrato 16-FSK rep2 12B', None), ('contrato 16-FSK rep4 12B', None), ('contrato 16-FSK rep2 40B', None)]
+  125.48 [chamador  125.44s] turno: -, 1 ilegível(is)
+  135.98 [chamador  135.94s] turno: ['ACK']
+  135.98 [chamador  135.94s] o outro lado pede o degrau 16-FSK rep4 para o que envio
+  150.90 [chamador  150.87s] sem resposta em 'aberto'; repetindo o turno
+  164.70 [chamador  164.44s]   ilegível em 150.75s: final=False, tentou=[('fsk2 1700/2350 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('contrato 16-FSK rep4 40B', None), ('contrato 2-FSK 40B', None), ('16-FSK lento rep2 g0.30', None), ('contrato 16-FSK lento 40B', None), ('contrato 16-FSK rep1 12B', None), ('contrato 16-FSK rep1 40B', None), ('16-FSK rep2 g0.30', None), ('contrato 16-FSK lento 12B', None), ('fsk2 1212/1862 g0.30', None), ('contrato 2-FSK 12B', None), ('contrato 16-FSK rep2 12B', None), ('contrato 16-FSK rep4 12B', None), ('contrato 16-FSK rep2 40B', None)]
+  167.47 [chamador  167.42s] turno: ['ACK'], 1 ilegível(is)
+  167.47 [chamador  167.42s] o outro lado pede o degrau 2-FSK rep1 para o que envio
+  181.98 [chamador  181.93s] turno: ['ACK']
+  196.95 [chamador  196.91s] turno: ['ACK']
+  211.46 [chamador  211.41s] turno: ['ACK']
+  212.97 [saudacao] comando do painel: para
+  212.97 [saudacao] parada pelo painel
+[saudacao] sessão gravada em sessoes-enlace/20261022-155806-enlace-chamador

@@ -1,0 +1,49 @@
+    0.00 [ouvinte    0.00s] tempos no ar: fsk2 1700/2350 g0.30 4.2s; 16-FSK lento rep2 g0.30 9.0s; fsk2 1212/1862 g0.30 4.2s; 16-FSK rep2 g0.30 2.4s; fsk2 1700/2350 g0.12 4.2s; sondagem 13.1s
+    0.00 [saudacao] papel ouvinte, entrada 'Microfone (Realtek(R) Audio)', saída 'Speakers/Headphones (Realtek(R)', latência 0.090s, 44 bytes a enviar
+    0.00 [saudacao] pid 24080, painel em 127.0.0.1:7110, gravando em sessoes-enlace\20261022-155752-enlace-ouvinte.*
+   16.48 [ouvinte   15.91s] chamada ouvida (correlação 0.54)
+   17.76 [ouvinte   16.94s] latência de saída medida no eco: +0.182s além da declarada
+   23.22 [ouvinte   22.40s] turno: ['OLA']
+   23.22 [ouvinte   22.40s] OLA lido em fsk2 1700/2350 g0.30; saudação concluída, respondendo OLA_OK
+   42.37 [ouvinte   41.17s] turno: ['SONDA']
+   42.37 [ouvinte   41.17s] sondagem lida: bits errados g0.12:5%*, g0.2:1%*, g0.3:1%*, g0.45:1%*; margens [29, 47, 32, 23, 29, 28, 37, 31, 25, 31, 32, 27, 24, 27, 32, 34, 32, 40, 36, 31, 36, 39, 44, 43, 41] dB
+   42.37 [ouvinte   41.17s] contrato para o que me chega: 888-3325 Hz, sombras [], par 1538/2188, ganho 0.2, 16-FSK rep1
+   70.29 [ouvinte   68.91s] turno: ['CONTRATO', 'DADOS']
+   70.29 [ouvinte   68.91s] contrato para o que EU envio: 888-3325 Hz, sombras [], par 1700/2350, ganho 0.12, 16-FSK rep1
+   70.29 [ouvinte   68.91s] dados seq 0: 31 bytes (contrato 16-FSK rep1 40B)
+   70.29 [ouvinte   68.91s] CANAL ABERTO: contrato confirmado pelos dois lados
+   79.71 [ouvinte   77.91s]   ilegível em 73.71s: final=False, tentou=[('contrato 16-FSK rep4 12B', None), ('contrato 16-FSK rep1 40B', None), ('contrato 2-FSK 12B', None), ('16-FSK rep2 g0.30', None), ('contrato 16-FSK rep1 12B', None), ('fsk2 1700/2350 g0.12', None), ('fsk2 1212/1862 g0.30', None), ('contrato 16-FSK rep2 12B', None), ('fsk2 1700/2350 g0.30', None)]
+   80.54 [ouvinte   78.93s] turno: -, 1 ilegível(is)
+   89.26 [ouvinte   87.42s] turno: ['DADOS']
+   89.26 [ouvinte   87.42s] dados seq 1: 31 bytes (contrato 16-FSK rep1 40B)
+   98.04 [ouvinte   95.91s] turno: ['DADOS']
+   98.04 [ouvinte   95.91s] dados seq 2: 31 bytes (contrato 16-FSK rep1 40B)
+   98.04 [saudacao] tudo enviado e confirmado em 98.0s; recebidos 93 bytes
+  112.85 [ouvinte  110.12s]   ilegível em 96.38s: final=True, tentou=[('contrato 16-FSK rep4 12B', None), ('contrato 16-FSK rep1 40B', None), ('contrato 2-FSK 12B', None), ('contrato 16-FSK rep4 40B', None), ('16-FSK rep2 g0.30', None), ('contrato 16-FSK rep1 12B', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('fsk2 1212/1862 g0.30', None), ('contrato 16-FSK lento 12B', None), ('contrato 16-FSK rep2 12B', None), ('contrato 2-FSK 40B', None), ('contrato 16-FSK lento 40B', None), ('contrato 16-FSK rep2 40B', None), ('fsk2 1700/2350 g0.30', None)]
+  113.42 [ouvinte  111.15s] turno: -, 1 ilegível(is)
+  127.31 [ouvinte  124.29s]   ilegível em 110.56s: final=True, tentou=[('contrato 16-FSK rep4 12B', None), ('contrato 16-FSK rep1 40B', None), ('contrato 2-FSK 12B', None), ('contrato 16-FSK rep4 40B', None), ('16-FSK rep2 g0.30', None), ('contrato 16-FSK rep1 12B', None), ('16-FSK lento rep2 g0.30', None), ('fsk2 1700/2350 g0.12', None), ('fsk2 1212/1862 g0.30', None), ('contrato 16-FSK lento 12B', None), ('contrato 16-FSK rep2 12B', None), ('contrato 2-FSK 40B', None), ('contrato 16-FSK lento 40B', None), ('contrato 16-FSK rep2 40B', None), ('fsk2 1700/2350 g0.30', None)]
+  129.55 [ouvinte  126.93s]   ilegível em 124.47s: final=False, tentou=[('16-FSK rep2 g0.30', None), ('contrato 16-FSK rep1 12B', None), ('contrato 16-FSK rep2 12B', None)]
+  130.51 [ouvinte  127.96s] turno: -, 2 ilegível(is)
+  130.51 [ouvinte  127.96s] quadros ilegíveis; pedindo 16-FSK rep2
+  138.98 [ouvinte  135.94s]   ilegível em 130.46s: final=False, tentou=[('contrato 16-FSK rep4 12B', None), ('contrato 16-FSK rep1 40B', None), ('contrato 2-FSK 12B', None), ('16-FSK rep2 g0.30', None), ('contrato 16-FSK rep1 12B', None), ('fsk2 1700/2350 g0.12', None), ('fsk2 1212/1862 g0.30', None), ('contrato 16-FSK lento 12B', None), ('contrato 16-FSK rep2 12B', None), ('fsk2 1700/2350 g0.30', None)]
+  139.75 [ouvinte  136.96s] turno: -, 1 ilegível(is)
+  147.09 [ouvinte  143.91s]   ilegível em 139.90s: final=False, tentou=[('contrato 16-FSK rep4 12B', None), ('contrato 16-FSK rep1 40B', None), ('16-FSK rep2 g0.30', None), ('contrato 16-FSK rep1 12B', None), ('contrato 16-FSK rep2 12B', None)]
+  148.01 [ouvinte  144.94s] turno: -, 1 ilegível(is)
+  148.01 [ouvinte  144.94s] quadros ilegíveis; pedindo 16-FSK rep4
+  155.25 [ouvinte  151.94s]   ilegível em 147.82s: final=False, tentou=[('contrato 16-FSK rep1 40B', np.float64(3.244))]
+  159.23 [ouvinte  155.90s]   ilegível em 152.08s: final=False, tentou=[('contrato 16-FSK rep1 40B', np.float64(3.249))]
+  160.22 [ouvinte  156.93s] turno: -, 2 ilegível(is)
+  163.98 [ouvinte  160.43s]   ilegível em 156.69s: final=False, tentou=[('contrato 16-FSK rep2 12B', None), ('16-FSK rep2 g0.30', None), ('contrato 16-FSK rep1 12B', None), ('contrato 16-FSK rep1 40B', None)]
+  164.90 [ouvinte  161.45s] turno: -, 1 ilegível(is)
+  164.90 [ouvinte  161.45s] quadros ilegíveis; pedindo 2-FSK rep1
+  171.69 [ouvinte  167.94s]   ilegível em 164.08s: final=False, tentou=[('contrato 16-FSK rep1 40B', np.float64(3.258))]
+  178.43 [ouvinte  174.42s]   ilegível em 168.34s: final=False, tentou=[('contrato 16-FSK rep4 12B', None), ('contrato 16-FSK rep1 40B', None), ('contrato 2-FSK 12B', None), ('16-FSK rep2 g0.30', None), ('contrato 16-FSK rep1 12B', None), ('fsk2 1700/2350 g0.12', None), ('fsk2 1212/1862 g0.30', None), ('contrato 16-FSK lento 12B', None), ('contrato 16-FSK rep2 12B', None), ('contrato 16-FSK rep2 40B', None), ('fsk2 1700/2350 g0.30', None)]
+  179.16 [ouvinte  175.45s] turno: -, 2 ilegível(is)
+  193.95 [ouvinte  189.91s] turno: ['DADOS']
+  193.95 [ouvinte  189.91s] dados seq 3: 31 bytes (contrato 2-FSK 40B)
+  208.67 [ouvinte  204.42s] turno: ['DADOS']
+  208.68 [ouvinte  204.42s] dados seq 4: 31 bytes (contrato 2-FSK 40B)
+  223.40 [ouvinte  218.92s] turno: ['DADOS']
+  223.40 [ouvinte  218.92s] dados seq 5: 31 bytes (contrato 2-FSK 40B)
+  227.47 [saudacao] comando do painel: para
+  227.47 [saudacao] parada pelo painel
