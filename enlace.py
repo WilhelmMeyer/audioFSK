@@ -45,7 +45,8 @@ import numpy as np
 from scipy.signal import butter, fftconvolve, sosfiltfilt
 
 import fec
-from modem import MaryModulator, MaryDemodulator, MARY_TONES, chirp
+from modem import (MaryModulator, MaryDemodulator, MARY_TONES, chirp,
+                   MFSKModulator, MFSKDemodulator, MFSK_PAIRS)
 from xfer import crc16
 
 FS = 48000
@@ -104,6 +105,15 @@ _BANDA = butter(4, (500.0, 3700.0), btype='bandpass', fs=FS, output='sos')
 PRE_SYM = 48                          # preâmbulo curto: o relógio vem das marcas
 IDLE_SYM = 6
 
+# As duas camadas 5x2-FSK, com o nome que `fec`/`console.py` dão às suas.
+# O quadro é o do `console.py` (`_fec_frame` em mfsk), não um encurtado:
+# preâmbulo alternado de 80 símbolos e cauda de 4, que o CLAUDE.md dá como
+# não opcionais nessa camada. Aqui o relógio vem das marcas, então o
+# preâmbulo é folga -- mas um quadro igual ao que já foi medido no ar é
+# comparável com aquelas medidas, e um encurtado não seria.
+CAMADAS_5X2 = {'votada': 'mfsk', 'multicanal': 'mfsk-par'}
+IDLE_5X2 = 4
+
 
 @dataclass(frozen=True)
 class Descritor:
@@ -117,6 +127,7 @@ class Descritor:
     baud: int = BAUD
     guarda: float = 0.15
     pre: int = PRE_SYM
+    camada: str = 'tons'        # 'tons' (16-FSK, 2-FSK), 'votada' ou 'multicanal' (5x2)
 
     @property
     def sps(self):
@@ -124,6 +135,11 @@ class Descritor:
 
     @property
     def nsym(self):
+        if self.camada in CAMADAS_5X2:
+            # Contado pela mesma função que o `console.py` e os leitores
+            # offline usam: preâmbulo alternado de 80, corpo, cauda de 4.
+            return fec.layer_frame_symbols(CAMADAS_5X2[self.camada], self.nbytes,
+                                           self.rep, npairs=len(MFSK_PAIRS))
         nb = _frame_len(self.nbytes, self.rep)
         return self.pre + -(-nb // self.bits) + IDLE_SYM
 
@@ -169,11 +185,25 @@ def modula_quadro(desc, corpo):
     entre elas dá o período do símbolo medido, como em `syncsweep`."""
     if len(corpo) != desc.nbytes:
         raise ValueError(f"corpo de {len(corpo)} bytes num quadro de {desc.nbytes}")
-    mod = MaryModulator(fs=FS, baud=desc.baud, tones=desc.tons, bits=desc.bits)
-    s = np.concatenate([
-        mod.modulate_bits(_valores_em_bits(_preambulo(desc.bits, desc.pre), desc.bits)),
-        mod.modulate_bits(list(fec.frame(corpo, repeat=desc.rep))),
-        mod.idle(IDLE_SYM)])
+    if desc.camada in CAMADAS_5X2:
+        # Os tons são os MFSK_PAIRS fixos, não os da sondagem: a camada vota
+        # entre os dois membros de um par, e um par escolhido pela sondagem
+        # mudaria o que foi medido sobre ela.
+        par = desc.camada == 'multicanal'
+        k = len(MFSK_PAIRS)
+        mod = MFSKModulator(fs=FS, baud=desc.baud, parallel=par)
+        corpo_bits = (fec.frame_parallel(corpo, k, repeat=desc.rep) if par
+                      else fec.frame(corpo, repeat=desc.rep))
+        s = np.concatenate([
+            mod.modulate_bits(fec.preamble_bits('mfsk', npairs=k, parallel=par)),
+            mod.modulate_bits(list(corpo_bits)),
+            mod.idle(IDLE_5X2)])
+    else:
+        mod = MaryModulator(fs=FS, baud=desc.baud, tones=desc.tons, bits=desc.bits)
+        s = np.concatenate([
+            mod.modulate_bits(_valores_em_bits(_preambulo(desc.bits, desc.pre), desc.bits)),
+            mod.modulate_bits(list(fec.frame(corpo, repeat=desc.rep))),
+            mod.idle(IDLE_SYM)])
     assert len(s) == desc.nsym * desc.sps, (len(s), desc.nsym * desc.sps)
     m = MOLDES['quadro']
     z = np.zeros(HUSH)
@@ -222,6 +252,24 @@ def le_quadro(audio, p1, desc, p2=None):
     seg = np.asarray(audio[p1:fim], dtype=np.float64)
     if len(seg) < (LQ + HUSH + desc.nsym * sps) * r:
         return None, None
+    if desc.camada in CAMADAS_5X2:
+        # Relógio congelado nas marcas, como no 16-FSK; palavra de
+        # sincronismo e Viterbi por `fec.decode_block`, que é o caminho do
+        # `fecrx` e do `recvfile.py` (votação da palavra no multicanal,
+        # cópias recolhidas de cada par por `pair_map`).
+        par = desc.camada == 'multicanal'
+        k = len(MFSK_PAIRS)
+        d = MFSKDemodulator(fs=FS, baud=desc.baud, guard=desc.guarda, parallel=par,
+                            steer=False, skip=int(round((LQ + HUSH) * r)), period=sps * r)
+        partes = [d.demodulate_soft(seg[i:i + 2048]) for i in range(0, len(seg), 2048)]
+        partes = [q for q in partes if len(q)]
+        if not partes:
+            return None, None
+        llr = np.concatenate(partes)
+        corpo, ini = fec.decode_block(llr, desc.nbytes, desc.rep, npairs=k if par else None)
+        if corpo is None:
+            return None, None
+        return (corpo if confere(corpo) else None), llr[ini:]
     d = _Demod(fs=FS, baud=desc.baud, tones=desc.tons, bits=desc.bits,
                guard=desc.guarda, steer=False, skip=int(round((LQ + HUSH) * r)),
                period=sps * r)
@@ -342,6 +390,27 @@ SONDA_G_DESC = tuple(Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, g, f'sonda g{g}
 DEGRAUS = ('16-FSK rep1', '16-FSK rep2', '16-FSK rep4', '2-FSK rep1', '16-FSK lento')
 LENTO = len(DEGRAUS) - 1
 LIMIARES_BER = (0.07, 0.15, 0.25, 0.35)
+
+# Modulação dos dados (DADOS e ACK do canal aberto). 'auto' é a escada acima,
+# que desce do 16-FSK para o 2-FSK e o lento conforme as falhas. Os outros
+# fixam uma técnica só, para medir cada uma sozinha no mesmo link: a escada
+# passa a mudar só a repetição, nunca a técnica, e uma técnica que não serve
+# para a sala aparece como falha em vez de ser escondida pela troca. Saudação,
+# sondagem e contrato são os mesmos em todos os modos -- só os dados mudam,
+# para que a comparação seja justa. As duas pontas precisam do mesmo modo; o
+# código dele vai num byte livre do CONTRATO (0 em 'auto', o mesmo byte de
+# preenchimento de antes) e uma divergência fica escrita no diário.
+MODOS_DADOS = ('auto', '16fsk', '2fsk', 'votada', 'multicanal')
+DEGRAUS_MODO = {
+    'auto': DEGRAUS,
+    '16fsk': ('16-FSK rep1', '16-FSK rep2', '16-FSK rep4'),
+    '2fsk': ('2-FSK rep1', '2-FSK rep2'),
+    # 40 bytes a rep1 já são 11 s de 5x2 votada; rep2 passa de 20 s.
+    'votada': ('5x2 votada rep1', '5x2 votada rep2'),
+    'multicanal': ('5x2 multicanal rep1', '5x2 multicanal rep2', '5x2 multicanal rep4'),
+}
+_REPS_MODO = {'16fsk': (1, 2, 4), '2fsk': (1, 2), 'votada': (1, 2),
+              'multicanal': (1, 2, 4)}
 
 
 def _ordem_sonda(sessao):
@@ -492,9 +561,23 @@ class Contrato:
             raise ValueError("contrato sem 16 tons")
         return cls(tons, ((v >> 25) & 31, (v >> 30) & 31), (v >> 35) & 3, (v >> 37) & 7)
 
-    def descritor(self, degrau=None, nbytes=DADOS_N):
+    def descritor(self, degrau=None, nbytes=DADOS_N, modo='auto'):
         d = self.degrau if degrau is None else degrau
         g = GANHOS[self.ganho]
+        if modo != 'auto':
+            # Degrau é índice em DEGRAUS_MODO[modo]: só a repetição muda. O
+            # ganho é o do contrato em todos; os tons são os do contrato no
+            # 16-FSK e no 2-FSK e os MFSK_PAIRS fixos no 5x2.
+            rep = _REPS_MODO[modo][d]
+            nome = f'contrato {DEGRAUS_MODO[modo][d]} {nbytes}B'
+            if modo == '16fsk':
+                return Descritor(tuple(GRADE[k] for k in self.tons), 4, rep, nbytes, g, nome)
+            if modo == '2fsk':
+                return Descritor(tuple(GRADE[k] for k in self.par), 1, rep, nbytes, g, nome)
+            k = len(MFSK_PAIRS)
+            return Descritor(tuple(t for p in MFSK_PAIRS for t in p),
+                             k if modo == 'multicanal' else 1, rep, nbytes, g, nome,
+                             camada=modo)
         if d == 3:
             return Descritor(tuple(GRADE[k] for k in self.par), 1, 1, nbytes, g,
                              f'contrato 2-FSK {nbytes}B')
@@ -596,8 +679,9 @@ class Ouvido:
             out[a2 - a:b2 - a] = self.buf[a2 - self.base:b2 - self.base]
         return out
 
-    def varre(self):
-        """Avança a varredura até onde o áudio permite; devolve as marcas novas."""
+    def varre(self, fixas=frozenset()):
+        """Avança a varredura até onde o áudio permite; devolve as marcas novas.
+        `fixas`: posições de marcas já usadas, que nenhuma outra substitui."""
         novas = []
         L = self.lmax
         while self.fim - self.varrido >= self.PASSO + 2 * L:
@@ -626,9 +710,21 @@ class Ouvido:
             # outra família. No mesmo lugar, fica a mais forte.
             achadas.sort(key=lambda t: -t[2])
             for pos, tipo, sc in achadas:
-                if any(abs(pos - p) < int(0.15 * FS) for p, _, _ in novas + self.marcas[-8:]
-                       if p >= r0 - L):
+                rivais = [m for m in novas + self.marcas[-8:]
+                          if m[0] >= r0 - L and abs(pos - m[0]) < int(0.15 * FS)]
+                # Uma marca fraca guardada no pedaço anterior não pode calar
+                # uma forte que só aparece neste: no H06 (sessão 3, 191,48 s)
+                # um falso de 0,25 no fim de um ACK apagou a marca de
+                # fechamento verdadeira, de 0,65, 123 ms depois, e o ACK nunca
+                # foi lido. A forte substitui a fraca -- só se a fraca for de
+                # quadro ou sonda (a chamada e a resposta já agiram em
+                # `_marca`) e ainda não tiver sido usada por um segmento.
+                fracas = [m for m in rivais if m in self.marcas and m[2] < sc
+                          and m[1] in ('quadro', 'sonda') and m[0] not in fixas]
+                if len(fracas) != len(rivais):
                     continue
+                for m in fracas:
+                    self.marcas.remove(m)
                 novas.append((pos, tipo, sc))
             self.varrido = r1
         novas.sort()
@@ -659,9 +755,14 @@ class Estacao:
     ouvidas, e o que for tocado é tido como começando no instante atual.
     """
 
-    def __init__(self, papel, semente=None, log=None, nome=None):
+    def __init__(self, papel, semente=None, log=None, nome=None, modo_dados='auto'):
         assert papel in ('chamador', 'ouvinte')
+        if modo_dados not in MODOS_DADOS:
+            raise ValueError(f"modo de dados {modo_dados!r}; um de {MODOS_DADOS}")
         self.papel = papel
+        self.modo_dados = modo_dados
+        self.degraus = DEGRAUS_MODO[modo_dados]
+        self.ultimo_degrau = len(self.degraus) - 1
         self.nome = nome or papel
         self.rng = np.random.default_rng(semente)
         self.ouvido = Ouvido()
@@ -695,6 +796,8 @@ class Estacao:
         self.anota("tempos no ar: " + "; ".join(
             f"{d.nome} {d.segundos:.1f}s" for d in ABORDAGENS)
             + f"; sondagem {sonda_amostras() / FS:.1f}s")
+        self.anota(f"modo de dados: {modo_dados} (degraus: {', '.join(self.degraus)}); "
+                   "a outra ponta precisa do mesmo")
 
     # --- utilidades
 
@@ -728,7 +831,12 @@ class Estacao:
             s += [p, np.zeros(GAP)]
         x = np.concatenate(s[:-1])
         quando = max(self.agora, (self.turno_ultimo if apos is None else apos) + depois)
-        self.agenda.append((quando, x, eco))
+        # Um turno novo substitui o que ainda espera a vez, nunca se soma a
+        # ele: a decisão mais recente é a que vale, e dois turnos na fila
+        # saem colados, o segundo por cima da resposta do outro lado (sessão
+        # 3 do H06, A mandou o mesmo pedaço duas vezes seguidas). O que já
+        # está tocando saiu da agenda em `passo` e não é tocado aqui.
+        self.agenda = [(quando, x, eco)]
         if guarda_turno:
             self.ultimo_turno = partes
         self.espera_ate = (quando + len(x) + RESP + ESPERA) if espera else None
@@ -758,7 +866,10 @@ class Estacao:
         self.ouvido.acrescenta(x)
 
     def passo(self):
-        for pos, tipo, sc in self.ouvido.varre():
+        fixas = set(self._usadas)
+        if self.pendente is not None:
+            fixas.add(self.pendente['pos'])
+        for pos, tipo, sc in self.ouvido.varre(fixas):
             self._marca(pos, tipo, sc)
         self._le_segmentos()
         if self.turno_fim is not None and self.agora >= self.turno_fim:
@@ -840,9 +951,12 @@ class Estacao:
         """Descritores que podem estar no ar agora, por ordem de chance."""
         c = list(ABORDAGENS)
         if self.contrato_rx is not None:
-            for d in range(LENTO + 1):
+            # Só a escada do meu modo: as duas pontas rodam o mesmo, e um
+            # comprimento de 5x2 que caísse perto de um de 16-FSK só custaria
+            # leituras a mais, nunca uma leitura errada (o CRC decide).
+            for d in range(self.ultimo_degrau + 1):
                 for n in (DADOS_N, CTRL_N):
-                    c.append(self.contrato_rx.descritor(d, n))
+                    c.append(self.contrato_rx.descritor(d, n, self.modo_dados))
         return c
 
     def _le_segmentos(self):
@@ -889,12 +1003,47 @@ class Estacao:
         tiveram fechamento são lidos só pela abertura, com relógio nominal.
         Devolve True quando o segmento está resolvido, lido ou não."""
         p1 = p['pos']
+        if self._le_candidatos(p, nominal=final):
+            return True
+        # Uma marca de fechamento caiu exatamente onde um dos comprimentos
+        # previstos termina e a leitura falhou: o quadro tem esse comprimento
+        # e está ilegível. Esperar o prazo do candidato mais lento (10 s)
+        # para tentar os outros só pela abertura atrasava o veredito tanto
+        # que as repetições do outro lado se empilhavam na fila.
+        lidos_com_fecho = [q2 for (_, q2) in p['tentou'] if q2 is not None]
+        if not final and not lidos_com_fecho:
+            if not self._calou(p1):
+                return False
+            # Calou antes do prazo: o quadro acabou, e cabe no que já chegou.
+            # Ler pela abertura, com relógio nominal, como no prazo -- sem
+            # isto o veredito saía sem leitura nenhuma (`tentou=[]`): no H06,
+            # sessão 2, um OLA 2-FSK cuja marca de fechamento chegou 29 ms
+            # fora da tolerância nunca foi lido.
+            if self._le_candidatos(p, nominal=True):
+                return True
+        # Nada passou no CRC. Conta como segmento ilegível -- quem fala sabe
+        # que alguém falou -- e o turno espera um pouco por mais. O fim é
+        # agora, não a marca de abertura: uma resposta contada da abertura
+        # sairia por cima da repetição do outro lado, que não me ouve
+        # enquanto toca.
+        if _DEPURA:
+            self.anota(f"  ilegível em {p1 / FS:.2f}s: final={final}, "
+                       f"tentou={[(d.nome, None if q2 is None else round((q2 - p1) / FS, 3)) for d, q2 in p['tentou']]}")
+        self._segmento(('ilegivel', p1), self.agora)
+        return True
+
+    def _le_candidatos(self, p, nominal):
+        """Lê o quadro pendente em cada candidato: pela marca de fechamento
+        quando ela chegou, e só pela abertura (relógio nominal) se `nominal`.
+        Cada (candidato, fechamento) é tentado uma vez. True se um passou no
+        CRC; nesse caso o segmento já foi registrado."""
+        p1 = p['pos']
         for d in self._candidatos():
             p2 = self._fechamento(p1, d.amostras)
             tentativas = []
             if p2 is not None and self.agora >= p2 + LQ + SPS:
                 tentativas.append(p2)
-            if final and self.agora >= p1 + d.amostras + SPS:
+            if nominal and self.agora >= p1 + d.amostras + SPS:
                 tentativas.append(None)
             for q2 in tentativas:
                 if (d, q2) in p['tentou']:
@@ -909,24 +1058,7 @@ class Estacao:
                     self._segmento(('quadro', corpo, d, None),
                                    (q2 + LQ) if q2 is not None else p1 + d.amostras)
                     return True
-        # Uma marca de fechamento caiu exatamente onde um dos comprimentos
-        # previstos termina e a leitura falhou: o quadro tem esse comprimento
-        # e está ilegível. Esperar o prazo do candidato mais lento (10 s)
-        # para tentar os outros só pela abertura atrasava o veredito tanto
-        # que as repetições do outro lado se empilhavam na fila.
-        lidos_com_fecho = [q2 for (_, q2) in p['tentou'] if q2 is not None]
-        if not final and not lidos_com_fecho and not self._calou(p1):
-            return False
-        # Nada passou no CRC. Conta como segmento ilegível -- quem fala sabe
-        # que alguém falou -- e o turno espera um pouco por mais. O fim é
-        # agora, não a marca de abertura: uma resposta contada da abertura
-        # sairia por cima da repetição do outro lado, que não me ouve
-        # enquanto toca.
-        if _DEPURA:
-            self.anota(f"  ilegível em {p1 / FS:.2f}s: final={final}, "
-                       f"tentou={[(d.nome, None if q2 is None else round((q2 - p1) / FS, 3)) for d, q2 in p['tentou']]}")
-        self._segmento(('ilegivel', p1), self.agora)
-        return True
+        return False
 
     def _calou(self, p1):
         """O outro lado parou de tocar? Sem a marca de fechamento não se sabe
@@ -942,10 +1074,27 @@ class Estacao:
         curto = min(d.amostras for d in self._candidatos())
         if ate < p1 + int(0.99 * curto):
             return False
+        # E só sobre o que não é cegueira: o que a própria estação tocou é
+        # zerado na entrada, e zero lido como silêncio declarava "calou" com
+        # o outro lado tocando. No H06, sessão 3, isto fez 5 vereditos sem
+        # leitura nenhuma, três com a janela 100% cega, e cada um virou uma
+        # resposta por cima do quadro do outro lado. Janela quase toda cega:
+        # não se sabe, e "não sei" não é silêncio.
         ini = p1 + LQ + HUSH
-        ref = np.sqrt(np.mean(self.ouvido.trecho(ini, ini + FS // 2) ** 2))
-        rec = np.sqrt(np.mean(self.ouvido.trecho(ate - int(0.4 * FS), ate) ** 2))
+        ref = self._rms_valido(ini, ini + FS // 2)
+        rec = self._rms_valido(ate - int(0.4 * FS), ate)
+        if ref is None or rec is None:
+            return False
         return rec < 0.3 * ref
+
+    def _rms_valido(self, a, b):
+        """rms das amostras fora da cegueira em [a, b), ou None se mais da
+        metade do trecho for cega."""
+        inv = self.ouvido._invalido(a, b)
+        if inv.mean() > 0.5:
+            return None
+        x = self.ouvido.trecho(a, b)[~inv]
+        return float(np.sqrt(np.mean(x ** 2)))
 
     def _le_sonda(self, p1):
         dur_tons = 2 * LQ + 2 * HUSH + _sonda_tons_nominal()
@@ -1045,13 +1194,13 @@ class Estacao:
                 self.reinicia()
                 return
             if self.aberto and self.confirmado and self.tentativas % 2 == 0 \
-                    and self.degrau_tx < LENTO:
+                    and self.degrau_tx < self.ultimo_degrau:
                 # Silêncio não é falha que o receptor possa contar: se nem a
                 # marca foi achada, ele não sabe que falei. Quem desce o
                 # degrau, então, sou eu; o receptor tenta todos os degraus
                 # pelo comprimento do quadro, sem precisar ser avisado.
                 self.degrau_tx += 1
-                self.anota(f"duas repetições sem resposta; desço para {DEGRAUS[self.degrau_tx]}")
+                self.anota(f"duas repetições sem resposta; desço para {self.degraus[self.degrau_tx]}")
             self.anota(f"sem resposta em '{self.estado}'; repetindo o turno")
             self._toca(self._retransmite(),
                        apos=self.agora + int(self.rng.uniform(0, 1.0) * FS))
@@ -1121,25 +1270,27 @@ class Estacao:
                 self.contrato_rx = self._contrato_de(sondas[0], "chega")
                 self.estado = 'aguarda_contrato'
                 self.tentativas = 0
-                self._toca([self._quadro(self.ctrl, CONTRATO, self.contrato_rx.empacota(), mais=True),
+                self._toca([self._quadro(self.ctrl, CONTRATO, self.contrato_rx.empacota() + self._byte_modo(), mais=True),
                             modula_sonda(self.sessao)], depois=RESP)
             return
 
         if self.estado == 'sondando':
             if CONTRATO in tipos and sondas:
                 self.contrato_tx = Contrato.abre(tipos[CONTRATO][0][3])
+                self._confere_modo(tipos[CONTRATO][0][3])
                 self.anota(f"contrato para o que EU envio: {self.contrato_tx.descreve()}")
                 self.contrato_rx = self._contrato_de(sondas[0], "chega")
                 self.estado = 'contratando'
                 self.tentativas = 0
                 self._abre_canal()
-                self._toca([self._quadro(self.ctrl, CONTRATO, self.contrato_rx.empacota(), mais=True)]
+                self._toca([self._quadro(self.ctrl, CONTRATO, self.contrato_rx.empacota() + self._byte_modo(), mais=True)]
                            + self._turno_dados(forcar=True, so_partes=True), depois=RESP)
             return
 
         if self.estado == 'aguarda_contrato':
             if CONTRATO in tipos:
                 self.contrato_tx = Contrato.abre(tipos[CONTRATO][0][3])
+                self._confere_modo(tipos[CONTRATO][0][3])
                 self.anota(f"contrato para o que EU envio: {self.contrato_tx.descreve()}")
                 self._abre_canal()
                 self._dados(quadros, ruins + (0 if DADOS in tipos or ACK in tipos else 1))
@@ -1169,6 +1320,41 @@ class Estacao:
                        "outro lado estiver alto, baixá-lo e saudar de novo")
         return c
 
+    # --- modo de dados
+
+    def _byte_modo(self):
+        """O código do meu modo de dados, no byte que sobra do CONTRATO.
+        Em 'auto' é 0 -- o mesmo preenchimento de antes --, e o quadro sai
+        idêntico ao de sempre."""
+        return bytes([MODOS_DADOS.index(self.modo_dados)])
+
+    def _confere_modo(self, carga):
+        """Escreve no diário se o outro lado roda outro modo de dados. Não
+        negocia: o modo é escolhido por quem mede, nas duas pontas, e uma
+        divergência tem de aparecer como divergência -- os dados de um lado
+        não vão ser lidos pelo outro, e sem esta linha isso pareceria um
+        canal ruim."""
+        k = carga[5] if len(carga) > 5 else 0
+        outro = MODOS_DADOS[k] if k < len(MODOS_DADOS) else f'desconhecido ({k})'
+        if outro != self.modo_dados:
+            self.anota(f"AVISO: o outro lado usa modo de dados {outro}, eu {self.modo_dados}; "
+                       "os quadros de dados não vão se entender -- rodar as duas pontas "
+                       "com o mesmo --modo-dados")
+        else:
+            self.anota(f"modo de dados confirmado nas duas pontas: {outro}")
+
+    def _degrau_inicial(self, contrato):
+        """Onde a escada do meu modo começa. Em 'auto' é o degrau do
+        contrato. No 16-FSK fixo, o do contrato limitado ao rep4 (a sondagem
+        mede justamente o 16-FSK). Nos outros, o primeiro: a sondagem não
+        mediu essas técnicas, e começar com a menor redundância mostra cada
+        uma como ela é -- se não servir, desce pela repetição."""
+        if self.modo_dados == 'auto':
+            return contrato.degrau
+        if self.modo_dados == '16fsk':
+            return min(contrato.degrau, self.ultimo_degrau)
+        return 0
+
     # --- canal aberto: pare-e-espere
 
     def _abre_canal(self):
@@ -1184,8 +1370,8 @@ class Estacao:
             self.fila[0:0] = self.pendente_tx[1]
         self.pendente_tx = None
         self.ultimo_rx = 255
-        self.degrau_tx = self.contrato_tx.degrau
-        self.degrau_rx = self.contrato_rx.degrau
+        self.degrau_tx = self._degrau_inicial(self.contrato_tx)
+        self.degrau_rx = self._degrau_inicial(self.contrato_rx)
         self.falhas_rx = 0
         self.sem_progresso = 0
         self.tentativas = 0
@@ -1200,11 +1386,11 @@ class Estacao:
             self.seq_tx = (self.seq_tx + 1) % 255
         if self.pendente_tx is not None:
             seq, pedaco = self.pendente_tx
-            d = self.contrato_tx.descritor(self.degrau_tx, DADOS_N)
+            d = self.contrato_tx.descritor(self.degrau_tx, DADOS_N, self.modo_dados)
             carga = bytes([seq, self.ultimo_rx, self.degrau_rx, len(pedaco)]) + pedaco
             q = self._quadro(d, DADOS, carga)
         else:
-            d = self.contrato_tx.descritor(self.degrau_tx, CTRL_N)
+            d = self.contrato_tx.descritor(self.degrau_tx, CTRL_N, self.modo_dados)
             q = self._quadro(d, ACK, bytes([self.ultimo_rx, self.degrau_rx]))
         return [q]
 
@@ -1217,8 +1403,8 @@ class Estacao:
                 pedaco = bytes(carga[4:4 + n])
                 # O degrau em que este quadro chegou é o piso do que peço:
                 # se o outro lado já desceu, pedir mais rápido seria inútil.
-                for k in range(LENTO + 1):
-                    if d == self.contrato_rx.descritor(k, d.nbytes):
+                for k in range(self.ultimo_degrau + 1):
+                    if d == self.contrato_rx.descritor(k, d.nbytes, self.modo_dados):
                         self.degrau_rx = max(self.degrau_rx, k)
                 if seq == (self.ultimo_rx + 1) % 255 or (self.ultimo_rx == 255 and seq == 0):
                     self.recebido += pedaco
@@ -1232,13 +1418,13 @@ class Estacao:
             progresso = True
             if self.pendente_tx is not None and ack == self.pendente_tx[0]:
                 self.pendente_tx = None
-            if pede <= LENTO and pede > self.degrau_tx:
+            if pede <= self.ultimo_degrau and pede > self.degrau_tx:
                 # Um piso, não uma ordem: quem recebe só sabe das falhas que
                 # chegou a ver, e quem transmite pode ter descido sozinho por
                 # silêncio. Tomar o pedido ao pé da letra fazia os dois
                 # oscilarem, um descendo e o outro mandando subir. Subir de
                 # novo pede nova sondagem.
-                self.anota(f"o outro lado pede o degrau {DEGRAUS[pede]} para o que envio")
+                self.anota(f"o outro lado pede o degrau {self.degraus[pede]} para o que envio")
                 self.degrau_tx = pede
         if progresso:
             self.progresso_em = self.agora
@@ -1252,10 +1438,10 @@ class Estacao:
             self.falhas_rx += 1
             self.sem_progresso += 1
             responder = True
-            if self.falhas_rx >= 2 and self.degrau_rx < LENTO:
+            if self.falhas_rx >= 2 and self.degrau_rx < self.ultimo_degrau:
                 self.degrau_rx += 1
                 self.falhas_rx = 0
-                self.anota(f"quadros ilegíveis; pedindo {DEGRAUS[self.degrau_rx]}")
+                self.anota(f"quadros ilegíveis; pedindo {self.degraus[self.degrau_rx]}")
             if self.sem_progresso > 8:
                 self.anota("canal perdido; voltando ao começo")
                 self.reinicia()

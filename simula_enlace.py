@@ -103,9 +103,10 @@ def roda(cenario, verbose=False, semente=0):
     rng = np.random.default_rng(semente)
     log = print if verbose else None
     c = CENARIOS[cenario]
-    a = E.Estacao('chamador', semente=semente + 1, log=log, nome='A')
+    modo = c.get('modo_dados', 'auto')
+    a = E.Estacao('chamador', semente=semente + 1, log=log, nome='A', modo_dados=modo)
     b = None if c.get('sem_parceiro') else E.Estacao('ouvinte', semente=semente + 2,
-                                                     log=log, nome='B')
+                                                     log=log, nome='B', modo_dados=modo)
     ar_a, ar_b = Ar(rng, c['ruido_a']), Ar(rng, c['ruido_b'], c.get('piora_b'))
     ab = Canal(rng, **c['ab'])
     ba = Canal(rng, **c['ba'])
@@ -167,6 +168,14 @@ CENARIOS = {
     'latencia': dict(segundos=240, ruido_a=0.002, ruido_b=0.002,
                      ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
                      dados_a=120, dados_b=60, latencia_oculta=0.7),
+    # Cada modulação fixa sozinha nos dados, sobre o canal 'limpo': mesma
+    # saudação, sondagem e contrato, só os DADOS e ACK mudam. Prova que cada
+    # quadro é escrito e lido de ponta a ponta pelo protocolo, não que a
+    # técnica sirva para a sala -- isso é o ar que diz.
+    **{f'modo_{m}': dict(segundos=600, ruido_a=0.002, ruido_b=0.002,
+                         ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
+                         dados_a=60, dados_b=30, modo_dados=m)
+       for m in ('16fsk', '2fsk', 'votada', 'multicanal')},
     'sem_parceiro': dict(segundos=120, ruido_a=0.01, ruido_b=0.01,
                          ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
                          sem_parceiro=True),
@@ -183,11 +192,11 @@ def julga(nome, a, b, msg_a, msg_b, seg, cpu):
         a.recebido == msg_b and b.recebido == msg_a
     print(f"  {nome}: {seg:.0f}s simulados ({cpu:.0f}s cpu); A {a.estado}, B {b.estado}; "
           f"A recebeu {len(a.recebido)}/{len(msg_b)}, B recebeu {len(b.recebido)}/{len(msg_a)}"
-          f" -> {'ok' if ok else 'FALHOU'}")
+          f" -> {'ok' if ok else 'FALHOU'}" + f" [modo de dados {a.modo_dados}]")
     if a.contrato_tx:
-        print(f"     A->B: {a.contrato_tx.descreve()} (degrau em uso {E.DEGRAUS[a.degrau_tx]})")
+        print(f"     A->B: {a.contrato_tx.descreve()} (degrau em uso {a.degraus[a.degrau_tx]})")
     if b.contrato_tx:
-        print(f"     B->A: {b.contrato_tx.descreve()} (degrau em uso {E.DEGRAUS[b.degrau_tx]})")
+        print(f"     B->A: {b.contrato_tx.descreve()} (degrau em uso {b.degraus[b.degrau_tx]})")
     return ok
 
 
