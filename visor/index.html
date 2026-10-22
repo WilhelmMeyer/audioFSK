@@ -1,0 +1,1165 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor do Enlace</title>
+<link rel="stylesheet" href="fontes/fontes.css">
+<style>
+:root {
+  /* painel frontal: preto craquelado de receptor de bancada */
+  --preto: #232220;
+  --preto-fundo: #1b1a18;
+  --preto-janela: #161513;
+  --preto-borda: #3a3732;
+  /* gravação: branco-osso; detalhes: cáqui */
+  --osso: #e8dfc8;
+  --osso-2: #c9bfa6;
+  --caqui: #a89a6e;
+  --caqui-escuro: #6f6548;
+  /* vidro do mostrador e papel do registrador: as únicas superfícies claras */
+  --vidro: #ece0bd;
+  --vidro-2: #e2d3a8;
+  --papel: #efe6cf;
+  --tinta: #2e231b;
+  --tinta-2: #5b4736;
+  --tinta-3: #6a5844;
+  /* papéis com função: o que esta estação ENVIA, o que lhe CHEGA */
+  --envio: #a6532f;
+  --envio-claro: #d39a78;
+  --envio-botao: #8a3b22;
+  --chega: #4d6b8c;
+  --chega-claro: #93abc4;
+  --chega-botao: #3d5775;
+  /* luz */
+  --ambar: #f1b24a;
+  --ambar-brilho: rgba(241, 178, 74, .5);
+  --alarme: #b8402a;
+  --olho: #8fe0a2;
+
+  --f-placa: 'League Gothic', 'Arial Narrow', sans-serif;
+  --f-ui: 'Jost', system-ui, sans-serif;
+  --f-tipo: 'Courier Prime', 'Courier New', monospace;
+
+  --r: 2px;
+  --gutter: 16px;
+  --funda: inset 0 1px 3px rgba(0,0,0,.6);
+  /* parafuso de fenda, um por canto da chapa */
+  --parafuso: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Ccircle cx='5' cy='5' r='4.2' fill='%23524c40' stroke='%23121110' stroke-width='.8'/%3E%3Cpath d='M2.3 6.6 L7.7 3.4' stroke='%23121110' stroke-width='1.1'/%3E%3C/svg%3E");
+  /* craquelado: rugas finas da tinta encolhida, não grão */
+  --craquelado: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='turbulence' baseFrequency='.055' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.2 1.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)' opacity='.24'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--preto-fundo); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--osso);
+  font: 400 15px/1.45 var(--f-ui);
+  background: var(--craquelado), var(--preto-fundo);
+}
+::selection { background: var(--ambar); color: var(--tinta); }
+:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px; }
+* { scrollbar-color: var(--caqui-escuro) transparent; scrollbar-width: thin; }
+
+/* ---------- casca ---------- */
+.chassi {
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 14px var(--gutter) 24px;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-areas:
+    "placa placa"
+    "cmd   radio"
+    "cmd   instr"
+    "cmd   diario";
+  gap: 12px;
+}
+.placa { grid-area: placa; }
+.comando { grid-area: cmd; align-self: start; position: sticky; top: 14px; }
+.radio { grid-area: radio; }
+.instrumentos { grid-area: instr; }
+.registro { grid-area: diario; }
+
+/* chapa aparafusada: o módulo base */
+.chapa {
+  position: relative;
+  background: var(--craquelado), var(--preto);
+  border: 1px solid var(--preto-borda);
+  border-radius: var(--r);
+  box-shadow: 0 4px 12px -4px rgba(0,0,0,.6);
+  padding: 16px 18px 18px;
+}
+.chapa, .placa {
+  background-image: var(--parafuso), var(--parafuso), var(--parafuso), var(--parafuso), var(--craquelado);
+  background-position: 5px 5px, calc(100% - 5px) 5px, 5px calc(100% - 5px), calc(100% - 5px) calc(100% - 5px), 0 0;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+}
+/* letreiro pintado: o título de cada módulo, sem placa */
+.rotulo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0 0 5px;
+  font: 400 20px/1 var(--f-placa);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--osso);
+  border-bottom: 1px solid var(--caqui-escuro);
+}
+.rotulo small {
+  font: 500 11.5px/1 var(--f-ui);
+  letter-spacing: .03em;
+  text-transform: none;
+  color: var(--caqui);
+}
+
+/* ---------- placa do aparelho ---------- */
+.placa {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 12px 26px;
+  background-color: #121110;
+  border: 1px solid var(--preto-borda);
+  border-radius: var(--r);
+  color: var(--osso);
+}
+.placa h1 {
+  margin: 0;
+  font: 400 36px/1 var(--f-placa);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--osso);
+}
+.placa .estacao {
+  display: flex; gap: 18px; align-items: baseline; flex-wrap: wrap;
+  font: 500 13px/1.2 var(--f-ui); color: var(--caqui);
+  text-transform: lowercase;
+}
+.placa .estacao b { font-family: var(--f-placa); font-weight: 400; font-size: 22px; letter-spacing: .08em; color: var(--osso); text-transform: uppercase; }
+.placa .papel-chamador { color: var(--envio-claro) !important; }
+.placa .papel-ouvinte { color: var(--chega-claro) !important; }
+.placa .direita { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+.piloto { display: inline-flex; align-items: center; gap: 8px; font: 500 13px/1 var(--f-ui); color: var(--osso-2); white-space: nowrap; }
+/* lâmpada-piloto: um bulbo atrás de um aro, só brilha quando carrega estado */
+.lampada {
+  --cor: #3b3630;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--cor);
+  box-shadow: 0 0 0 2px #0d0c0b, 0 0 0 3px var(--caqui-escuro);
+  flex: none;
+}
+.lampada.acesa { --cor: var(--ambar); box-shadow: 0 0 0 2px #0d0c0b, 0 0 0 3px var(--caqui-escuro), 0 0 12px 3px var(--ambar-brilho); }
+.lampada.verde { --cor: var(--olho); box-shadow: 0 0 0 2px #0d0c0b, 0 0 0 3px var(--caqui-escuro), 0 0 10px 2px rgba(143,224,162,.4); }
+.lampada.alarme { --cor: #e0573c; box-shadow: 0 0 0 2px #0d0c0b, 0 0 0 3px var(--caqui-escuro), 0 0 12px 3px rgba(224,87,60,.5); }
+.lampada.pisca { animation: pisca 1.1s ease-in-out infinite; }
+@keyframes pisca { 50% { filter: brightness(.5); } }
+
+/* ---------- mostrador: o eixo de frequência ---------- */
+.radio { --calha: 46px; }
+.radio .rotulo { flex-wrap: wrap; }
+.legenda { display: flex; gap: 16px; flex-wrap: wrap; font: 500 12.5px/1.2 var(--f-ui); color: var(--osso-2); margin: 0 0 10px; }
+.legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.legenda i { display: inline-block; width: 18px; height: 8px; }
+.moldura {
+  /* janela recortada no painel, com um aro de metal escurecido */
+  margin-right: var(--calha);
+  padding: 5px;
+  background: #0d0c0b;
+  border: 1px solid var(--caqui-escuro);
+  border-radius: var(--r);
+}
+.vidro {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(120% 160% at 50% 10%, #f6ecce 0%, var(--vidro) 50%, var(--vidro-2) 100%);
+  transition: filter .8s ease-out;
+}
+/* lâmpada atrás do mostrador: só esquenta com sessão no ar */
+.vidro.no-ar { filter: sepia(.2) saturate(1.3) brightness(1.04); }
+#escala { display: block; width: 100%; height: 232px; }
+#ponteiro {
+  position: absolute; top: 4px; bottom: 4px; left: 0; width: 2px; margin-left: -1px;
+  background: #8e2414;
+  transition: transform .25s cubic-bezier(.2,.8,.2,1), opacity .4s;
+  opacity: 0;
+  pointer-events: none;
+}
+#ponteiro.ativo { opacity: .95; }
+#ponteiro b {
+  position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+  font: 700 12px/1 var(--f-tipo); color: var(--vidro); background: #8e2414;
+  padding: 2px 5px; white-space: nowrap;
+}
+
+/* papel do registrador: o espectrograma no mesmo eixo, logo abaixo */
+.rotulo .reg { margin-left: auto; font: 400 15px/1 var(--f-placa); letter-spacing: .1em; text-transform: uppercase; color: var(--osso-2); }
+.registrador {
+  /* mesmo início e fim do vidro (aro 5px + filete 1px) */
+  position: relative;
+  margin: 8px calc(var(--calha) + 6px) 0 6px;
+}
+#cascata { display: block; width: 100%; height: 260px; image-rendering: pixelated; background: var(--papel); outline: 1px solid var(--caqui-escuro); outline-offset: 0; }
+.registrador .tempo {
+  position: absolute; left: 100%; top: 0; bottom: 0; width: calc(var(--calha) + 6px); pointer-events: none;
+  font: 700 12px/1 var(--f-tipo); color: var(--osso-2);
+}
+.registrador .tempo span { position: absolute; left: 7px; transform: translateY(-50%); }
+.registrador .tempo span::before { content: ""; position: absolute; left: -7px; top: 50%; width: 4px; border-top: 1px solid var(--caqui); }
+
+/* ---------- instrumentos ---------- */
+.instrumentos {
+  display: grid;
+  grid-template-columns: minmax(250px, .9fr) minmax(300px, 1.25fr) minmax(250px, 1fr);
+  gap: 12px;
+}
+.instrumentos > .chapa { display: flex; flex-direction: column; }
+.instrumentos > .chapa > .janela { flex: 1; }
+/* janela: o recorte escuro onde ficam as leituras */
+.janela {
+  background: var(--preto-janela);
+  border: 1px solid #0b0a09;
+  box-shadow: var(--funda);
+  padding: 12px 14px;
+}
+.nivel { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; }
+#olho { width: 96px; height: 96px; display: block; }
+.leituras { display: grid; gap: 5px; }
+.leitura { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; font: 500 13px/1.3 var(--f-ui); color: var(--osso-2); }
+.leitura output, .contador output {
+  font: 700 15px/1 var(--f-tipo);
+  font-variant-numeric: tabular-nums;
+  color: var(--ambar);
+  background: #0b0a09;
+  border: 1px solid #2b2925;
+  padding: 5px 7px;
+  min-width: 82px; text-align: right;
+}
+.leitura output.mal, .contador output.mal { color: #fff1e6; background: var(--alarme); border-color: var(--alarme); }
+#forma { display: block; width: 100%; height: 70px; margin-top: 12px; }
+.forma-esc { font: 400 12px/1.3 var(--f-ui); color: var(--caqui); text-align: right; }
+
+/* fases do aperto de mão */
+.fases { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.fase { display: grid; grid-template-columns: 18px 1fr; column-gap: 12px; align-items: start; padding: 5px 6px; }
+.fase .lampada { margin-top: 3px; }
+.fase b { font: 400 18px/1.1 var(--f-placa); letter-spacing: .08em; text-transform: uppercase; color: var(--osso-2); }
+.fase p { grid-column: 2; margin: 1px 0 0; font: 400 13px/1.35 var(--f-ui); color: var(--caqui); overflow-wrap: anywhere; }
+.fase.agora { background: rgba(241,178,74,.12); }
+.fase.agora b, .fase.feita b { color: var(--osso); }
+.fase.feita p, .fase.agora p { color: var(--osso-2); }
+
+/* contadores */
+.contadores { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 12px; }
+.contador { display: grid; gap: 4px; font: 500 12.5px/1.2 var(--f-ui); color: var(--osso-2); }
+.contador output { text-align: left; font-size: 17px; padding: 6px 8px; }
+.contador .barra { height: 4px; background: #2b2925; overflow: hidden; }
+.contador .barra i { display: block; height: 100%; width: 0; background: var(--envio); transition: width .4s ease-out; }
+.contador .barra.chega i { background: var(--chega-claro); }
+
+.contratos { display: grid; gap: 7px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #2b2925; }
+.contrato { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: baseline; font: 400 12.5px/1.35 var(--f-tipo); color: var(--osso-2); }
+.contrato span { font: 400 16px/1 var(--f-placa); letter-spacing: .1em; text-transform: uppercase; }
+.contrato.envio span { color: var(--envio-claro); }
+.contrato.chega span { color: var(--chega-claro); }
+
+/* ---------- registro: teletipo + o que chegou ---------- */
+.registro { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); gap: 12px; }
+.fita {
+  height: 360px; overflow: auto;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 20px, rgba(125,106,85,.10) 20px 21px),
+    var(--papel);
+  outline: 1px solid var(--caqui-escuro);
+  padding: 8px 12px;
+  font: 400 13px/21px var(--f-tipo);
+  color: var(--tinta);
+  scrollbar-color: var(--tinta-3) var(--papel);
+}
+.fita div { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 7.5ch; text-indent: -7.5ch; }
+.fita .t { color: var(--tinta-3); }
+.fita .aviso { color: #8c2d16; font-weight: 700; }
+.fita .aberto { color: #23426a; font-weight: 700; }
+.fita .ilegivel { color: #8c2d16; }
+.fita .contrato-l { color: #3b2a1c; font-weight: 700; }
+.fita .local { color: #4f5a2e; }
+.fita .vazia { color: var(--tinta-3); font-family: var(--f-ui); text-indent: 0; padding: 0; }
+.fita-pe { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font: 500 12.5px/1.2 var(--f-ui); color: var(--osso-2); }
+.chegou pre {
+  margin: 0; height: 300px; overflow: auto;
+  background: var(--papel); outline: 1px solid var(--caqui-escuro);
+  padding: 10px 12px; font: 400 13px/1.45 var(--f-tipo); color: var(--tinta); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.chegou .info { font: 500 13px/1.4 var(--f-ui); color: var(--osso-2); margin: 0 0 10px; }
+
+/* ---------- comando: o formulário ---------- */
+.comando form { display: grid; gap: 14px; }
+.campo { display: grid; gap: 6px; }
+.campo > label, .campo > legend, .campo > .nome {
+  font: 400 16px/1 var(--f-placa); letter-spacing: .1em; text-transform: uppercase; color: var(--osso);
+}
+.campo > legend { margin-bottom: 6px; }
+.campo small { font: 400 12.5px/1.35 var(--f-ui); color: var(--caqui); }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+input[type=text], input[type=number], textarea, select {
+  width: 100%;
+  font: 400 14.5px/1.35 var(--f-ui);
+  color: var(--osso);
+  background: var(--preto-janela);
+  border: 1px solid var(--caqui-escuro);
+  border-radius: 0;
+  padding: 8px 10px;
+  box-shadow: var(--funda);
+  caret-color: var(--ambar);
+}
+select option { background: var(--preto); color: var(--osso); }
+textarea { min-height: 84px; resize: vertical; }
+input[type=number] { font-family: var(--f-tipo); font-variant-numeric: tabular-nums; }
+input::placeholder, textarea::placeholder { color: #8f8466; }
+input:hover:not(:disabled), textarea:hover:not(:disabled), select:hover:not(:disabled) { border-color: var(--caqui); }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--ambar); outline-offset: 1px; }
+input:disabled, textarea:disabled, select:disabled { opacity: .55; cursor: not-allowed; }
+.duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* chave de dois tempos para o papel: um radio group comum */
+.chave { display: grid; grid-template-columns: 1fr 1fr; background: #0d0c0b; border: 1px solid var(--caqui-escuro); padding: 3px; gap: 3px; }
+.chave input { position: absolute; opacity: 0; pointer-events: none; }
+.chave label {
+  display: grid; gap: 2px; text-align: center; padding: 9px 6px 8px; cursor: pointer;
+  font: 400 19px/1 var(--f-placa); letter-spacing: .1em; text-transform: uppercase; color: var(--caqui);
+  transition: background .18s, color .18s;
+}
+.chave label small { font: 400 11.5px/1.2 var(--f-ui); letter-spacing: 0; text-transform: none; color: inherit; }
+.chave label:hover { background: rgba(232,223,200,.06); color: var(--osso-2); }
+.chave input:checked + label.l-chamador { background: var(--envio-botao); color: #fff4e4; }
+.chave input:checked + label.l-ouvinte { background: var(--chega-botao); color: #f1f5fb; }
+.chave input:focus-visible + label { outline: 2px solid var(--ambar); outline-offset: -2px; }
+.chave input:disabled + label { cursor: not-allowed; opacity: .55; }
+
+input[type=file] { font: 400 13px/1.3 var(--f-ui); color: var(--osso-2); max-width: 100%; }
+input[type=file]::file-selector-button {
+  font: 400 15px/1 var(--f-placa); letter-spacing: .08em; text-transform: uppercase;
+  padding: 8px 11px; margin-right: 10px; cursor: pointer;
+  border: 1px solid var(--caqui); color: var(--osso); background: #0d0c0b;
+}
+input[type=file]::file-selector-button:hover { background: #2b2925; }
+details.mais summary::-webkit-details-marker { display: none; }
+details.mais summary::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 10px 2px 1px;
+  border-right: 2px solid var(--osso); border-bottom: 2px solid var(--osso);
+  transform: rotate(-45deg); transition: transform .18s;
+}
+details.mais[open] summary::before { transform: rotate(45deg); }
+details.mais summary { list-style: none; cursor: pointer; font: 400 16px/1 var(--f-placa); letter-spacing: .1em; text-transform: uppercase; color: var(--osso); }
+details.mais[open] summary { margin-bottom: 12px; }
+details.mais > div { display: grid; gap: 12px; }
+
+/* teclas: chapas retas, legenda gravada */
+.botao {
+  appearance: none; cursor: pointer;
+  font: 400 18px/1 var(--f-placa); letter-spacing: .12em; text-transform: uppercase;
+  padding: 11px 14px 10px;
+  border: 1px solid var(--caqui-escuro);
+  border-radius: var(--r);
+  color: var(--osso);
+  background: #0d0c0b;
+  box-shadow: 0 2px 5px rgba(0,0,0,.5);
+  transition: transform .08s, box-shadow .08s, background .15s, border-color .15s;
+}
+.botao:hover:not(:disabled) { border-color: var(--caqui); background: #1d1c19; }
+.botao:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.botao:disabled { cursor: not-allowed; opacity: .4; }
+.botao.principal { width: 100%; font-size: 24px; padding: 15px; }
+.botao.principal.chamador { background: var(--envio-botao); border-color: #b7613c; color: #fff4e4; }
+.botao.principal.chamador:hover:not(:disabled) { background: #9a4428; }
+.botao.principal.ouvinte { background: var(--chega-botao); border-color: #6b88a8; color: #f1f5fb; }
+.botao.principal.ouvinte:hover:not(:disabled) { background: #46628a; }
+.botao.alarme { background: #8f2e1d; border-color: #c3533a; color: #fff1e6; }
+.botao.alarme:hover:not(:disabled) { background: #a63a26; }
+.botao.principal:disabled { background: #0d0c0b; border-color: var(--caqui-escuro); color: var(--caqui); opacity: .6; }
+.sessao-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sessao-botoes .botao { font-size: 16px; padding: 11px 8px 10px; }
+.aviso-linha { min-height: 1.3em; margin: 0; font: 500 13px/1.4 var(--f-ui); color: var(--osso-2); }
+.aviso-linha.erro { color: #fff1e6; background: var(--alarme); padding: 7px 10px; }
+.separador { height: 1px; background: var(--caqui-escuro); margin: 6px 0 4px; }
+
+/* ---------- estreito ---------- */
+@media (max-width: 1180px) {
+  .chassi { grid-template-columns: minmax(0, 1fr); grid-template-areas: "placa" "radio" "instr" "cmd" "diario"; }
+  .comando { position: static; }
+  .instrumentos { grid-template-columns: 1fr 1fr; }
+  .instrumentos > :nth-child(2) { grid-column: 1 / -1; order: -1; }
+}
+@media (max-width: 720px) {
+  .placa { flex-wrap: wrap; padding: 14px 20px; }
+  .placa .direita { margin-left: 0; }
+  .instrumentos, .registro { grid-template-columns: minmax(0, 1fr); }
+  .radio { --calha: 40px; }
+  #escala { height: 210px; }
+  #cascata { height: 200px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="chassi">
+
+  <header class="placa">
+    <h1>Visor do Enlace</h1>
+    <div class="estacao">
+      <span>estação <b id="maquina">—</b></span>
+      <span>papel <b id="papel">—</b></span>
+      <span>estado <b id="estado-est">—</b></span>
+    </div>
+    <div class="direita">
+      <span class="piloto" title="O painel da sessão (127.0.0.1:7110) responde"><i class="lampada" id="l-painel"></i><span id="t-painel">sem sessão</span></span>
+      <span class="piloto" title="Este visor responde"><i class="lampada verde" id="l-visor"></i><span id="t-visor">visor</span></span>
+    </div>
+  </header>
+
+  <aside class="comando chapa" aria-labelledby="h-cmd">
+    <h2 class="rotulo" id="h-cmd">Comando</h2>
+    <form id="form" autocomplete="off">
+      <fieldset class="campo">
+        <legend class="nome">Papel desta estação</legend>
+        <div class="chave" role="radiogroup">
+          <input type="radio" name="papel" id="p-chamador" value="chamador" checked>
+          <label for="p-chamador" class="l-chamador">Chamador<small>toca a chamada</small></label>
+          <input type="radio" name="papel" id="p-ouvinte" value="ouvinte">
+          <label for="p-ouvinte" class="l-ouvinte">Ouvinte<small>espera e responde</small></label>
+        </div>
+      </fieldset>
+
+      <div class="campo">
+        <label for="texto">Texto a enviar</label>
+        <textarea id="texto" name="texto" placeholder="Mensagem que vai pelo ar quando o canal abrir"></textarea>
+        <small id="conta-texto">0 bytes</small>
+      </div>
+
+      <div class="campo">
+        <label for="arquivo">Arquivo a enviar</label>
+        <input type="file" id="arquivo" name="arquivo">
+        <small>Vai depois do texto, no mesmo fluxo de bytes.</small>
+      </div>
+
+      <div class="campo">
+        <label for="modo">Modo dos dados</label>
+        <select id="modo" name="modo_dados">
+          <option value="auto">auto — escada de degraus</option>
+          <option value="16fsk">16-FSK</option>
+          <option value="2fsk">2-FSK</option>
+          <option value="votada">5×2-FSK votada</option>
+          <option value="multicanal">5×2-FSK multicanal</option>
+        </select>
+        <small>As duas pontas precisam do mesmo modo.</small>
+      </div>
+
+      <details class="mais">
+        <summary>Tempos e dispositivos</summary>
+        <div>
+          <div class="duas">
+            <div class="campo">
+              <label for="duracao">Duração máx. (s)</label>
+              <input type="number" id="duracao" name="duracao" value="600" min="30" step="30">
+            </div>
+            <div class="campo">
+              <label for="fim">Fim por silêncio (s)</label>
+              <input type="number" id="fim" name="fim_silencio" value="120" min="0" step="15">
+            </div>
+          </div>
+          <div class="campo">
+            <label for="in-dev">Microfone</label>
+            <select id="in-dev" name="in_device"><option value="">padrão do sistema</option></select>
+          </div>
+          <div class="campo">
+            <label for="out-dev">Alto-falante</label>
+            <select id="out-dev" name="out_device"><option value="">padrão do sistema</option></select>
+          </div>
+        </div>
+      </details>
+
+      <button type="submit" class="botao principal chamador" id="iniciar">Iniciar chamada</button>
+      <p class="aviso-linha" id="msg" role="status"></p>
+    </form>
+
+    <div class="separador"></div>
+    <h2 class="rotulo" style="margin-top:12px">Sessão em curso</h2>
+    <div class="sessao-botoes">
+      <button class="botao" data-cmd="pausa" id="b-pausa" disabled>Pausar</button>
+      <button class="botao" data-cmd="finaliza" id="b-finaliza" disabled title="Sai quando nada estiver tocando nem agendado">Finalizar</button>
+      <button class="botao alarme" data-cmd="para" id="b-para" disabled title="Sai já e grava a sessão">Parar já</button>
+      <button class="botao alarme" data-cmd="mata" id="b-mata" disabled title="Só se o painel não responder: mata o processo que este visor lançou">Matar processo</button>
+    </div>
+  </aside>
+
+  <section class="radio chapa" aria-labelledby="h-dial">
+    <div class="cab">
+      <h2 class="rotulo" id="h-dial">Mostrador <small>400–4600 Hz · grade de 162,5 Hz</small><span class="piloto reg" id="p-reg" title="Registrador parado: nenhuma sessão gravando o microfone agora."><i class="lampada" id="l-reg"></i>registrador</span></h2>
+      <div class="legenda" aria-hidden="true">
+        <span><i style="background:var(--envio)"></i>contrato do que envio</span>
+        <span><i style="background:var(--chega)"></i>contrato do que me chega</span>
+        <span><i style="background:var(--chega);width:5px;height:12px"></i>margem por tom na sondagem (0–45 dB; vermelho &lt; 12)</span>
+        <span><i style="background:var(--ambar)"></i>espectro agora</span>
+        <span><i style="background:var(--alarme);width:3px"></i>tom dominante</span>
+      </div>
+    </div>
+    <div class="moldura">
+      <div class="vidro" id="vidro">
+        <svg id="escala" role="img" aria-label="Escala de frequência com os contratos de cada sentido e o espectro ouvido agora"></svg>
+        <div id="ponteiro"><b id="ponteiro-f"></b></div>
+      </div>
+    </div>
+    <div class="registrador">
+      <canvas id="cascata" aria-label="Espectrograma do microfone, mais recente no alto"></canvas>
+      <div class="tempo" id="tempo"></div>
+    </div>
+  </section>
+
+  <section class="instrumentos" aria-label="Instrumentos">
+    <div class="chapa">
+      <h2 class="rotulo">Nível de entrada</h2>
+      <div class="janela">
+        <div class="nivel">
+          <svg id="olho" viewBox="0 0 100 100" aria-hidden="true">
+            <defs>
+              <radialGradient id="g-olho" cx="50%" cy="50%" r="50%">
+                <stop offset="0" stop-color="#c7f5d2"/><stop offset=".55" stop-color="#8fe0a2"/><stop offset="1" stop-color="#3f8f57"/>
+              </radialGradient>
+            </defs>
+            <circle cx="50" cy="50" r="48" fill="#2e231b"/>
+            <circle cx="50" cy="50" r="43" fill="url(#g-olho)"/>
+            <path id="olho-sombra" fill="#0f2416"/>
+            <circle cx="50" cy="50" r="13" fill="#1c140e"/>
+            <circle cx="50" cy="50" r="43" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="2"/>
+          </svg>
+          <div class="leituras">
+            <div class="leitura">rms <output id="v-rms">—</output></div>
+            <div class="leitura">pico <output id="v-pico">—</output></div>
+            <div class="leitura">tom dominante <output id="v-dom">—</output></div>
+          </div>
+        </div>
+        <canvas id="forma" aria-label="Forma de onda dos últimos 200 ms"></canvas>
+        <div class="forma-esc" id="forma-esc">200 ms</div>
+      </div>
+    </div>
+
+    <div class="chapa">
+      <h2 class="rotulo">Aperto de mão</h2>
+      <div class="janela">
+        <ol class="fases" id="fases"></ol>
+      </div>
+    </div>
+
+    <div class="chapa">
+      <h2 class="rotulo">Contadores</h2>
+      <div class="janela">
+        <div class="contadores">
+          <div class="contador">enviados
+            <output id="c-env">—</output>
+            <div class="barra"><i id="b-env"></i></div>
+          </div>
+          <div class="contador">recebidos
+            <output id="c-rec">—</output>
+            <div class="barra chega"><i id="b-rec"></i></div>
+          </div>
+          <div class="contador">relógio da estação <output id="c-rel">—</output></div>
+          <div class="contador" title="Relógio de parede menos o da estação. Cresce = a estação ficou para trás e age sobre um agora velho.">atraso <output id="c-atr">—</output></div>
+          <div class="contador" title="Áudio esperando processamento">fila <output id="c-fila">—</output></div>
+          <div class="contador" title="Duração da última volta de passo()">passo <output id="c-passo">—</output></div>
+          <div class="contador">última marca há <output id="c-marca">—</output></div>
+          <div class="contador">quadros ilegíveis <output id="c-ileg">—</output></div>
+        </div>
+        <div class="contratos">
+          <div class="contrato envio"><span>envio</span><div id="k-tx">sem contrato</div></div>
+          <div class="contrato chega"><span>chega</span><div id="k-rx">sem contrato</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="registro" aria-label="Registro">
+    <div class="chapa">
+      <h2 class="rotulo">Diário <small id="d-fonte"></small></h2>
+      <div class="fita" id="fita" tabindex="0" aria-live="off"><div class="vazia">O diário da sessão aparece aqui, linha a linha, como o painel o publica.</div></div>
+      <div class="fita-pe"><span id="d-total">0 linhas</span><label><input type="checkbox" id="segue" checked style="accent-color: var(--envio)"> acompanhar o fim</label></div>
+    </div>
+    <div class="chapa chegou">
+      <h2 class="rotulo">O que chegou</h2>
+      <p class="info" id="r-info">A sessão escreve o que recebeu quando conclui.</p>
+      <pre id="r-texto"></pre>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const F0 = 400, F1 = 4600;
+const GRADE = Array.from({length: 25}, (_, k) => 562.5 + 162.5 * k);
+const NS = 'http://www.w3.org/2000/svg';
+
+const st = {
+  estado: null, vivo: false, stem: null, sessao: null,
+  diario: [], diarioStem: null,
+  audioProx: -1, audioStem: '',
+  espectro: null, piso: -95,
+  linhaBase: 0,
+};
+
+/* ---------- utilidades ---------- */
+async function pega(url, opt) {
+  const r = await fetch(url, Object.assign({cache: 'no-store'}, opt));
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.erro || r.statusText);
+  return j;
+}
+const fx = (f, w) => (f - F0) / (F1 - F0) * w;
+const db = (v) => v > 0 ? 20 * Math.log10(v) : -Infinity;
+function el(tag, attrs, pai) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (pai) pai.appendChild(e);
+  return e;
+}
+function mmss(s) {
+  if (s == null) return '—';
+  s = Math.max(0, s);
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2, '0')}:${(s - m * 60).toFixed(1).padStart(4, '0')}`;
+}
+
+/* ---------- leitura do diário: o que o estado não publica ---------- */
+function parseContrato(s) {
+  if (!s) return null;
+  const m = s.match(/(\d+)-(\d+) Hz, sombras \[([^\]]*)\], par (\d+)\/(\d+), ganho ([\d.]+), (.+)$/);
+  if (!m) return {texto: s};
+  const sombras = m[3].trim() ? m[3].split(',').map(Number) : [];
+  const f0 = +m[1], f1 = +m[2];
+  const tons = GRADE.filter(f => f >= f0 - 1 && f <= f1 + 1 && !sombras.some(x => Math.abs(x - f) < 2));
+  return {texto: s, f0, f1, sombras, par: [+m[4], +m[5]], ganho: +m[6], degrau: m[7], tons};
+}
+
+function leDiario(linhas) {
+  // Lido em ordem: um recomeço apaga o que veio antes dele.
+  const r = {chamada: null, saudacao: null, sondagem: null, margens: null, tx: null, rx: null,
+             aberto: false, dados: 0, concluida: null, ileg: 0, avisos: [], modo: null, latencia: null,
+             recomecos: 0};
+  for (const l of linhas) {
+    let m;
+    if ((m = l.match(/(chamada|resposta) ouvida \(correlação ([\d.]+)\)/))) r.chamada = `${m[1]} ouvida, correlação ${m[2]}`;
+    else if ((m = l.match(/(OLA(?:_OK)?) lido em (.+?); saudação concluída/))) r.saudacao = `${m[1]} lido em ${m[2]}`;
+    else if ((m = l.match(/sondagem lida: bits errados (.+?); margens \[([^\]]*)\]/))) {
+      r.sondagem = `bits errados ${m[1]}`;
+      r.margens = m[2].split(',').map(Number);
+    }
+    else if ((m = l.match(/contrato para o que EU envio: (.+)$/))) r.tx = m[1];
+    else if ((m = l.match(/contrato para o que me \w+: (.+)$/))) r.rx = m[1];
+    else if (/CANAL ABERTO/.test(l)) r.aberto = true;
+    else if ((m = l.match(/dados seq (\d+): (\d+) bytes/))) r.dados++;
+    else if ((m = l.match(/tudo enviado e confirmado em ([\d.]+)s; recebidos (\d+) bytes/))) r.concluida = `em ${m[1]} s, ${m[2]} bytes recebidos`;
+    else if ((m = l.match(/latência de saída medida no eco: (\+[\d.]+s)/))) r.latencia = m[1];
+    else if ((m = l.match(/modo de dados confirmado nas duas pontas: (\S+)/))) r.modo = m[1];
+    if (/ilegível em/.test(l)) r.ileg++;
+    if (/AVISO/.test(l)) r.avisos.push(l);
+    if (/voltando a chamar|voltando ao começo|canal perdido|recomeçando/.test(l)) {
+      Object.assign(r, {chamada: null, saudacao: null, sondagem: null, margens: null, tx: null, rx: null, aberto: false, dados: 0});
+      r.recomecos++;
+    }
+  }
+  return r;
+}
+
+/* ---------- mostrador ---------- */
+const svg = $('escala');
+let geo = {w: 1000, h: 232};
+function desenhaEscala() {
+  const w = svg.clientWidth || 1000, h = svg.clientHeight || 232;
+  geo = {w, h};
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.innerHTML = '';
+  // faixas: 0-30 envio, 30-150 espectro, 150-176 escala, 176-206 margens, 206-232 chega
+  geo.yTx = 8; geo.ySpecTop = 40; geo.ySpecBase = 140; geo.yEsc = 150; geo.yMarg = 200; geo.yRx = 210;
+  el('g', {id: 'g-espectro'}, svg);
+  const esc = el('g', {}, svg);
+  el('line', {x1: 0, x2: w, y1: geo.yEsc, y2: geo.yEsc, stroke: '#2e231b', 'stroke-width': 1.5}, esc);
+  const estreito = w < 700;
+  for (let f = 500; f <= 4500; f += estreito ? 250 : 100) {
+    const x = fx(f, w), maior = f % (estreito ? 1000 : 500) === 0;
+    el('line', {x1: x, x2: x, y1: geo.yEsc, y2: geo.yEsc + (maior ? 14 : 6), stroke: '#2e231b', 'stroke-width': maior ? 1.6 : 0.8}, esc);
+    if (maior) {
+      const t = el('text', {x, y: geo.yEsc + 33, 'text-anchor': 'middle', fill: '#2e231b',
+        style: `font: 400 ${w < 700 ? 15 : 21}px var(--f-placa); letter-spacing:.03em`}, esc);
+      t.textContent = f >= 1000 ? (f / 1000).toLocaleString('pt-BR') + (f === 1000 ? ' kHz' : '') : f;
+      if (estreito && f === 500) t.textContent = '';
+    }
+  }
+  // as 25 posições da grade, losangos sobre a escala
+  for (const f of GRADE) {
+    const x = fx(f, w);
+    el('path', {d: `M${x} ${geo.yEsc - 5} l3 5 -3 5 -3 -5z`, fill: '#7a6236'}, esc);
+  }
+  el('g', {id: 'g-margens'}, svg);
+  el('g', {id: 'g-contratos'}, svg);
+  pintaContratos();
+  pintaEspectro();
+}
+
+function faixa(g, c, y, cor, corClara, rotulo) {
+  if (!c || c.f0 == null) {
+    const t = el('text', {x: geo.w / 2, y: y + 15, 'text-anchor': 'middle', fill: '#5b4736', style: 'font: italic 400 12.5px var(--f-ui)'}, g);
+    t.textContent = rotulo;
+    return;
+  }
+  const w = geo.w, passo = fx(562.5 + 162.5, w) - fx(562.5, w);
+  const x0 = fx(c.f0, w) - passo / 2, x1 = fx(c.f1, w) + passo / 2;
+  el('rect', {x: x0, y: y + 3, width: x1 - x0, height: 16, rx: 3, fill: corClara, opacity: .55}, g);
+  for (const f of c.tons) {
+    const x = fx(f, w);
+    el('rect', {x: x - passo * .32, y: y + 5, width: passo * .64, height: 12, rx: 2, fill: cor}, g);
+  }
+  for (const f of c.sombras) {
+    const x = fx(f, w);
+    el('path', {d: `M${x - 5} ${y + 5} l10 12 M${x + 5} ${y + 5} l-10 12`, stroke: cor, 'stroke-width': 1.6}, g);
+  }
+  for (const f of c.par) {
+    const x = fx(f, w);
+    // o par 2-FSK: triângulos apontando para o tom
+    const ponta = y < geo.yEsc ? y + 24 : y - 4;
+    const base = y < geo.yEsc ? 6 : -6;
+    el('path', {d: `M${x} ${ponta} l-5 ${base} h10z`, fill: '#2e231b'}, g);
+  }
+}
+
+function pintaContratos() {
+  const g = $('g-contratos'), gm = $('g-margens');
+  if (!g) return;
+  g.innerHTML = ''; gm.innerHTML = '';
+  const e = st.estado || {}, d = st.lido || {};
+  const tx = parseContrato(e.contrato_tx || d.tx), rx = parseContrato(e.contrato_rx || d.rx);
+  faixa(g, tx, geo.yTx, '#a6532f', '#d39a78', 'sem contrato de envio');
+  faixa(g, rx, geo.yRx, '#4d6b8c', '#93abc4', 'sem contrato de recepção');
+  // margens da sondagem: o que ESTA estação mediu da outra, logo pertencem ao sentido que chega
+  if (d.margens && d.margens.length === GRADE.length) {
+    const w = geo.w;
+    d.margens.forEach((mdb, k) => {
+      const x = fx(GRADE[k], w), alto = Math.max(1, Math.min(1, mdb / 45) * 22);
+      el('rect', {x: x - 2.5, y: geo.yMarg - alto + 6, width: 5, height: alto, fill: mdb < 12 ? '#c13f2a' : '#4d6b8c', opacity: .85}, gm)
+        .appendChild(Object.assign(document.createElementNS(NS, 'title'), {textContent: `${GRADE[k]} Hz: margem ${mdb} dB`}));
+    });
+  }
+}
+
+function pintaEspectro() {
+  const g = $('g-espectro');
+  if (!g) return;
+  g.innerHTML = '';
+  const s = st.espectro;
+  if (!s) return;
+  const w = geo.w, top = geo.ySpecTop, base = geo.ySpecBase, n = s.length;
+  const piso = st.piso, faixaDb = 60;
+  let d = `M0 ${base}`;
+  for (let i = 0; i < n; i++) {
+    const x = i / (n - 1) * w;
+    const v = Math.max(0, Math.min(1, (s[i] - piso) / faixaDb));
+    d += ` L${x.toFixed(1)} ${(base - v * (base - top)).toFixed(1)}`;
+  }
+  d += ` L${w} ${base} Z`;
+  el('path', {d, fill: 'rgba(241,178,74,.38)', stroke: '#b3741c', 'stroke-width': 1.3, 'stroke-linejoin': 'round'}, g);
+}
+
+function poePonteiro(f) {
+  const p = $('ponteiro');
+  if (f == null) { p.classList.remove('ativo'); return; }
+  p.classList.add('ativo');
+  p.style.transform = `translateX(${fx(f, $('vidro').clientWidth)}px)`;
+  $('ponteiro-f').textContent = `${Math.round(f)} Hz`;
+}
+
+/* ---------- registrador (espectrograma) ---------- */
+const cv = $('cascata'), cx = cv.getContext('2d');
+let lut = null;
+function fazLut() {
+  // papel -> sépia -> ferrugem -> baquelite: mais tinta, mais energia
+  const paradas = [[0, [239, 230, 207]], [.35, [214, 186, 140]], [.6, [178, 104, 62]], [.82, [110, 48, 24]], [1, [40, 28, 20]]];
+  lut = new Uint8ClampedArray(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let k = 0; while (k < paradas.length - 2 && t > paradas[k + 1][0]) k++;
+    const [ta, ca] = paradas[k], [tb, cb] = paradas[k + 1];
+    const u = (t - ta) / (tb - ta);
+    for (let c = 0; c < 3; c++) lut[i * 3 + c] = ca[c] + (cb[c] - ca[c]) * u;
+  }
+}
+fazLut();
+function ajustaCanvas() {
+  const r = cv.getBoundingClientRect();
+  const W = Math.max(200, Math.round(r.width)), H = Math.max(100, Math.round(r.height));
+  if (cv.width !== W || cv.height !== H) {
+    // mudou a largura: o papel antigo não cabe mais no eixo, começa limpo
+    cv.width = W; cv.height = H;
+    cx.fillStyle = '#efe6cf'; cx.fillRect(0, 0, W, H);
+    marcasTempo();
+  }
+}
+let passoS = 2048 / 48000;
+function marcasTempo() {
+  const t = $('tempo'); t.innerHTML = '';
+  const H = cv.height;
+  for (let s = 2; s * (1 / passoS) < H - 6; s += 2) {
+    const sp = document.createElement('span');
+    sp.style.top = `${s / passoS}px`;
+    sp.textContent = `−${s} s`;
+    t.appendChild(sp);
+  }
+}
+function empurraColunas(cols) {
+  if (!cols.length) return;
+  const W = cv.width, H = cv.height, n = cols.length;
+  const k = Math.min(n, H);
+  cx.drawImage(cv, 0, 0, W, H - k, 0, k, W, H - k);
+  const img = cx.createImageData(W, k);
+  for (let j = 0; j < k; j++) {
+    const col = cols[n - 1 - j];  // a mais nova no alto
+    const L = col.length;
+    for (let x = 0; x < W; x++) {
+      const v = col[Math.min(L - 1, Math.floor(x / W * L))];
+      const t = Math.max(0, Math.min(255, Math.round((v - st.piso) / 55 * 255)));
+      const o = (j * W + x) * 4;
+      img.data[o] = lut[t * 3]; img.data[o + 1] = lut[t * 3 + 1]; img.data[o + 2] = lut[t * 3 + 2]; img.data[o + 3] = 255;
+    }
+  }
+  cx.putImageData(img, 0, 0);
+}
+
+/* ---------- olho mágico e forma de onda ---------- */
+function poeOlho(rms) {
+  // −60 dBFS: sombra quase aberta (100°); −6 dBFS: as asas quase se tocam
+  const d = rms > 0 ? 20 * Math.log10(rms) : -90;
+  const t = Math.max(0, Math.min(1, (d + 60) / 54));
+  const ang = (100 - 95 * t) * Math.PI / 180;
+  const r = 43, cx0 = 50, cy0 = 50;
+  const a0 = -Math.PI / 2 - ang / 2, a1 = -Math.PI / 2 + ang / 2;
+  const p = (a) => `${cx0 + r * Math.cos(a)} ${cy0 + r * Math.sin(a)}`;
+  $('olho-sombra').setAttribute('d', `M${cx0} ${cy0} L${p(a0)} A${r} ${r} 0 0 1 ${p(a1)} Z`);
+}
+poeOlho(0);
+const fv = $('forma'), fc = fv.getContext('2d');
+function poeForma(forma, pico) {
+  const r = fv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  fv.width = Math.round(r.width * dpr); fv.height = Math.round(r.height * dpr);
+  const W = fv.width, H = fv.height;
+  fc.clearRect(0, 0, W, H);
+  fc.strokeStyle = 'rgba(168,154,110,.35)'; fc.lineWidth = 1;
+  fc.beginPath(); fc.moveTo(0, H / 2); fc.lineTo(W, H / 2); fc.stroke();
+  if (!forma || !forma.length) return;
+  const n = forma.length;
+  // escala em potências de 2 acima do pico: um sinal fraco ainda tem forma, e a escala diz quanto
+  const esc = Math.min(1, Math.pow(2, Math.ceil(Math.log2(Math.max(pico, 1 / 512) * 1.05))));
+  fc.fillStyle = pico >= 0.99 ? '#e0573c' : '#f1b24a';
+  for (let i = 0; i < n; i++) {
+    const [mn, mx] = forma[i];
+    const x = i / n * W, y0 = H / 2 - mx / esc * H / 2, y1 = H / 2 - mn / esc * H / 2;
+    fc.fillRect(x, y0, Math.max(1, W / n), Math.max(1, y1 - y0));
+  }
+  $('forma-esc').textContent = `200 ms · escala ±${esc >= 1 ? '1' : '1/' + Math.round(1 / esc)} do fundo de escala`;
+}
+
+/* ---------- fases ---------- */
+const FASES = [
+  ['chamada', 'Chamada', ['chamando', 'escutando']],
+  ['saudacao', 'Saudação', ['ola', 'aguarda_ola']],
+  ['sondagem', 'Sondagem', ['sondando', 'aguarda_sonda']],
+  ['contrato', 'Contrato', ['contratando', 'aguarda_contrato']],
+  ['aberto', 'Canal aberto', []],
+  ['dados', 'Dados', ['aberto']],
+  ['concluida', 'Concluída', []],
+];
+function pintaFases() {
+  const e = st.estado || {}, d = st.lido || leDiario([]);
+  const ee = e.estado_estacao;
+  const terminada = e.fase === 'terminada' || !st.vivo;
+  const tx = e.contrato_tx || d.tx, rx = e.contrato_rx || d.rx;
+  const feito = {
+    chamada: !!(d.chamada || e.saudado),
+    saudacao: !!(e.saudado || d.saudacao),
+    sondagem: !!(d.sondagem || tx || rx),
+    contrato: !!(tx && rx),
+    aberto: !!(e.aberto || d.aberto),
+    dados: !!(e.concluido || (e.confirmado && e.a_enviar === 0 && !e.pendente_tx && (e.aberto || d.aberto))),
+    concluida: !!(e.concluido || d.concluida),
+  };
+  const det = {
+    chamada: d.chamada || (d.latencia ? `latência medida no eco ${d.latencia}` : ''),
+    saudacao: d.saudacao || '',
+    sondagem: d.sondagem || '',
+    contrato: d.modo ? `modo de dados ${d.modo} nas duas pontas` : '',
+    aberto: (e.aberto || d.aberto) ? 'contrato confirmado pelos dois lados' : '',
+    dados: e.enviados_total != null && (e.aberto || d.aberto) ? `${e.enviados_total - e.a_enviar} de ${e.enviados_total} bytes saíram · ${e.recebidos} chegaram · ${d.dados} quadro(s) de dados ouvidos` : '',
+    concluida: d.concluida || (e.fim ? `fim: ${e.fim}` : ''),
+  };
+  let agora = -1;
+  if (!terminada && ee) {
+    agora = FASES.findIndex(([id, , ests]) => ests.includes(ee));
+    if (ee === 'aberto' && feito.dados) agora = 6;
+  }
+  const ol = $('fases'); ol.innerHTML = '';
+  FASES.forEach(([id, nome], i) => {
+    const li = document.createElement('li');
+    li.className = 'fase';
+    const lamp = document.createElement('i');
+    lamp.className = 'lampada';
+    if (feito[id]) { lamp.classList.add('verde'); li.classList.add('feita'); }
+    if (i === agora && !feito[id]) { lamp.classList.add('acesa', 'pisca'); li.classList.add('agora'); }
+    if (terminada && !feito[id] && i === FASES.findIndex(([k]) => !feito[k]) && st.estado) lamp.classList.add('alarme');
+    const b = document.createElement('b'); b.textContent = nome;
+    li.append(lamp, b);
+    if (det[id]) { const p = document.createElement('p'); p.textContent = det[id]; li.appendChild(p); }
+    ol.appendChild(li);
+  });
+  if (d.recomecos) {
+    const li = document.createElement('li'); li.className = 'fase';
+    const lamp = document.createElement('i'); lamp.className = 'lampada alarme';
+    const b = document.createElement('b'); b.textContent = `${d.recomecos} recomeço(s)`;
+    const p = document.createElement('p'); p.textContent = 'a estação voltou ao começo; as fases acima contam só a partir do último';
+    li.append(lamp, b, p); ol.appendChild(li);
+  }
+}
+
+/* ---------- estado ---------- */
+function setOut(id, txt, mal) {
+  const o = $(id); o.textContent = txt; o.classList.toggle('mal', !!mal);
+}
+function pintaEstado() {
+  const e = st.estado;
+  const vivo = st.vivo;
+  $('l-painel').className = 'lampada' + (vivo ? (e && e.pausado ? ' acesa pisca' : ' acesa') : '');
+  $('t-painel').textContent = vivo ? (e && e.pausado ? 'sessão pausada' : 'sessão no ar') :
+    (e ? 'sessão terminada' : 'sem sessão');
+  $('vidro').classList.toggle('no-ar', vivo && !(e && e.pausado));
+  $('papel').textContent = e ? e.papel : '—';
+  $('papel').className = e ? `papel-${e.papel}` : '';
+  $('estado-est').textContent = e ? (e.fase === 'terminada' ? 'terminada' : (e.estado_estacao || e.fase)) : '—';
+  if (e) {
+    const saiu = e.enviados_total - e.a_enviar;
+    setOut('c-env', `${saiu} / ${e.enviados_total} B`);
+    $('b-env').style.width = e.enviados_total ? `${100 * saiu / e.enviados_total}%` : '0';
+    setOut('c-rec', `${e.recebidos} B`);
+    $('b-rec').style.width = e.recebidos ? '100%' : '0';
+    setOut('c-rel', mmss(e.estacao_s));
+    setOut('c-atr', `${(+e.atraso_s).toFixed(2)} s`, Math.abs(e.atraso_s) > 2);
+    setOut('c-fila', `${(+e.fila_s).toFixed(2)} s`, e.fila_s > 1);
+    setOut('c-passo', `${(+e.passo_ms).toFixed(0)} ms`, e.passo_ms > 500);
+    setOut('c-marca', e.ultima_marca_ha_s != null ? `${(+e.ultima_marca_ha_s).toFixed(1)} s` : '—', e.ultima_marca_ha_s > 60);
+  }
+  const d = st.lido || {};
+  setOut('c-ileg', String(d.ileg || 0), d.ileg > 0);
+  const tx = e && e.contrato_tx || d.tx, rx = e && e.contrato_rx || d.rx;
+  $('k-tx').textContent = tx || 'sem contrato';
+  $('k-rx').textContent = rx || 'sem contrato';
+
+  // botões
+  const lancada = st.sessao && st.sessao.rodando;
+  const livre = !vivo && !lancada;
+  $('iniciar').disabled = !livre;
+  const m = $('msg');
+  if (!m.classList.contains('erro')) {
+    if (vivo) m.textContent = 'Há uma sessão no ar nesta máquina; pare-a para iniciar outra.';
+    else if (m.textContent.startsWith('Há uma sessão')) m.textContent = '';
+  }
+  for (const x of document.querySelectorAll('#form input, #form textarea, #form select')) x.disabled = !livre;
+  $('b-pausa').disabled = !vivo;
+  $('b-pausa').textContent = e && e.pausado ? 'Retomar' : 'Pausar';
+  $('b-pausa').dataset.cmd = e && e.pausado ? 'retoma' : 'pausa';
+  $('b-finaliza').disabled = !vivo || (e && e.finalizando);
+  $('b-para').disabled = !vivo;
+  $('b-mata').disabled = !lancada;
+  pintaFases();
+  pintaContratos();
+}
+
+async function cicloEstado() {
+  try {
+    const r = await pega('/api/estado');
+    $('l-visor').className = 'lampada verde';
+    $('t-visor').textContent = `visor ${r.agora}`;
+    $('maquina').textContent = r.maquina;
+    st.vivo = r.vivo; st.estado = r.estado; st.sessao = r.sessao;
+    if (r.stem !== st.stem) {
+      st.stem = r.stem; st.diario = []; st.lido = null;
+      $('fita').innerHTML = '';
+    }
+    pintaEstado();
+  } catch (err) {
+    $('l-visor').className = 'lampada alarme';
+    $('t-visor').textContent = 'visor sem resposta';
+  }
+}
+
+/* ---------- diário ---------- */
+function classeLinha(l) {
+  if (/AVISO/.test(l)) return 'aviso';
+  if (/CANAL ABERTO|tudo enviado e confirmado/.test(l)) return 'aberto';
+  if (/ilegível/.test(l)) return 'ilegivel';
+  if (/contrato para o que|saudação concluída/.test(l)) return 'contrato-l';
+  if (/\[saudacao\]/.test(l)) return 'local';
+  return '';
+}
+async function cicloDiario() {
+  if (!st.stem) return;
+  try {
+    const r = await pega(`/api/diario?desde=${st.diario.length}`);
+    $('d-fonte').textContent = r.fonte === 'painel' ? 'ao vivo, pelo painel' : r.fonte === 'disco' ? 'do disco' : '';
+    if (r.total < st.diario.length) { st.diario = []; $('fita').innerHTML = ''; return; }
+    if (!r.linhas.length) return;
+    const fita = $('fita');
+    if (!st.diario.length) fita.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    for (const l of r.linhas) {
+      const div = document.createElement('div');
+      const m = l.match(/^(\s*[\d.]+)\s(.*)$/);
+      if (m) {
+        const t = document.createElement('span'); t.className = 't'; t.textContent = m[1].trim().padStart(7, ' ') + ' ';
+        const c = document.createElement('span'); c.className = classeLinha(m[2]);
+        c.textContent = m[2].replace(/^\[(chamador|ouvinte)\s+[\d.]+s\]\s*/, '');
+        div.append(t, c);
+      } else div.textContent = l;
+      frag.appendChild(div);
+    }
+    fita.appendChild(frag);
+    st.diario.push(...r.linhas);
+    st.lido = leDiario(st.diario);
+    $('d-total').textContent = `${st.diario.length} linhas`;
+    if ($('segue').checked) fita.scrollTop = fita.scrollHeight;
+    pintaFases(); pintaContratos(); setOut('c-ileg', String(st.lido.ileg), st.lido.ileg > 0);
+  } catch (err) { /* o próximo ciclo tenta de novo */ }
+}
+
+/* ---------- áudio ---------- */
+async function cicloAudio() {
+  try {
+    const r = await pega(`/api/audio?desde=${st.audioProx}&stem=${encodeURIComponent(st.audioStem)}&cabe=${cv.height}`);
+    $('l-reg').className = 'lampada' + (r.ativo ? ' acesa' : '');
+    $('p-reg').title = r.ativo ? 'Registrador correndo: o microfone desta máquina, inclusive o que ela mesma toca.'
+      : 'Registrador parado: nenhuma sessão gravando o microfone agora.';
+    if (!r.ativo) { poePonteiro(null); return; }
+    if (r.passo_s && Math.abs(r.passo_s - passoS) > 1e-6) { passoS = r.passo_s; marcasTempo(); }
+    st.audioStem = r.stem; st.audioProx = r.prox;
+    if (r.colunas.length) {
+      // piso: mediana do espectro mais recente, devagar; é o "papel em branco"
+      const ult = r.colunas[r.colunas.length - 1].slice().sort((a, b) => a - b);
+      const med = ult[Math.floor(ult.length / 2)];
+      st.piso = st.piso * 0.9 + (med - 4) * 0.1;
+      empurraColunas(r.colunas);
+      st.espectro = r.colunas[r.colunas.length - 1];
+      pintaEspectro();
+    }
+    poeOlho(r.rms);
+    setOut('v-rms', `${db(r.rms).toFixed(1)} dBFS`);
+    setOut('v-pico', r.pico.toFixed(3), r.pico >= 0.99);
+    setOut('v-dom', r.dominante ? `${Math.round(r.dominante)} Hz` : '—');
+    st.ultimoDom = r.dominante;
+    poePonteiro(r.dominante);
+    poeForma(r.forma, r.pico);
+  } catch (err) { /* idem */ }
+}
+
+/* ---------- recebido ---------- */
+async function cicloRecebido() {
+  try {
+    const r = await pega('/api/recebido');
+    const e = st.estado;
+    if (!r.existe) {
+      $('r-info').textContent = e && e.recebidos ? `${e.recebidos} bytes chegaram até agora; a sessão escreve o conteúdo quando conclui.` :
+        'A sessão escreve o que recebeu quando conclui.';
+      return;
+    }
+    $('r-info').textContent = `${r.bytes} bytes em ${r.nome}` + (r.legivel ? '' : ' · não é UTF-8, mostrado em hexadecimal');
+    $('r-texto').textContent = r.legivel ? r.texto : r.hex.replace(/(..)/g, '$1 ').replace(/((?:.. ){16})/g, '$1\n');
+  } catch (err) {}
+}
+
+/* ---------- formulário ---------- */
+function papelAtual() { return document.querySelector('input[name=papel]:checked').value; }
+function pintaPapel() {
+  const p = papelAtual(), b = $('iniciar');
+  b.classList.toggle('chamador', p === 'chamador');
+  b.classList.toggle('ouvinte', p === 'ouvinte');
+  b.textContent = p === 'chamador' ? 'Iniciar chamada' : 'Começar a escutar';
+}
+for (const r of document.querySelectorAll('input[name=papel]')) r.addEventListener('change', pintaPapel);
+$('texto').addEventListener('input', () => {
+  $('conta-texto').textContent = `${new TextEncoder().encode($('texto').value).length} bytes`;
+});
+function msg(t, erro) { const m = $('msg'); m.textContent = t; m.classList.toggle('erro', !!erro); }
+function lerArquivo(f) {
+  return new Promise((ok, falha) => {
+    const fr = new FileReader();
+    fr.onload = () => ok(fr.result.split(',')[1] || '');
+    fr.onerror = () => falha(fr.error);
+    fr.readAsDataURL(f);
+  });
+}
+$('form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const fd = new FormData($('form'));
+  const p = Object.fromEntries([...fd.entries()].filter(([k]) => k !== 'arquivo'));
+  const f = $('arquivo').files[0];
+  if (f) {
+    if (f.size > 2e6) { msg('Arquivo maior que 2 MB: pelo ar isso leva horas.', true); return; }
+    p.arquivo_nome = f.name; p.arquivo_b64 = await lerArquivo(f);
+  }
+  $('iniciar').disabled = true;
+  msg('Lançando saudacao.py…');
+  try {
+    const r = await pega('/api/inicia', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(p)});
+    msg(`Sessão lançada, pid ${r.pid}. O painel responde em alguns segundos.`);
+    st.audioProx = -1;
+  } catch (err) {
+    msg(err.message, true);
+    $('iniciar').disabled = false;
+  }
+});
+for (const b of document.querySelectorAll('.sessao-botoes .botao')) {
+  b.addEventListener('click', async () => {
+    const cmd = b.dataset.cmd;
+    b.disabled = true;
+    try {
+      const r = await pega('/api/comando', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({cmd})});
+      msg(r.resposta);
+    } catch (err) { msg(err.message, true); }
+    setTimeout(cicloEstado, 300);
+  });
+}
+async function carregaDispositivos() {
+  try {
+    const r = await pega('/api/dispositivos');
+    for (const [id, lista] of [['in-dev', r.entrada], ['out-dev', r.saida]]) {
+      const s = $(id);
+      for (const n of lista) { const o = document.createElement('option'); o.value = n; o.textContent = n; s.appendChild(o); }
+    }
+  } catch (err) {}
+}
+
+/* ---------- laços ---------- */
+function laco(fn, ms) { (async function vai() { await fn(); setTimeout(vai, ms); })(); }
+new ResizeObserver(() => { desenhaEscala(); ajustaCanvas(); poePonteiro(st.ultimoDom); }).observe($('vidro'));
+// ?papel=ouvinte já abre com a chave virada (um atalho por máquina)
+{ const q = new URLSearchParams(location.search).get('papel');
+  if (q === 'ouvinte' || q === 'chamador') $(`p-${q}`).checked = true; }
+pintaPapel();
+desenhaEscala(); ajustaCanvas(); pintaFases();
+carregaDispositivos();
+laco(cicloEstado, 700);
+laco(cicloDiario, 1000);
+laco(cicloAudio, 250);
+laco(cicloRecebido, 3000);
+</script>
+</body>
+</html>
