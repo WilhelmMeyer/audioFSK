@@ -18,6 +18,7 @@ Imprime SUCCESS!/FAILED como `loopback_test.py`. Sem hardware.
 
     ./venv/bin/python simula_enlace.py            # todos os cenários
     ./venv/bin/python simula_enlace.py limpo -v   # um, com o diário das estações
+    ./venv/bin/python simula_enlace.py limpo --semente=3   # outro sorteio de canal
 """
 
 import sys
@@ -219,10 +220,12 @@ def julga(nome, a, b, msg_a, msg_b, seg, cpu):
 def main():
     args = [x for x in sys.argv[1:] if not x.startswith('-')]
     verbose = '-v' in sys.argv
+    semente = next((int(x.split('=', 1)[1]) for x in sys.argv[1:]
+                    if x.startswith('--semente=')), 0)
     nomes = args or list(CENARIOS)
     ok = True
     for n in nomes:
-        r = roda(n, verbose=verbose)
+        r = roda(n, verbose=verbose, semente=semente)
         ok &= julga(n, *r)
     print("SUCCESS!" if ok else "FAILED")
     sys.exit(0 if ok else 1)

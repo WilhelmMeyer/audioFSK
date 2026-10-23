@@ -1167,7 +1167,10 @@ class Estacao:
                         and not self._eco_janela[0] <= m[0] < self._eco_janela[1]
                         and m[0] not in self._usadas]
                 quero = 'quadro_longo' if self.esforco else 'quadro'
-                prox = [m for m in prox if m[1] == quero or not any(
+                # Só entre as duas de quadro: a de sondagem não tem par, e
+                # apagá-la por uma de quadro falsa ao lado fazia a sondagem
+                # inteira ser lida como quadros ilegíveis ('limpo', 2026-10-23).
+                prox = [m for m in prox if m[1] == quero or m[1] not in QUADROS or not any(
                     o[1] == quero and abs(o[0] - m[0]) < FS // 2 for o in prox)]
                 if not prox:
                     return
