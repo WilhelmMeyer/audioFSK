@@ -418,6 +418,19 @@ SOMBRAS_MAX = 6
 # os tons depois, e a confirmação no contrato é o que mede a escolha.
 SONDA_G_DESC = tuple(Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, g, f'sonda g{g}')
                      for g in GANHOS)
+# De longe a escada de ganho vai no 16-FSK lento, na mesma forma do degrau
+# LENTO (20 baud, guarda 0,3, marca longa): a 100 baud ela nunca era lida de
+# longe (2026-10-22), e o contrato saía com ganho e degrau no chute. Assim o
+# receptor mede o lento de fato -- a velocidade passa a ser negociada como o
+# ganho. Só os três ganhos de cima; o primeiro fica sem sonda (0,5).
+SONDA_G_LONGE = tuple(None if i == 0 else
+                      Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, g, f'sonda lenta g{g}',
+                                LENTO_BAUD, LENTO_GUARDA, LENTO_PRE, marca='quadro_longo')
+                      for i, g in enumerate(GANHOS))
+
+
+def sonda_g(longe):
+    return SONDA_G_LONGE if longe else SONDA_G_DESC
 
 # Degraus de taxa, do mais rápido ao mais lento. Limiares de erro de bit
 # (antes do FEC) a partir de CLAUDE.md: taxa 1/3 suave inteira até ~13%,
@@ -431,6 +444,7 @@ LENTO = 4
 # não passou nem em quadro de controle, e o muito lento (10 baud) passou.
 MUITO_LENTO = 5
 LIMIARES_BER = (0.07, 0.15, 0.25, 0.35, 0.40)
+LIMIAR_LENTO = 0.10          # erro de bit na sonda lenta abaixo disto: o lento serve
 
 # Modulação dos dados (DADOS e ACK do canal aberto). 'auto' é a escada acima,
 # que desce do 16-FSK para o 2-FSK e o lento conforme as falhas. Os outros
@@ -486,22 +500,24 @@ def _sonda_tons_nominal():
     return int(SONDA_SIL * FS) + len(GRADE) * SONDA_REPS * int(SONDA_PASSO * FS)
 
 
-def modula_sonda(sessao, ganho_tons=SONDA_GANHO_TOM):
+def modula_sonda(sessao, ganho_tons=SONDA_GANHO_TOM, longe=False):
     """`ganho_tons` só muda o nível dos tons, não o que se mede com eles: a
     margem de cada tom é contra o piso e contra os outros tons, todos no
     mesmo ganho. As sondas de ganho, depois, ficam nos ganhos da escada."""
     m = MOLDES['sonda']
     z = np.zeros(HUSH)
     partes = [m, z, _tons_sonda(sessao, ganho_tons), z, m, np.zeros(GAP)]
-    for i, d in enumerate(SONDA_G_DESC):
+    for i, d in enumerate(sonda_g(longe)):
+        if d is None:
+            continue
         partes += [modula_quadro(d, empacota(SONDA_G, sessao, carga_sonda_g(sessao, i), SONDA_N)),
                    np.zeros(GAP)]
     return np.concatenate(partes)
 
 
-def sonda_amostras():
+def sonda_amostras(longe=False):
     return (2 * LQ + 2 * HUSH + _sonda_tons_nominal() + GAP
-            + sum(d.amostras + GAP for d in SONDA_G_DESC))
+            + sum(d.amostras + GAP for d in sonda_g(longe) if d is not None))
 
 
 def mede_tons(audio, p1, p2, sessao):
@@ -847,6 +863,10 @@ class Estacao:
         self.pendente = None       # segmento em leitura: (pos, tipo, prazo)
         self.turno = []            # eventos do turno que está chegando
         self.turno_fim = None      # instante em que o turno se dá por encerrado
+        self.ouve_ate = 0          # o turno do outro lado não acaba antes disto
+        self._terminal = False     # o último segmento lido fecha o turno
+        self.outro_tem_mais = False  # o outro lado mandou DADOS: pode haver mais
+        self.sondar_em = None      # chamador ocioso: próxima consulta ao outro lado
         self.turno_ultimo = 0      # fim do último segmento lido
         self.ultimo_turno = None   # o que eu toquei por último, para repetir
         self.espera_ate = None     # prazo para o começo de uma resposta
@@ -857,6 +877,8 @@ class Estacao:
         self.k_chamada = 0
         self.livre_em = 0          # fim do que estou tocando
         self.ouvido_em = -10 * FS  # última marca ouvida
+        self._chamada_em = None    # a última chamada que respondi
+        self._resp_len = 0         # duração prevista da resposta ao meu último turno
         self._usadas = set()       # marcas já lidas como parte de um segmento
         self.lat_extra = 0         # latência de saída não declarada, medida no próprio eco
         self._eco = None           # (tipo, início) da última varredura de saudação tocada
@@ -917,8 +939,11 @@ class Estacao:
         # De longe, mais 4 s: a varredura com a marca longa anda ~1,3 s atrás,
         # e no ar (2026-10-22) o Windows levou mais que os 5 s para começar a
         # responder a uma sondagem -- o chamador repetiu e embolou as duas.
+        # E a resposta inteira, não só o começo dela: se a marca de abertura
+        # se perder, é o comprimento previsto que impede falar por cima.
+        self._resp_len = self._vez_do_outro()
         self.espera_ate = (quando + len(x) + RESP + ESPERA + len(x) // 8
-                           + 4 * FS * self.esforco) if espera else None
+                           + 4 * FS * self.esforco + self._resp_len) if espera else None
 
     def _quadro(self, desc, tipo, carga, mais=False):
         return modula_quadro(desc, empacota(tipo, self.sessao, carga, desc.nbytes, mais))
@@ -938,7 +963,8 @@ class Estacao:
         return False
 
     def _sonda(self):
-        return modula_sonda(self.sessao, SONDA_GANHO_LONGE if self.esforco else SONDA_GANHO_TOM)
+        return modula_sonda(self.sessao, SONDA_GANHO_LONGE if self.esforco else SONDA_GANHO_TOM,
+                            longe=bool(self.esforco))
 
     # --- laço
 
@@ -997,6 +1023,9 @@ class Estacao:
             self._marca(pos, tipo, sc)
         self._le_segmentos()
         if (self.turno_fim is not None and self.agora >= self.turno_fim
+                and not self._terminal and self.ouvido.varrido < self.ouve_ate + FOLGA):
+            pass                          # pela máquina de estados, o outro lado ainda fala
+        elif (self.turno_fim is not None and self.agora >= self.turno_fim
                 and self._ocupado() and self.agora < self.turno_fim + 60 * FS):
             pass                          # ainda chega som: o turno não acabou
         elif self.turno_fim is not None and self.agora >= self.turno_fim:
@@ -1020,7 +1049,7 @@ class Estacao:
             if self.espera_ate is not None:
                 self.espera_ate = max(self.espera_ate,
                                       a + self.lat_extra + len(x) + RESP + ESPERA + len(x) // 8
-                                      + 4 * FS * self.esforco)
+                                      + 4 * FS * self.esforco + self._resp_len)
             return x
         return None
 
@@ -1057,7 +1086,18 @@ class Estacao:
                 # outro lado de fato recomeçou, os prazos de 'aguarda_*'
                 # devolvem esta ponta à escuta e a chamada seguinte é ouvida.
                 return
+            if (self.papel == 'ouvinte' and not self.aberto and self._chamada_em is not None
+                    and pos - self._chamada_em < 2 * len(MOLDES['chamada']) + RESP + ESPERA):
+                # O chamador só chama de novo depois de esperar a minha
+                # resposta inteira; antes disso não é chamada, é o eco da
+                # minha própria resposta. Em 2026-10-22 (teste 8) uma dessas,
+                # a 0,17, foi respondida, e a segunda resposta caiu em cima
+                # do OLA.
+                if _DEPURA:
+                    self.anota(f"  chamada cedo demais ignorada ({sc:.2f})")
+                return
             if self.papel == 'ouvinte' and not self.aberto:
+                self._chamada_em = pos
                 self.anota(f"chamada ouvida (correlação {sc:.2f})")
                 if sc < LIMIAR_LONGE and self.esforco == 0:
                     self._sobe_esforco(f"chamada fraca ({sc:.2f} < {LIMIAR_LONGE})")
@@ -1116,9 +1156,13 @@ class Estacao:
                 if tipo in QUADROS:
                     dur = max(d.amostras for d in self._candidatos(tipo))
                 else:
-                    dur = sonda_amostras()
+                    dur = sonda_amostras(bool(self.esforco))
                 self.pendente = dict(pos=pos, tipo=tipo, tentou=set(),
                                      prazo=pos + int(dur * 1.006) + SPS)
+                if not self.turno:
+                    # Abertura de um turno novo: ele dura o que a máquina de
+                    # estados diz, leia-se o meio dele ou não.
+                    self.ouve_ate = pos + int(self._vez_do_outro() * 1.006)
                 self.turno_fim = None              # outro segmento do mesmo turno
             p = self.pendente
             if p['tipo'] in QUADROS:
@@ -1268,22 +1312,26 @@ class Estacao:
             if tipo == 'sonda' and pos != p1 and abs(pos - alvo) <= int(0.004 * dur_tons):
                 p2 = pos
                 self._usadas.add(pos)
-        audio = self.ouvido.trecho(p1, p1 + sonda_amostras() + FS)
+        longe = bool(self.esforco)
+        audio = self.ouvido.trecho(p1, p1 + sonda_amostras(longe) + FS)
         margem = mede_tons(audio, 0, None if p2 is None else p2 - p1, self.sessao)
         r = 1.0 if p2 is None else (p2 - p1) / (dur_tons - LQ)
         # As sondas de ganho, em posições conhecidas depois da marca final.
         res = []
         q = int(round(dur_tons * r)) + int(GAP * r)
-        for i, d in enumerate(SONDA_G_DESC):
+        for i, d in enumerate(sonda_g(longe)):
+            if d is None:
+                res.append((0.5, False))
+                continue
             perto = [pos - p1 for pos, tipo, _ in self.ouvido.marcas
-                     if tipo == 'quadro' and abs(pos - p1 - q) <= int(0.03 * FS)]
+                     if tipo == d.marca and abs(pos - p1 - q) <= int(0.03 * FS)]
             ber, inteiro = 0.5, False
             if perto:
                 s1 = perto[0]
                 self._usadas.add(p1 + s1)
                 fecho = [pos - p1 for pos, tipo, _ in self.ouvido.marcas
-                         if tipo == 'quadro'
-                         and abs(pos - p1 - s1 - (d.amostras - LQ)) <= int(0.004 * d.amostras)]
+                         if tipo == d.marca
+                         and abs(pos - p1 - s1 - (d.amostras - d.lm)) <= int(0.004 * d.amostras)]
                 p2q = fecho[0] if fecho else None
                 if p2q is not None:
                     self._usadas.add(p1 + p2q)
@@ -1297,8 +1345,8 @@ class Estacao:
                 q = s1
             q += int((d.amostras + GAP) * r)
             res.append((ber, inteiro))
-        fim = p1 + sonda_amostras()
-        self._segmento(('sonda', margem, res), fim)
+        fim = p1 + sonda_amostras(longe)
+        self._segmento(('sonda', margem, res, longe), fim)
         return fim
 
     def _segmento(self, ev, fim):
@@ -1306,7 +1354,38 @@ class Estacao:
         self.turno_ultimo = max(self.turno_ultimo, fim)
         ultimo = (ev[0] == 'sonda'
                   or (ev[0] == 'quadro' and not abre(ev[1])[1]))
+        self._terminal = ultimo
         self.turno_fim = self.agora if ultimo else self.agora + FOLGA
+
+    def _vez_do_outro(self):
+        """Quanto dura o turno que o outro lado manda em seguida, pelo estado
+        em que estou. As duas pontas rodam a mesma máquina de estados, então
+        isso se sabe sem ouvir nada -- e é o que separa as vezes de falar.
+        Antes, um turno acabava por evento (FOLGA depois do último segmento
+        lido) e uma marca perdida no meio dele o encerrava cedo: em
+        2026-10-22, de longe, o CONTRATO de B chegou ilegível, a marca da
+        sondagem que vinha atrás não foi achada, e A repetiu a própria
+        sondagem por cima da de B (testes 5, 6 e 7). Na dúvida, o mais longo
+        possível: esperar demais só atrasa, falar cedo colide."""
+        e = self.estado
+        if e == 'ola':
+            # O OLA_OK vem na abordagem de longe se o outro lado se achar
+            # longe, o que ele pode decidir sozinho.
+            return max(ABORDAGENS[j].amostras for j in ORDEM_ABORDAGENS[-1] + (self.ab,))
+        if e == 'sondando':
+            return self.ctrl.amostras + GAP + sonda_amostras(bool(self.esforco))
+        if e == 'aguarda_sonda':
+            return sonda_amostras(bool(self.esforco))
+        if e == 'aguarda_contrato':
+            d = self.contrato_rx.descritor(self._degrau_inicial(self.contrato_rx),
+                                           DADOS_N, self.modo_dados)
+            return self.ctrl.amostras + GAP + d.amostras
+        if self.aberto and self.contrato_rx is not None:
+            # Um quadro só; o outro lado pode ter descido um degrau desde o
+            # último que li (por silêncio, ou acompanhando o meu pedido).
+            k = min(self.degrau_rx + 1, self.ultimo_degrau)
+            return self.contrato_rx.descritor(k, DADOS_N, self.modo_dados).amostras
+        return 0
 
     # --- prazos
 
@@ -1318,8 +1397,16 @@ class Estacao:
             self.anota("canal aberto sem nada legível há muito tempo; recomeçando")
             self.reinicia()
             return
-        if (self.aberto and self.confirmado and self.fila and self.pendente_tx is None
-                and self.ocioso() and self.agora - self.ouvido_em > 2 * FS):
+        if (self.aberto and self.confirmado and self.papel == 'chamador'
+                and self.pendente_tx is None and self.ocioso()
+                and self.agora - self.ouvido_em > 2 * FS
+                and (self.fila or self.outro_tem_mais
+                     or (self.sondar_em is not None and self.agora >= self.sondar_em))):
+            # Só o chamador abre uma troca no canal aberto; o ouvinte só
+            # responde, e manda o que tem dentro da resposta. Com os dois
+            # podendo começar, os dois começavam juntos. Ocioso, o chamador
+            # ainda consulta de tempos em tempos, para o ouvinte poder falar.
+            self.sondar_em = None
             self._toca(self._turno_dados(), apos=self.agora)
             return
         if self.estado == 'chamando':
@@ -1360,8 +1447,7 @@ class Estacao:
             self.ab = ordem[self.tentativas % len(ordem)]
             self.anota(f"sem OLA_OK; tentando {ABORDAGENS[self.ab].nome}")
             self._envia_ola()
-        elif self.estado == 'sondando' or (
-                self.aberto and (self.pendente_tx is not None or not self.confirmado)):
+        elif self.estado == 'sondando' or (self.aberto and self.papel == 'chamador'):
             self.tentativas += 1
             self.sem_progresso += 1
             if self.tentativas > 8 or self.sem_progresso > 10:
@@ -1376,6 +1462,12 @@ class Estacao:
                 # pelo comprimento do quadro, sem precisar ser avisado.
                 self.degrau_tx += 1
                 self.anota(f"duas repetições sem resposta; desço para {self.degraus[self.degrau_tx]}")
+                if self.degrau_rx < self.ultimo_degrau:
+                    # O silêncio pode ser eu que não ouço o outro lado: o
+                    # ouvinte não repete por conta própria, então o pedido
+                    # para ele descer também tem de partir daqui.
+                    self.degrau_rx += 1
+                    self.anota(f"e peço {self.degraus[self.degrau_rx]} ao outro lado")
             self.anota(f"sem resposta em '{self.estado}'; repetindo o turno")
             self._toca(self._retransmite(),
                        apos=self.agora + int(self.rng.uniform(0, 1.0) * FS))
@@ -1495,9 +1587,16 @@ class Estacao:
             self._dados(quadros, ruins)
 
     def _contrato_de(self, sonda, sentido):
-        _, margem, res = sonda
+        _, margem, res, longe = sonda
         c = decide(margem, res)
-        if self.esforco and c.degrau < LENTO:
+        if longe:
+            # A escada veio no próprio lento: o que ela mediu é o degrau
+            # LENTO, não uma extrapolação dos 100 baud. Inteiro ou quase
+            # (a taxa 1/3 suave segura ~13%), fica no lento; senão, muito lento.
+            ber, inteiro = res[c.ganho]
+            c = Contrato(c.tons, c.par, c.ganho,
+                         LENTO if inteiro or ber < LIMIAR_LENTO else MUITO_LENTO)
+        elif self.esforco and c.degrau < LENTO:
             # De longe, os degraus a 100 baud e o 2-FSK falharam no ar mesmo
             # com a sondagem a 32% (2026-10-22): começa no lento, e a escada
             # desce ao muito lento se preciso.
@@ -1556,6 +1655,8 @@ class Estacao:
     def _abre_canal(self):
         self.aberto = True
         self.confirmado = False
+        self.outro_tem_mais = False
+        self.sondar_em = None
         self.seq_tx = 0
         if self.pendente_tx is not None:
             # Um pedaço que a sessão anterior mandou e nunca viu confirmado
@@ -1651,11 +1752,19 @@ class Estacao:
                 self.anota("canal perdido; voltando ao começo")
                 self.reinicia()
                 return
-        if self.pendente_tx is not None or self.fila:
+        recebeu = any(q[0][0] == DADOS for q in quadros)
+        if self.papel == 'ouvinte':
+            # O ouvinte responde a todo turno do chamador e nunca fala sem
+            # ser chamado: o prazo, e com ele a repetição, é só do chamador.
+            self._toca(self._turno_dados(), depois=RESP, espera=False)
+            return
+        self.outro_tem_mais = recebeu
+        if self.pendente_tx is not None or self.fila or recebeu:
             responder = True
         if responder:
-            self._toca(self._turno_dados(), depois=RESP,
-                       espera=self.pendente_tx is not None or bool(self.fila) or not self.confirmado)
+            self._toca(self._turno_dados(), depois=RESP)
+        else:
+            self.sondar_em = self.agora + (90 if self.esforco else 30) * FS
 
     # A fila de dados de quem está ocioso: se o canal está aberto, o outro
     # lado calado e há o que mandar, mandar sem ser chamado.

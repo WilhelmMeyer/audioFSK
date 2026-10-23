@@ -117,6 +117,7 @@ def roda(cenario, verbose=False, semente=0):
     if b:
         b.enviar(msg_b)
     t, fim = 0, int(c['segundos'] * FS)
+    falas = {'A': [], 'B': []}       # (início, fim) do que cada uma tocou
     t0 = time.time()
     while t < fim:
         for est, ar_meu, ar_outro, canal in ((a, ar_a, ar_b, ab), (b, ar_b, ar_a, ba)):
@@ -129,6 +130,7 @@ def roda(cenario, verbose=False, semente=0):
                 # Bluetooth declara menos do que tem): o som sai depois do
                 # instante em que ela acha que tocou, para os dois ouvidos.
                 lat = t + BLOCO + int(c.get('latencia_oculta', 0.0) * FS)
+                falas['A' if est is a else 'B'].append((lat, lat + len(x)))
                 ar_outro.soma(lat, canal.passa(x))
                 # O próprio alto-falante no próprio microfone, bem alto.
                 ar_meu.soma(lat, 0.8 * np.tanh(x / 0.35))
@@ -138,6 +140,8 @@ def roda(cenario, verbose=False, semente=0):
                 and not a.fila and not b.fila and a.pendente_tx is None \
                 and b.pendente_tx is None:
             break
+    a.colisao = sum(max(0, min(f1, g1) - max(f0, g0))
+                    for f0, f1 in falas['A'] for g0, g1 in falas['B']) / FS
     return a, b, msg_a, msg_b, t / FS, time.time() - t0
 
 
@@ -203,7 +207,8 @@ def julga(nome, a, b, msg_a, msg_b, seg, cpu):
         a.recebido == msg_b and b.recebido == msg_a
     print(f"  {nome}: {seg:.0f}s simulados ({cpu:.0f}s cpu); A {a.estado}, B {b.estado}; "
           f"A recebeu {len(a.recebido)}/{len(msg_b)}, B recebeu {len(b.recebido)}/{len(msg_a)}"
-          f" -> {'ok' if ok else 'FALHOU'}" + f" [modo de dados {a.modo_dados}]")
+          f" -> {'ok' if ok else 'FALHOU'}" + f" [modo de dados {a.modo_dados}]"
+          f" [falando juntos {a.colisao:.1f}s]")
     if a.contrato_tx:
         print(f"     A->B: {a.contrato_tx.descreve()} (degrau em uso {a.degraus[a.degrau_tx]})")
     if b.contrato_tx:
