@@ -126,6 +126,14 @@ class Painel:
         """Depois do WAV definitivo gravado: o `.f32` vira redundante."""
         self._f32.close()
         self._txt.close()
+        # O servidor também: no modo simulado o processo sobrevive à sessão
+        # (a outra ponta continua), e um painel que ainda responde diz ao
+        # visor que há uma sessão rodando.
+        if self.porta:
+            try:
+                self._srv.close()
+            except OSError:
+                pass
         try:
             self._nome('.parcial.f32').unlink()
         except OSError:
@@ -135,7 +143,10 @@ class Painel:
 
     def _serve(self):
         while True:
-            c, _ = self._srv.accept()
+            try:
+                c, _ = self._srv.accept()
+            except OSError:
+                return              # fechado por `fecha`
             try:
                 c.settimeout(5)
                 pedido = c.makefile('r', encoding='utf-8').readline().split()

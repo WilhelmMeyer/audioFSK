@@ -293,7 +293,7 @@ body {
 .chegou pre {
   margin: 0; height: 300px; overflow: auto;
   background: var(--papel); outline: 1px solid var(--caqui-escuro);
-  padding: 10px 12px; font: 400 13px/1.45 var(--f-tipo); color: var(--tinta); white-space: pre-wrap; overflow-wrap: anywhere;
+  padding: 10px 12px; font: 400 16px/1.45 var(--f-tipo); color: var(--tinta); white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .chegou .info { font: 500 13px/1.4 var(--f-ui); color: var(--osso-2); margin: 0 0 10px; }
 
@@ -436,13 +436,15 @@ details.mais > div { display: grid; gap: 12px; }
 .projecao body { overflow: hidden; }
 .projecao .chassi {
   height: 100vh; max-width: none; padding: 10px 14px; gap: 10px;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) clamp(260px, 24vw, 330px);
-  grid-template-rows: auto auto minmax(0, 1fr) clamp(150px, 25vh, 220px);
+  grid-template-columns: repeat(3, minmax(0, 1fr)) clamp(300px, 27vw, 420px);
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  /* o que chegou é o que se mostra: duas colunas e a faixa de baixo mais alta */
   grid-template-areas:
-    "placa placa placa placa"
-    "radio radio radio cmd"
-    "radio radio radio fases"
-    "nivel cont  chegou fases";
+    "placa placa placa  placa"
+    "radio radio radio  cmd"
+    "radio radio radio  fases"
+    "nivel chegou chegou fases"
+    "cont  chegou chegou fases";
 }
 .projecao .instrumentos, .projecao .registro { display: contents; }
 .projecao .i-nivel { grid-area: nivel; }
@@ -465,7 +467,7 @@ details.mais > div { display: grid; gap: 12px; }
 .projecao #escala line { stroke-width: 2; }
 .projecao #ponteiro { width: 3px; margin-left: -1.5px; }
 .projecao .comando form { gap: 9px; }
-.projecao textarea { min-height: 46px; height: 46px; }
+.projecao textarea { min-height: 0; height: calc(3 * 1.3em + 16px); font-size: clamp(18px, 1.5vw, 26px); line-height: 1.3; }
 .projecao .botao.principal { font-size: 22px; padding: 11px; }
 .projecao .sessao-botoes { grid-template-columns: 1fr; margin-top: 9px; }
 .projecao .fase { padding: 4px 6px; }
@@ -487,7 +489,9 @@ details.mais > div { display: grid; gap: 12px; }
 .projecao .contadores { gap: 8px 10px; }
 .projecao .contador .barra { background: #b9ad86; }
 .projecao .i-nivel, .projecao .i-cont, .projecao .r-chegou { display: flex; flex-direction: column; }
-.projecao .r-chegou pre { flex: 1; height: auto; min-height: 0; font-size: 16px; }
+.projecao .r-chegou { min-height: clamp(240px, 38vh, 460px); }
+.projecao .r-chegou pre { flex: 1; height: auto; min-height: 0; font-size: clamp(22px, 2.3vw, 44px); line-height: 1.3; padding: 12px 18px; }
+.projecao .r-chegou #r-info { font-size: 20px; }
 .projecao .chegou .info { margin-bottom: 6px; font-weight: 600; }
 .projecao .chave { background: var(--preto-janela); border-color: var(--caqui-escuro); }
 .projecao .chave label { font-size: 20px; padding: 7px 6px 6px; color: #3f3725; }
@@ -500,7 +504,7 @@ details.mais > div { display: grid; gap: 12px; }
 .projecao .leitura output.mal, .projecao .contador output.mal { color: #fff1e6; background: var(--alarme); border-color: var(--alarme); }
 @media (max-width: 1100px) {
   .projecao .chassi { grid-template-columns: repeat(2, minmax(0, 1fr)) 272px; grid-template-areas:
-    "placa placa placa" "radio radio cmd" "radio radio fases" "cont chegou fases"; }
+    "placa placa placa" "radio radio cmd" "radio radio fases" "cont chegou fases" "cont chegou fases"; }
   .projecao .i-nivel { display: none !important; }
   .projecao .placa .estacao span:first-child { display: none; }
 }
@@ -672,6 +676,7 @@ details.mais > div { display: grid; gap: 12px; }
           <div class="contador so-bancada" title="Duração da última volta de passo()">passo <output id="c-passo">—</output></div>
           <div class="contador so-bancada">última marca há <output id="c-marca">—</output></div>
           <div class="contador">quadros ilegíveis <output id="c-ileg">—</output></div>
+          <div class="contador so-bancada" title="Entrada que o PortAudio jogou fora, reposta como silêncio para o relógio da estação não escorregar">entrada perdida <output id="c-perda">—</output></div>
         </div>
       </div>
     </div>
@@ -1067,6 +1072,7 @@ function pintaEstado() {
     setOut('c-atr', `${(+e.atraso_s).toFixed(2)} s`, Math.abs(e.atraso_s) > 2);
     setOut('c-fila', `${(+e.fila_s).toFixed(2)} s`, e.fila_s > 1);
     setOut('c-passo', `${(+e.passo_ms).toFixed(0)} ms`, e.passo_ms > 500);
+    setOut('c-perda', e.entrada_perdida_s != null ? `${(+e.entrada_perdida_s).toFixed(2)} s · ${e.buracos_entrada}×` : '—', e.entrada_perdida_s > 0);
     setOut('c-marca', e.ultima_marca_ha_s != null ? `${(+e.ultima_marca_ha_s).toFixed(1)} s` : '—', e.ultima_marca_ha_s > 60);
   }
   const d = st.lido || {};

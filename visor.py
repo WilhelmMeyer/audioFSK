@@ -45,6 +45,7 @@ PAGINA = AQUI / 'visor'
 FS = 48000
 PORTA = 7120
 PAINEL = painel.PORTA     # a mesma de --painel-porta da sessão; 0 = nenhuma
+SIMULADO = None           # --simulado: o iniciar lança as duas pontas sem som
 
 # Espectrograma: as mesmas contas para toda coluna, para que duas colunas
 # sejam comparáveis. 4096 amostras = 11,7 Hz por raia, 85 ms de janela; passo
@@ -81,9 +82,22 @@ class Sessao:
         with self.trava:
             if self.rodando():
                 raise RuntimeError("já há uma sessão lançada por esta tela")
-            if painel_vivo():
+            if painel_vivo() or (SIMULADO and painel_vivo(PAINEL + 1)):
                 raise RuntimeError("já há uma sessão nesta máquina (o painel responde em "
                                    f"127.0.0.1:{PAINEL}); pare-a antes")
+            if not SIMULADO:
+                # Esta pasta é de sessões simuladas (a outra ponta de um
+                # `--simulado`): o Iniciar daqui abriria o microfone e a caixa
+                # de verdade para quem só queria ver a simulação.
+                ultimo = stem_recente(self.saida)
+                try:
+                    sim = ultimo and json.loads(Path(str(ultimo) + '.estado.json').read_text(
+                        encoding='utf-8')).get('simulado')
+                except (OSError, ValueError):
+                    sim = None
+                if sim:
+                    raise RuntimeError(f"as sessões desta pasta são simuladas ({sim}); "
+                                       "lance o visor com --simulado para iniciar outra")
             papel = p.get('papel')
             if papel not in ('chamador', 'ouvinte'):
                 raise ValueError("papel tem de ser chamador ou ouvinte")
@@ -109,9 +123,14 @@ class Sessao:
                 v = p.get(chave)
                 if v not in (None, ''):
                     a += [opc, str(float(v))]
-            for chave, opc in (('in_device', '--in-device'), ('out_device', '--out-device')):
-                if p.get(chave):
-                    a += [opc, p[chave]]
+            if SIMULADO:
+                # Sem microfone nem alto-falante: a outra ponta roda no mesmo
+                # processo, com o painel na porta seguinte e a pasta ao lado.
+                a += ['--simulado', SIMULADO, '--parceiro-out', str(self.saida) + '-parceiro']
+            else:
+                for chave, opc in (('in_device', '--in-device'), ('out_device', '--out-device')):
+                    if p.get(chave):
+                        a += [opc, p[chave]]
             env = dict(os.environ)
             env['PYTHONPATH'] = os.pathsep.join(
                 x for x in (str(AQUI), env.get('PYTHONPATH', '')) if x)
@@ -135,11 +154,12 @@ class Sessao:
                     ha_s=round(time.time() - self.iniciada, 1))
 
 
-def painel_vivo():
-    if not PAINEL:
+def painel_vivo(porta=None):
+    porta = PAINEL if porta is None else porta
+    if not porta:
         return False
     try:
-        painel.pede('estado', PAINEL, timeout=0.6)
+        painel.pede('estado', porta, timeout=0.6)
         return True
     except OSError:
         return False
@@ -194,8 +214,10 @@ class Visor:
                 e = json.loads(Path(str(stem) + '.estado.json').read_text(encoding='utf-8'))
             except (OSError, ValueError):
                 e = None
+        sim = SIMULADO or (e or {}).get('simulado')
+        maquina = socket.gethostname() + (f" · SIMULADA ({sim})" if sim else "")
         return dict(vivo=vivo, estado=e, stem=stem.name if stem else None,
-                    sessao=self.sessao.resumo(), maquina=socket.gethostname(),
+                    sessao=self.sessao.resumo(), maquina=maquina, simulado=sim,
                     agora=time.strftime("%H:%M:%S"))
 
     def diario(self, desde):
@@ -362,7 +384,7 @@ def faz_handler(v):
 
 
 def main():
-    global PAINEL
+    global PAINEL, SIMULADO
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--porta', type=int, default=PORTA)
@@ -374,8 +396,12 @@ def main():
     ap.add_argument('--painel-porta', type=int, default=PAINEL,
                     help="porta do painel das sessões (a --painel-porta de saudacao.py)")
     ap.add_argument('--sem-navegador', action='store_true')
+    ap.add_argument('--simulado', default=None, metavar='CENARIO',
+                    help="o Iniciar lança saudacao.py --simulado CENARIO (as duas pontas, "
+                         "sem som); a outra ponta se vê com --painel-porta P+1 --out <out>-parceiro")
     args = ap.parse_args()
     PAINEL = args.painel_porta
+    SIMULADO = args.simulado
     v = Visor(args.dir, args.out)
     srv = ThreadingHTTPServer(('127.0.0.1', args.porta), faz_handler(v))
     url = f"http://127.0.0.1:{args.porta}/"

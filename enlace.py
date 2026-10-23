@@ -427,6 +427,14 @@ SONDA_G_LONGE = tuple(None if i == 0 else
                       Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, g, f'sonda lenta g{g}',
                                 LENTO_BAUD, LENTO_GUARDA, LENTO_PRE, marca='quadro_longo')
                       for i, g in enumerate(GANHOS))
+# E uma a 100 baud depois delas, fora da escada de ganho (`res[len(GANHOS)]`):
+# "longe" é decidido pela chamada e vale para a sessão, mas os dois sentidos
+# não precisam estar igualmente longe. Sem esta sonda o receptor nunca via se
+# o sentido dele segura 100 baud, e contratava o lento num sentido que media
+# 0-1% de bits errados (simulador, cenário 'assimetrico', 2026-10-23).
+SONDA_RAPIDA_GANHO = 2                      # índice em GANHOS: 0,45
+SONDA_G_LONGE += (Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, GANHOS[SONDA_RAPIDA_GANHO],
+                            f'sonda rápida g{GANHOS[SONDA_RAPIDA_GANHO]}'),)
 
 
 def sonda_g(longe):
@@ -444,6 +452,13 @@ LENTO = 4
 # não passou nem em quadro de controle, e o muito lento (10 baud) passou.
 MUITO_LENTO = 5
 LIMIARES_BER = (0.07, 0.15, 0.25, 0.35, 0.40)
+# Só nestes estados uma marca de sonda pode ser de verdade. Fora deles ela é
+# um falso no meio de outra coisa, e lida como sondagem tirava de cena tudo o
+# que viesse nos ~40 s seguintes (a duração de uma sondagem de longe): em
+# 2026-10-23, em tempo real, uma no meio dos DADOS de A fez B perder os
+# quadros seguintes e pedir degrau atrás de degrau até o 2-FSK.
+ESPERA_SONDA = ('sondando', 'aguarda_sonda', 'aguarda_contrato')
+MARGEM_FORA = -3.0           # dB, mediana das margens da sondagem: abaixo disto ela foi lida fora do lugar
 LIMIAR_LENTO = 0.10          # erro de bit na sonda lenta abaixo disto: o lento serve
 
 # Modulação dos dados (DADOS e ACK do canal aberto). 'auto' é a escada acima,
@@ -1039,6 +1054,9 @@ class Estacao:
                 and self._ocupado() and self.agora < self.turno_fim + 60 * FS):
             pass                          # ainda chega som: o turno não acabou
         elif self.turno_fim is not None and self.agora >= self.turno_fim:
+            if _DEPURA:
+                self.anota(f"  fim de turno: terminal={self._terminal}, varrido "
+                           f"{self.ouvido.varrido / FS:.2f}s, ouve_ate {self.ouve_ate / FS:.2f}s")
             turno, self.turno, self.turno_fim = self.turno, [], None
             self._turno(turno)
         self._prazos()
@@ -1162,7 +1180,7 @@ class Estacao:
         while True:
             if self.pendente is None:
                 prox = [m for m in self.ouvido.marcas
-                        if m[1] in QUADROS + ('sonda',)
+                        if (m[1] in QUADROS or (m[1] == 'sonda' and self.estado in ESPERA_SONDA))
                         and m[0] >= max(self._cursor, self.turno_ultimo if not self.turno else 0)
                         and not self._eco_janela[0] <= m[0] < self._eco_janela[1]
                         and m[0] not in self._usadas]
@@ -1185,8 +1203,12 @@ class Estacao:
                                      prazo=pos + int(dur * 1.006) + SPS)
                 if not self.turno:
                     # Abertura de um turno novo: ele dura o que a máquina de
-                    # estados diz, leia-se o meio dele ou não.
+                    # estados diz, leia-se o meio dele ou não (ver também
+                    # `_segmento`, que corrige isto se a abertura era falsa).
                     self.ouve_ate = pos + int(self._vez_do_outro() * 1.006)
+                    if _DEPURA:
+                        self.anota(f"  turno do outro aberto em {pos / FS:.2f}s ({tipo}), estado "
+                                   f"{self.estado}: ouço até {self.ouve_ate / FS:.2f}s")
                 self.turno_fim = None              # outro segmento do mesmo turno
             p = self.pendente
             if p['tipo'] in QUADROS:
@@ -1288,7 +1310,7 @@ class Estacao:
                 if q2 is not None:
                     self._usadas.add(q2)
                 self._segmento(('quadro', corpo, d, None),
-                               (q2 + lq) if q2 is not None else p1 + d.amostras)
+                               (q2 + lq) if q2 is not None else p1 + d.amostras, inicio=p1)
                 return True
         return False
 
@@ -1337,6 +1359,11 @@ class Estacao:
                 p2 = pos
                 self._usadas.add(pos)
         longe = bool(self.esforco)
+        if _DEPURA:
+            sm = [(round(pos / FS, 2), round(sc, 2)) for pos, tipo, sc in self.ouvido.marcas
+                  if tipo == 'sonda' and abs(pos - p1) < 60 * FS]
+            self.anota(f"  sonda em {p1 / FS:.2f}s, fechamento "
+                       f"{'não achado' if p2 is None else f'em {p2 / FS:.2f}s'}; marcas de sonda {sm}")
         audio = self.ouvido.trecho(p1, p1 + sonda_amostras(longe) + FS)
         margem = mede_tons(audio, 0, None if p2 is None else p2 - p1, self.sessao)
         r = 1.0 if p2 is None else (p2 - p1) / (dur_tons - LQ)
@@ -1370,10 +1397,33 @@ class Estacao:
             q += int((d.amostras + GAP) * r)
             res.append((ber, inteiro))
         fim = p1 + sonda_amostras(longe)
-        self._segmento(('sonda', margem, res, longe), fim)
+        if np.median(margem) < MARGEM_FORA and not any(ok for _, ok in res):
+            # Os tons enviados chegaram mais fracos que os não enviados, e
+            # nenhuma sonda de ganho foi achada: não é um canal ruim (num
+            # canal ruim as margens caem para perto de zero, não abaixo), é
+            # a sondagem lida a partir da marca errada. Contratar com isso
+            # deu ganho 0,8 e muito lento num canal limpo (2026-10-23, a
+            # regressão de ebda203). Conta como ilegível e espera a repetição.
+            self.anota(f"sondagem fora do lugar (margem mediana {np.median(margem):.0f} dB, "
+                       f"nenhuma sonda de ganho achada); tratada como ilegível")
+            self._segmento(('ilegivel', p1), fim)
+            return fim
+        self._segmento(('sonda', margem, res, longe), fim, inicio=p1)
         return fim
 
-    def _segmento(self, ev, fim):
+    def _segmento(self, ev, fim, inicio=None):
+        if (inicio is not None and ev[0] != 'ilegivel'
+                and all(e[0] == 'ilegivel' for e in self.turno)):
+            # O primeiro segmento lido do turno é a abertura de verdade; as
+            # ilegíveis antes dele podem ter sido marcas falsas. O prazo do
+            # turno conta daqui, e só cresce. Em 2026-10-23 (simulador,
+            # 'assimetrico', semente 1) o eco curto da marca longa que fecha o
+            # OLA_OK, 80 ms depois do fim dele, abriu "o turno de B" 30 s antes
+            # de B falar, e A encerrou o turno de verdade com o CONTRATO lido e
+            # a sondagem atrás dele não. Só no lido: re-ancorar a cada
+            # ilegível alongava a espera a cada marca falsa ('longe', 350 s
+            # para 514 s).
+            self.ouve_ate = max(self.ouve_ate, inicio + int(self._vez_do_outro() * 1.006))
         self.turno.append(ev)
         self.turno_ultimo = max(self.turno_ultimo, fim)
         # Lido, o quadro ocupa até o fim; ilegível, não se sabe o
@@ -1519,6 +1569,19 @@ class Estacao:
             # Reconstruído, não repetido: o ack e o pedido de degrau podem ter
             # mudado desde a última vez.
             return self._turno_dados(forcar=True)
+        if self.aberto and self.contrato_tx is not None:
+            # O turno do contrato ficou sem resposta. O CONTRATO foi na
+            # abordagem de controle, e o outro lado pode tê-lo perdido mesmo
+            # lendo os DADOS que vinham atrás -- no ar, em 2026-10-22, A
+            # repetiu o mesmo turno por 70 s a um B preso em
+            # 'aguarda_contrato' que logava "turno: ['DADOS']" a cada vez.
+            # Repetido, ele vai no formato do contrato que o outro lado mediu
+            # para este sentido e já procura (`_candidatos`, CTRL_N), que é o
+            # que provou passar.
+            d = self.contrato_tx.descritor(self.degrau_tx, CTRL_N, self.modo_dados)
+            return ([self._quadro(d, CONTRATO, self.contrato_rx.empacota() + self._byte_modo(),
+                                  mais=True)]
+                    + self._turno_dados(forcar=True, so_partes=True))
         return self.ultimo_turno
 
     # --- fases
@@ -1617,6 +1680,8 @@ class Estacao:
 
     def _contrato_de(self, sonda, sentido):
         _, margem, res, longe = sonda
+        rapida = res[len(GANHOS)] if len(res) > len(GANHOS) else None
+        res = res[:len(GANHOS)]
         c = decide(margem, res)
         if longe:
             # A escada veio no próprio lento: o que ela mediu é o degrau
@@ -1625,6 +1690,11 @@ class Estacao:
             ber, inteiro = res[c.ganho]
             c = Contrato(c.tons, c.par, c.ganho,
                          LENTO if inteiro or ber < LIMIAR_LENTO else MUITO_LENTO)
+            if rapida is not None and rapida[1] and rapida[0] < LIMIARES_BER[0]:
+                # A sonda a 100 baud deste sentido chegou inteira e limpa:
+                # ele não está tão longe quanto a sessão. Rep2, não rep1 --
+                # uma sonda só é pouca prova --, e a escada desce sozinha.
+                c = Contrato(c.tons, c.par, SONDA_RAPIDA_GANHO, 1)
         elif self.esforco and c.degrau < LENTO:
             # De longe, os degraus a 100 baud e o 2-FSK falharam no ar mesmo
             # com a sondagem a 32% (2026-10-22): começa no lento, e a escada
@@ -1632,6 +1702,9 @@ class Estacao:
             c = Contrato(c.tons, c.par, c.ganho, LENTO)
         bers = ", ".join(f"g{GANHOS[i]}:{b * 100:.0f}%{'*' if ok else ''}"
                          for i, (b, ok) in enumerate(res))
+        if rapida is not None:
+            bers += f"; 100 baud g{GANHOS[SONDA_RAPIDA_GANHO]}:{rapida[0] * 100:.0f}%" \
+                    f"{'*' if rapida[1] else ''}"
         self.anota(f"sondagem lida: bits errados {bers}; margens "
                    f"{np.round(margem).astype(int).tolist()} dB")
         self.anota(f"contrato para o que me {sentido}: {c.descreve()}")

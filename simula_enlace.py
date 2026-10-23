@@ -75,11 +75,17 @@ class Canal:
 class Ar:
     """O que chega ao microfone de uma estação, indexado pelo tempo dela."""
 
-    def __init__(self, rng, ruido, piora=None):
+    def __init__(self, rng, ruido, piora=None, rajadas=None, semente=0):
         self.x = np.zeros(0)
         self.rng = rng
         self.ruido = ruido
         self.piora = piora          # (instante em s, desvio do ruído, tons interferentes)
+        # (por segundo, duração em s, desvio): estouros de ruído largo em
+        # instantes ao acaso -- uma porta, uma cadeira, alguém falando. Um
+        # sorteio à parte, para não mudar o canal dos outros cenários.
+        self.rajadas = rajadas
+        self._raj = []
+        self._raj_rng = np.random.default_rng(semente + 200)
 
     def soma(self, inicio, y):
         fim = inicio + len(y)
@@ -95,6 +101,16 @@ class Ar:
         n = np.arange(a, b) / FS
         for f, amp in tons:
             out += amp * np.sin(2 * np.pi * f * n)
+        if self.rajadas:
+            taxa, dur, desvio = self.rajadas
+            while not self._raj or self._raj[-1] < b:
+                t0 = (self._raj[-1] if self._raj else 0) + self._raj_rng.exponential(1 / taxa) * FS
+                self._raj.append(int(t0))
+            n = int(dur * FS)
+            for t0 in self._raj:
+                i, j = max(a, t0), min(b, t0 + n)
+                if j > i:
+                    out[i - a:j - a] += self._raj_rng.normal(0, desvio, j - i)
         k = min(b, len(self.x))
         if k > a:
             out[:k - a] += self.x[a:k]
@@ -109,7 +125,8 @@ def roda(cenario, verbose=False, semente=0):
     a = E.Estacao('chamador', semente=semente + 1, log=log, nome='A', modo_dados=modo)
     b = None if c.get('sem_parceiro') else E.Estacao('ouvinte', semente=semente + 2,
                                                      log=log, nome='B', modo_dados=modo)
-    ar_a, ar_b = Ar(rng, c['ruido_a']), Ar(rng, c['ruido_b'], c.get('piora_b'))
+    ar_a = Ar(rng, c['ruido_a'], rajadas=c.get('rajadas'), semente=semente)
+    ar_b = Ar(rng, c['ruido_b'], c.get('piora_b'), rajadas=c.get('rajadas'), semente=semente + 1)
     ab = Canal(rng, **c['ab'])
     ba = Canal(rng, **c['ba'])
     msg_a = bytes(rng.integers(0, 256, c.get('dados_a', 0)).astype(np.uint8))
@@ -118,21 +135,44 @@ def roda(cenario, verbose=False, semente=0):
     if b:
         b.enviar(msg_b)
     t, fim = 0, int(c['segundos'] * FS)
+    rng_perda = np.random.default_rng(semente + 100)   # à parte: não muda o canal
+    perdidos = 0
     falas = {'A': [], 'B': []}       # (início, fim) do que cada uma tocou
     t0 = time.time()
     while t < fim:
         for est, ar_meu, ar_outro, canal in ((a, ar_a, ar_b, ab), (b, ar_b, ar_a, ba)):
             if est is None:
                 continue
-            est.ouvir(ar_meu.le(t, t + BLOCO))
+            bloco = ar_meu.le(t, t + BLOCO)
+            if est is b and rng_perda.random() < c.get('perde_b', 0.0):
+                # O bloco que a entrada de B jogou fora (transbordo do
+                # PortAudio): a estação nunca o ouve, e o relógio dela -- as
+                # amostras ouvidas -- fica para trás do ar.
+                perdidos += 1
+                if c.get('compensa', True):
+                    # O que `saudacao.py` faz ao ver o buraco (pelo instante
+                    # do ADC de cada bloco): silêncio do tamanho perdido, no
+                    # lugar dele, e o relógio da estação continua no do ar.
+                    est.ouvir(np.zeros(BLOCO))
+            else:
+                est.ouvir(bloco)
             x = est.passo()
             if x is not None:
                 # Latência da saída que a estação não sabe (um alto-falante
                 # Bluetooth declara menos do que tem): o som sai depois do
                 # instante em que ela acha que tocou, para os dois ouvidos.
-                lat = t + BLOCO + int(c.get('latencia_oculta', 0.0) * FS)
+                oculta = c.get('latencia_oculta_b' if est is b else 'latencia_oculta',
+                               c.get('latencia_oculta', 0.0))
+                lat = t + BLOCO + int(oculta * FS)
                 falas['A' if est is a else 'B'].append((lat, lat + len(x)))
                 ar_outro.soma(lat, canal.passa(x))
+                if (c.get('perde_contrato') and est is a and a.aberto and not a.confirmado
+                        and len(a.ultimo_turno[0]) == a.ctrl.amostras):
+                    # O turno do contrato de A com o CONTRATO na abordagem de
+                    # controle: esse quadro (o primeiro segmento) chega a B
+                    # debaixo de um estouro, toda vez -- a abordagem que
+                    # passou na saudação deixou de passar neste sentido.
+                    ar_outro.soma(lat, rng.normal(0, 2.0, a.ctrl.amostras + E.FS // 10))
                 # O próprio alto-falante no próprio microfone, bem alto.
                 ar_meu.soma(lat, 0.8 * np.tanh(x / 0.35))
         t += BLOCO
@@ -141,6 +181,7 @@ def roda(cenario, verbose=False, semente=0):
                 and not a.fila and not b.fila and a.pendente_tx is None \
                 and b.pendente_tx is None:
             break
+    a.perdidos = perdidos
     a.colisao = sum(max(0, min(f1, g1) - max(f0, g0))
                     for f0, f1 in falas['A'] for g0, g1 in falas['B']) / FS
     return a, b, msg_a, msg_b, t / FS, time.time() - t0
@@ -192,6 +233,36 @@ CENARIOS = {
                   ab=dict(perda=0.02, cauda_db=-3.0, cauda_s=0.15),
                   ba=dict(perda=0.02, cauda_db=-3.0, cauda_s=0.15),
                   dados_a=60, dados_b=30),
+    # A entrada de B perdendo blocos (2026-10-22: o WAV de 900 s de B tinha
+    # 873 s, atraso_s crescendo com fila_s em zero) e a saída de B com mais
+    # latência escondida que a de A (eco medido +0,18-0,23 s contra
+    # +0,07-0,15). O relógio de B anda atrás do ar e um quadro longo perde
+    # pedaços no meio.
+    'perdas': dict(segundos=400, ruido_a=0.002, ruido_b=0.004,
+                   ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
+                   dados_a=120, dados_b=60, perde_b=0.025,
+                   latencia_oculta=0.1, latencia_oculta_b=0.2),
+    # Perto num sentido e longe no outro: B ouve A forte (a chamada passa do
+    # LIMIAR_LONGE) e A ouve B como de alguns metros. Só uma ponta se acha
+    # longe pela chamada; a outra tem de subir o esforço pelo que lê no OLA,
+    # senão responde de perto a quem só lê de longe.
+    'assimetrico': dict(segundos=900, ruido_a=0.02, ruido_b=0.003,
+                        ab=dict(CANAL_BOM),
+                        ba=dict(perda=0.01, cauda_db=-3.0, cauda_s=0.15),
+                        dados_a=60, dados_b=30),
+    # O meio-aberto do ar (2026-10-22): A leu o CONTRATO de B e abriu o
+    # canal; o CONTRATO de A se perde e B, que lê os DADOS que vêm atrás,
+    # fica em 'aguarda_contrato' enquanto A repete o mesmo turno.
+    'meio_aberto': dict(segundos=400, ruido_a=0.002, ruido_b=0.002,
+                        ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
+                        dados_a=120, dados_b=60, perde_contrato=True),
+    # Estouros de ruído nas duas pontas, ~um a cada 12 s, de 0,4 s: perdem
+    # um quadro aqui e ali em qualquer fase. É o que deixa uma ponta achar o
+    # canal aberto enquanto a outra não leu o contrato (no ar, 2026-10-22,
+    # A repetiu DADOS por 70 s a um B preso em 'aguarda_contrato').
+    'rajadas': dict(segundos=600, ruido_a=0.002, ruido_b=0.002,
+                    ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
+                    dados_a=120, dados_b=60, rajadas=(1 / 12, 0.4, 0.05)),
     'sem_parceiro': dict(segundos=120, ruido_a=0.01, ruido_b=0.01,
                          ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
                          sem_parceiro=True),
@@ -209,7 +280,8 @@ def julga(nome, a, b, msg_a, msg_b, seg, cpu):
     print(f"  {nome}: {seg:.0f}s simulados ({cpu:.0f}s cpu); A {a.estado}, B {b.estado}; "
           f"A recebeu {len(a.recebido)}/{len(msg_b)}, B recebeu {len(b.recebido)}/{len(msg_a)}"
           f" -> {'ok' if ok else 'FALHOU'}" + f" [modo de dados {a.modo_dados}]"
-          f" [falando juntos {a.colisao:.1f}s]")
+          f" [falando juntos {a.colisao:.1f}s]"
+          + (f" [B perdeu {a.perdidos} blocos]" if a.perdidos else ""))
     if a.contrato_tx:
         print(f"     A->B: {a.contrato_tx.descreve()} (degrau em uso {a.degraus[a.degrau_tx]})")
     if b.contrato_tx:
