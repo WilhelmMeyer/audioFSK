@@ -399,7 +399,7 @@ ABORDAGENS = (
 # perto passaram sem resposta, e não desce mais na mesma execução.
 ORDEM_ABORDAGENS = ((0, 1, 2, 3, 4), (5, 6))
 GANHOS_CHAMADA = ((0.30, 0.15, 0.50), (0.50,))
-LIMIAR_LONGE = 0.35          # chamada/resposta abaixo disto: longe (2 m dá 0,45-0,50)
+LIMIAR_LONGE = 0.42          # chamada/resposta abaixo disto: longe (2 m dá 0,45-0,50; alguns metros 0,30-0,36)
 SONDA_GANHO_LONGE = 0.50
 
 # --- Sondagem e contrato -----------------------------------------------------
@@ -1433,7 +1433,7 @@ class Estacao:
         if self.estado == 'ola':
             self.tentativas += 1
             ordem = ORDEM_ABORDAGENS[self.esforco]
-            if self.tentativas >= 2 * len(ordem):
+            if self.tentativas >= len(ordem):
                 # Repetir o mesmo rodízio no mesmo volume não leva a nada
                 # que a primeira volta não tenha levado: sobe o esforço.
                 if self._sobe_esforco("OLA sem resposta em todas as abordagens"):
