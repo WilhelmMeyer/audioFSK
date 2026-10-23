@@ -783,8 +783,14 @@ class Ouvido:
             # outra família. No mesmo lugar, fica a mais forte.
             achadas.sort(key=lambda t: -t[2])
             for pos, tipo, sc in achadas:
+                # A curta e a longa de quadro são a mesma varredura em 80 e
+                # 400 ms: uma correlaciona com a outra, e a curta apagava a
+                # longa do OLA de longe (teste 12, 2026-10-22) -- o ouvinte
+                # tentava lê-lo como quadro de perto. As duas ficam; quem
+                # escolhe é a estação, pelo que o estado dela espera.
                 rivais = [m for m in novas + self.marcas[-8:]
-                          if m[0] >= r0 - L and abs(pos - m[0]) < int(0.15 * FS)]
+                          if m[0] >= r0 - L and abs(pos - m[0]) < int(0.15 * FS)
+                          and {m[1], tipo} != set(QUADROS)]
                 # Uma marca fraca guardada no pedaço anterior não pode calar
                 # uma forte que só aparece neste: no H06 (sessão 3, 191,48 s)
                 # um falso de 0,25 no fim de um ACK apagou a marca de
@@ -868,6 +874,8 @@ class Estacao:
         self.outro_tem_mais = False  # o outro lado mandou DADOS: pode haver mais
         self.sondar_em = None      # chamador ocioso: próxima consulta ao outro lado
         self.turno_ultimo = 0      # fim do último segmento lido
+        self._cursor = 0           # marcas antes disto já foram tratadas
+        self._eco_janela = (0, 0)  # quando tocou a minha última varredura de saudação
         self.ultimo_turno = None   # o que eu toquei por último, para repetir
         self.espera_ate = None     # prazo para o começo de uma resposta
         self.tentativas = 0
@@ -978,6 +986,8 @@ class Estacao:
             return
         if self._eco is not None:
             self._eco = (self._eco[0], self._eco[1] + n)
+        if self._eco_janela[1] > self.agora:
+            self._eco_janela = (self._eco_janela[0] + n, self._eco_janela[1] + n)
         a, b = self.ouvido.cegos[-1]
         self.ouvido.cegos[-1] = (a + n, b + n)
         self.livre_em += n
@@ -1042,6 +1052,10 @@ class Estacao:
                 # é como se mede quanto o som demora de fato a sair.
                 self.ouvido.cego(a, a)
                 self._eco = (eco, a)
+                # A varredura não é apagada, e alta no próprio microfone ela
+                # dá marca de quadro falsa (teste 11, 2026-10-22: o ouvinte
+                # passava 10 s lendo um quadro que não existia e perdia o OLA).
+                self._eco_janela = (a, a + self.lat_extra + len(x) + GUARDA)
                 if eco == 'chamada':
                     self._chamou_fim = a + len(x)
             else:
@@ -1148,11 +1162,18 @@ class Estacao:
         while True:
             if self.pendente is None:
                 prox = [m for m in self.ouvido.marcas
-                        if m[1] in QUADROS + ('sonda',) and m[0] >= self.turno_ultimo
+                        if m[1] in QUADROS + ('sonda',)
+                        and m[0] >= max(self._cursor, self.turno_ultimo if not self.turno else 0)
+                        and not self._eco_janela[0] <= m[0] < self._eco_janela[1]
                         and m[0] not in self._usadas]
+                quero = 'quadro_longo' if self.esforco else 'quadro'
+                prox = [m for m in prox if m[1] == quero or not any(
+                    o[1] == quero and abs(o[0] - m[0]) < FS // 2 for o in prox)]
                 if not prox:
                     return
                 pos, tipo, _ = prox[0]
+                if tipo in QUADROS and tipo != quero and self.ouvido.varrido < pos + FS // 2:
+                    return                 # a marca que o estado espera pode estar logo atrás
                 if tipo in QUADROS:
                     dur = max(d.amostras for d in self._candidatos(tipo))
                 else:
@@ -1352,6 +1373,11 @@ class Estacao:
     def _segmento(self, ev, fim):
         self.turno.append(ev)
         self.turno_ultimo = max(self.turno_ultimo, fim)
+        # Lido, o quadro ocupa até o fim; ilegível, não se sabe o
+        # comprimento, e as marcas que chegaram enquanto se tentava lê-lo
+        # continuam valendo. Antes o cursor ia para "agora" e pulava a marca
+        # do OLA verdadeiro que começara durante a leitura de um falso.
+        self._cursor = ev[1] + 1 if ev[0] == 'ilegivel' else max(self._cursor, fim)
         ultimo = (ev[0] == 'sonda'
                   or (ev[0] == 'quadro' and not abre(ev[1])[1]))
         self._terminal = ultimo
