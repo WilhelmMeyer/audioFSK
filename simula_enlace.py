@@ -24,7 +24,7 @@ import sys
 import time
 
 import numpy as np
-from scipy.signal import butter, sosfilt
+from scipy.signal import butter, fftconvolve, sosfilt
 
 import enlace as E
 
@@ -36,7 +36,7 @@ class Canal:
     """Um sentido do ar: saída limitada, pente, cauda, atraso, relógio."""
 
     def __init__(self, rng, perda=0.3, snr_ruido=0.003, ecos=3, cauda_db=-14.0,
-                 relogio=0.0, morta=None, limitador=0.35):
+                 relogio=0.0, morta=None, limitador=0.35, cauda_s=0.06):
         self.rng = rng
         self.perda = perda
         self.ruido = snr_ruido
@@ -44,13 +44,14 @@ class Canal:
         self.limitador = limitador
         self.atraso = int(rng.uniform(0.0, 0.01) * FS)
         # Ecos de 1 a 8 ms: um pente com covas fundas na banda.
-        h = np.zeros(int(0.12 * FS))
+        h = np.zeros(int(max(0.12, 0.01 + 5 * cauda_s) * FS))
         h[0] = 1.0
         for _ in range(ecos):
             h[int(rng.uniform(0.001, 0.008) * FS)] += rng.uniform(-0.7, 0.7)
-        # A cauda: ruído decaindo, ~14 dB abaixo do direto, 60 ms.
+        # A cauda: ruído decaindo, ~14 dB abaixo do direto, 60 ms (de longe,
+        # mais forte e mais longa: o campo reverberante pesa mais que o direto).
         n = np.arange(len(h) - int(0.01 * FS))
-        tail = rng.normal(0, 1, len(n)) * np.exp(-n / (0.06 * FS))
+        tail = rng.normal(0, 1, len(n)) * np.exp(-n / (cauda_s * FS))
         tail *= 10 ** (cauda_db / 20) / np.sqrt(np.sum(tail ** 2))
         h[int(0.01 * FS):] += tail
         self.h = h / np.sqrt(np.sum(h ** 2))
@@ -60,7 +61,7 @@ class Canal:
     def passa(self, x):
         # Limitador do alto-falante: tanh, linear para baixo e achatando o pico.
         y = self.limitador * np.tanh(np.asarray(x) / self.limitador)
-        y = np.convolve(y, self.h)
+        y = fftconvolve(y, self.h)
         if self.sos_morta is not None:
             y = sosfilt(self.sos_morta, y)
         if self.relogio:
@@ -176,6 +177,16 @@ CENARIOS = {
                          ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
                          dados_a=60, dados_b=30, modo_dados=m)
        for m in ('16fsk', '2fsk', 'votada', 'multicanal')},
+    # As máquinas a alguns metros (2026-10-22): nível 26 dB abaixo do
+    # 'limpo', cauda forte e longa, e o microfone de B ruidoso (no ar, o piso
+    # do Windows era ~4x o do Linux). A assinatura do que se viu no ar: a
+    # chamada chega a ~0,2 a ganho 0,3, as marcas de quadro rentes ao limiar,
+    # os corpos a 100 baud ilegíveis e o lento lido. Antes do esforço de
+    # longe, a saudação girava nas cinco abordagens de perto sem fim.
+    'longe': dict(segundos=900, ruido_a=0.012, ruido_b=0.038,
+                  ab=dict(perda=0.02, cauda_db=-3.0, cauda_s=0.15),
+                  ba=dict(perda=0.02, cauda_db=-3.0, cauda_s=0.15),
+                  dados_a=60, dados_b=30),
     'sem_parceiro': dict(segundos=120, ruido_a=0.01, ruido_b=0.01,
                          ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
                          sem_parceiro=True),
