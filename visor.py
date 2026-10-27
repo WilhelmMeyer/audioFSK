@@ -189,6 +189,42 @@ def stem_recente(pasta):
     return Path(str(c[-1])[:-len('.estado.json')])
 
 
+def tocado(stem, ini, n):
+    """O que a sessão tocou entre as amostras `ini` e `n` da entrada, na
+    linha do tempo de `.parcial.f32` (zeros onde nada soava); None se a
+    sessão não grava a saída ou nada soou no intervalo."""
+    idx = Path(str(stem) + '.saida.idx')
+    f32 = Path(str(stem) + '.saida.f32')
+    try:
+        linhas = idx.read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return None
+    y = np.zeros(max(0, n - ini), dtype=np.float32)
+    trechos, achou = [], False
+    for l in linhas:
+        c = l.split()
+        if len(c) == 2 and c[0] == 'corte':
+            # o que ainda soaria depois do corte foi calado
+            corte = int(c[1])
+            trechos = [(a, o, min(m, max(0, corte - a))) for a, o, m in trechos]
+        elif len(c) == 3:
+            trechos.append(tuple(int(v) for v in c))
+    try:
+        fh = open(f32, 'rb')
+    except OSError:
+        return None
+    with fh:
+        for a, o, m in trechos:
+            lo, hi = max(a, ini), min(a + m, n)
+            if hi <= lo:
+                continue
+            fh.seek((o + lo - a) * 4)
+            seg = np.frombuffer(fh.read((hi - lo) * 4), dtype=np.float32)
+            y[lo - ini:lo - ini + len(seg)] += seg
+            achou = True
+    return y if achou else None
+
+
 def espectro(x):
     """dB de um tom de amplitude 1 = 0, nas N_RAIAS frequências da escala."""
     X = np.abs(np.fft.rfft(x[-NFFT:] * _JANELA)) / _REF
@@ -252,10 +288,15 @@ class Visor:
         with open(f32, 'rb') as fh:
             fh.seek(ini * 4)
             x = np.frombuffer(fh.read((n - ini) * 4), dtype=np.float32)
-        cols = []
+        y = tocado(stem, ini, n)
+        cols, envio = [], []
         k = 0
         while k + NFFT <= len(x):
             cols.append(np.clip(np.round(espectro(x[k:k + NFFT])), -140, 0).astype(int).tolist())
+            # o que esta estação tocava na mesma janela; None em silêncio
+            yk = y[k:k + NFFT] if y is not None else None
+            envio.append(np.clip(np.round(espectro(yk)), -140, 0).astype(int).tolist()
+                         if yk is not None and np.any(yk) else None)
             k += PASSO
         prox = ini + k
         cauda = x[-int(0.2 * FS):] if len(x) else np.zeros(1, np.float32)
@@ -279,7 +320,7 @@ class Visor:
             if agora[i] - np.median(agora) > 18:
                 dom = round(float(_ALVO[i]), 1)
         return dict(stem=stem.name, ativo=True, prox=prox, n=n,
-                    colunas=cols, forma=forma, rms=round(rms, 5), pico=round(pico, 4),
+                    colunas=cols, envio=envio, forma=forma, rms=round(rms, 5), pico=round(pico, 4),
                     dominante=dom, f_min=F_MIN, f_max=F_MAX, raias=N_RAIAS,
                     passo_s=PASSO / FS)
 

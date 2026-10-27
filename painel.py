@@ -77,6 +77,15 @@ class Painel:
         self.fs = fs
         self.t0 = time.time()
         self._f32 = open(self._nome('.parcial.f32'), 'wb')
+        self._n = 0                    # amostras já em .parcial.f32
+        # O que esta estação tocou, para o visor mostrar ao lado do que ouviu:
+        # as amostras em .saida.f32 e, em .saida.idx, uma linha por trecho com
+        # a amostra de .parcial.f32 em que ele começa a soar, onde ele está em
+        # .saida.f32 e quantas amostras tem ("corte N": o que soaria depois de
+        # N foi calado).
+        self._sf32 = open(self._nome('.saida.f32'), 'wb')
+        self._sidx = open(self._nome('.saida.idx'), 'w', encoding='utf-8')
+        self._sn = 0
         self._txt = open(self._nome('.diario.txt'), 'w', encoding='utf-8')
         self._trava = threading.Lock()
         self._linhas = []
@@ -98,7 +107,19 @@ class Painel:
     # --- laço principal
 
     def audio(self, x):
-        self._f32.write(np.asarray(x, dtype=np.float32).tobytes())
+        x = np.asarray(x, dtype=np.float32)
+        self._f32.write(x.tobytes())
+        self._n += len(x)
+
+    def saida(self, x, atraso):
+        """`x` começa a soar `atraso` amostras depois do que já foi ouvido."""
+        x = np.asarray(x, dtype=np.float32)
+        self._sf32.write(x.tobytes())
+        self._sidx.write(f"{self._n + int(atraso)} {self._sn} {len(x)}\n")
+        self._sn += len(x)
+
+    def corta(self, atraso=0):
+        self._sidx.write(f"corte {self._n + int(atraso)}\n")
 
     def linha(self, s):
         s = f"{time.time() - self.t0:8.2f} {s}"
@@ -118,6 +139,8 @@ class Painel:
         if forca or agora - self._publicado >= 1.0:
             self._publicado = agora
             self._f32.flush()
+            self._sf32.flush()
+            self._sidx.flush()
             tmp = self._nome('.estado.json.tmp')
             tmp.write_text(json.dumps(estado, indent=1, ensure_ascii=False))
             os.replace(tmp, self._nome('.estado.json'))
@@ -126,6 +149,8 @@ class Painel:
         """Depois do WAV definitivo gravado: o `.f32` vira redundante."""
         self._f32.close()
         self._txt.close()
+        self._sf32.close()
+        self._sidx.close()
         # O servidor também: no modo simulado o processo sobrevive à sessão
         # (a outra ponta continua), e um painel que ainda responde diz ao
         # visor que há uma sessão rodando.
@@ -134,10 +159,11 @@ class Painel:
                 self._srv.close()
             except OSError:
                 pass
-        try:
-            self._nome('.parcial.f32').unlink()
-        except OSError:
-            pass
+        for suf in ('.parcial.f32', '.saida.f32', '.saida.idx'):
+            try:
+                self._nome(suf).unlink()
+            except OSError:
+                pass
 
     # --- servidor
 

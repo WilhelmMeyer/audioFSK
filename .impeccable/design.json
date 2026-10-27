@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-22T00:00:00Z",
+  "title": "Design System: Visor do Enlace",
+  "extensions": {
+    "colorMeta": {
+      "preto": {"role": "neutral", "displayName": "Crackle Black", "canonical": "#232220", "tonalRamp": ["#0d0c0b","#161513","#1b1a18","#232220","#3a3732","#524c40","#6f6548","#a89a6e"]},
+      "osso": {"role": "neutral", "displayName": "Bone", "canonical": "#e8dfc8", "tonalRamp": ["#6f6548","#8f8466","#a89a6e","#c9bfa6","#d8cfb6","#e8dfc8","#efe6cf","#f6ecce"]},
+      "envio": {"role": "primary", "displayName": "Rust (what we send)", "canonical": "#a6532f", "tonalRamp": ["#4a2111","#6b2f19","#8a3b22","#a6532f","#b7613c","#c97d58","#d39a78","#e4c1a8"]},
+      "chega": {"role": "primary", "displayName": "Steel (what reaches us)", "canonical": "#4d6b8c", "tonalRamp": ["#1f3d63","#2c4a6e","#3d5775","#4d6b8c","#6b88a8","#7f9bb8","#93abc4","#bccbdc"]},
+      "ambar": {"role": "secondary", "displayName": "Lamp Amber", "canonical": "#f1b24a", "tonalRamp": ["#7a5014","#a06c1c","#c78a2c","#e09b38","#f1b24a","#f5c373","#f8d49b","#fbe6c4"]},
+      "alarme": {"role": "secondary", "displayName": "Alarm Red", "canonical": "#b8402a", "tonalRamp": ["#4d1a10","#6e2617","#8f2e1d","#b8402a","#c3533a","#e0573c","#e98d79","#f4c3b8"]},
+      "vidro": {"role": "neutral", "displayName": "Dial Glass", "canonical": "#ece0bd", "tonalRamp": ["#8a7a4c","#a89a6e","#c9b98a","#e2d3a8","#ece0bd","#efe6cf","#f6ecce","#faf3e0"]},
+      "projecao-preto": {"role": "neutral", "displayName": "Faded Khaki (projection panel)", "canonical": "#cfc29a", "tonalRamp": ["#3f3725","#5e5438","#8a7d58","#b5a77b","#cfc29a","#dcd1b0","#efe7cf","#f7f1df"]}
+    },
+    "typographyMeta": {
+      "placa": {"displayName": "Nameplate", "purpose": "Page title only, League Gothic."},
+      "rotulo": {"displayName": "Rotulo", "purpose": "Panel headings over a khaki hairline."},
+      "legenda-campo": {"displayName": "Field legend", "purpose": "Form labels and key legends."},
+      "body": {"displayName": "Body", "purpose": "Jost UI text."},
+      "nota": {"displayName": "Note", "purpose": "Small Jost notes and readout captions."},
+      "leitura": {"displayName": "Readout", "purpose": "Courier Prime tabular numerals in recessed windows."},
+      "diario": {"displayName": "Diary", "purpose": "Teletype lines on paper."}
+    },
+    "shadows": [
+      {"name": "chapa", "value": "0 4px 12px -4px rgba(0,0,0,.6)", "purpose": "Soft drop under a bench panel (projection: 0 2px 6px rgba(60,48,20,.35))."},
+      {"name": "funda", "value": "inset 0 1px 3px rgba(0,0,0,.6)", "purpose": "Recess for readout windows and fields (projection: inset 0 1px 2px rgba(60,48,20,.35))."},
+      {"name": "botao", "value": "0 2px 5px rgba(0,0,0,.5)", "purpose": "Key at rest; 0 1px 2px on press."},
+      {"name": "lampada-acesa", "value": "0 0 0 2px #0d0c0b, 0 0 0 3px #6f6548, 0 0 12px 3px rgba(241,178,74,.5)", "purpose": "Lit pilot lamp: double ring plus glow."}
+    ],
+    "motion": [
+      {"name": "ponteiro", "value": ".25s cubic-bezier(.2,.8,.2,1)", "purpose": "Dial needle slide."},
+      {"name": "pisca", "value": "1.1s ease-in-out infinite, brightness .5", "purpose": "Blinking lamp."},
+      {"name": "vidro-no-ar", "value": "filter .8s ease-out", "purpose": "Glass warms when a session is on air."}
+    ],
+    "breakpoints": [
+      {"name": "estreito", "value": "1180px"},
+      {"name": "celular", "value": "720px"},
+      {"name": "projecao-estreita", "value": "1100px"}
+    ]
+  },
+  "components": [
+    {
+      "name": "Chapa with Rotulo", "kind": "card", "refersTo": "chapa",
+      "description": "Crackle-black panel with khaki-hairline painted heading.",
+      "html": "<section class=\"ds-chapa\"><h2 class=\"ds-rotulo\">Contadores</h2><div class=\"ds-janela\">enviados</div></section>",
+      "css": ".ds-chapa{background:#232220;border:1px solid #3a3732;border-radius:2px;box-shadow:0 4px 12px -4px rgba(0,0,0,.6);padding:16px 18px 18px;color:#e8dfc8;font:400 15px/1.45 Jost,system-ui,sans-serif}.ds-rotulo{margin:0 0 12px;padding:0 0 5px;font:400 20px/1 'League Gothic','Arial Narrow',sans-serif;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid #6f6548}.ds-janela{background:#161513;border:1px solid #0b0a09;box-shadow:inset 0 1px 3px rgba(0,0,0,.6);padding:12px 14px;color:#c9bfa6}"
+    },
+    {
+      "name": "Readout", "kind": "custom", "refersTo": "leitura-output",
+      "description": "Amber tabular digits in a recessed well; red when out of range.",
+      "html": "<div class=\"ds-leitura\">rms <output>-18.2 dB</output></div><div class=\"ds-leitura\">atraso <output class=\"mal\">4.1 s</output></div>",
+      "css": ".ds-leitura{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font:500 13px/1.3 Jost,sans-serif;color:#c9bfa6;background:#161513;padding:6px 8px}.ds-leitura output{font:700 15px/1 'Courier Prime','Courier New',monospace;font-variant-numeric:tabular-nums;color:#f1b24a;background:#0b0a09;border:1px solid #2b2925;padding:5px 7px;min-width:106px;text-align:right}.ds-leitura output.mal{color:#fff1e6;background:#b8402a;border-color:#b8402a}"
+    },
+    {
+      "name": "Pilot lamp", "kind": "custom", "refersTo": "lampada",
+      "description": "Bulb behind a ring; glows only when carrying state.",
+      "html": "<span class=\"ds-lamp\"></span> <span class=\"ds-lamp on\"></span> <span class=\"ds-lamp green\"></span> <span class=\"ds-lamp alarm\"></span>",
+      "css": ".ds-lamp{display:inline-block;width:14px;height:14px;border-radius:50%;background:#3b3630;box-shadow:0 0 0 2px #0d0c0b,0 0 0 3px #6f6548;margin-right:8px}.ds-lamp.on{background:#f1b24a;box-shadow:0 0 0 2px #0d0c0b,0 0 0 3px #6f6548,0 0 12px 3px rgba(241,178,74,.5)}.ds-lamp.green{background:#8fe0a2;box-shadow:0 0 0 2px #0d0c0b,0 0 0 3px #6f6548,0 0 10px 2px rgba(143,224,162,.4)}.ds-lamp.alarm{background:#e0573c;box-shadow:0 0 0 2px #0d0c0b,0 0 0 3px #6f6548,0 0 12px 3px rgba(224,87,60,.5)}"
+    },
+    {
+      "name": "Primary key (chamador)", "kind": "button", "refersTo": "botao-principal-chamador",
+      "description": "Role-coloured main action; rust for caller, steel for listener.",
+      "html": "<button class=\"ds-botao ds-chamador\">Iniciar chamada</button> <button class=\"ds-botao ds-ouvinte\">Iniciar escuta</button>",
+      "css": ".ds-botao{cursor:pointer;font:400 24px/1 'League Gothic','Arial Narrow',sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:15px 22px;border:1px solid #6f6548;border-radius:2px;box-shadow:0 2px 5px rgba(0,0,0,.5);transition:transform .08s,background .15s}.ds-botao:active{transform:translateY(1px)}.ds-botao:focus-visible{outline:2px solid #f1b24a;outline-offset:2px}.ds-chamador{background:#8a3b22;border-color:#b7613c;color:#fff4e4}.ds-chamador:hover{background:#9a4428}.ds-ouvinte{background:#3d5775;border-color:#6b88a8;color:#f1f5fb}.ds-ouvinte:hover{background:#46628a}"
+    },
+    {
+      "name": "Key and alarm key", "kind": "button", "refersTo": "botao",
+      "description": "Dark neutral key with khaki edge; alarm variant for Parar ja.",
+      "html": "<button class=\"ds-key\">Pausar</button> <button class=\"ds-key alarm\">Parar já</button>",
+      "css": ".ds-key{cursor:pointer;font:400 16px/1 'League Gothic','Arial Narrow',sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:11px 14px 10px;border:1px solid #6f6548;border-radius:2px;color:#e8dfc8;background:#0d0c0b;box-shadow:0 2px 5px rgba(0,0,0,.5)}.ds-key:hover{border-color:#a89a6e;background:#1d1c19}.ds-key:focus-visible{outline:2px solid #f1b24a;outline-offset:2px}.ds-key.alarm{background:#8f2e1d;border-color:#c3533a;color:#fff1e6}"
+    },
+    {
+      "name": "Role switch", "kind": "input", "refersTo": "campo",
+      "description": "Two-position radio tray; checked side takes the role colour.",
+      "html": "<div class=\"ds-chave\"><span class=\"on-c\">Chamador</span><span>Ouvinte</span></div>",
+      "css": ".ds-chave{display:grid;grid-template-columns:1fr 1fr;background:#0d0c0b;border:1px solid #6f6548;padding:3px;gap:3px}.ds-chave span{text-align:center;padding:9px 6px 8px;font:400 19px/1 'League Gothic','Arial Narrow',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#a89a6e}.ds-chave .on-c{background:#8a3b22;color:#fff4e4}"
+    },
+    {
+      "name": "Diary tape", "kind": "custom", "refersTo": "fita",
+      "description": "Ruled paper teletype with hanging indent.",
+      "html": "<div class=\"ds-fita\"><div><span class=\"t\">00:12 </span>contrato A para B fechado</div><div class=\"aviso\">quadro ilegível</div></div>",
+      "css": ".ds-fita{background:repeating-linear-gradient(180deg,transparent 0 20px,rgba(125,106,85,.10) 20px 21px),#efe6cf;outline:1px solid #6f6548;padding:8px 12px;font:400 13px/21px 'Courier Prime','Courier New',monospace;color:#2e231b}.ds-fita div{padding-left:7.5ch;text-indent:-7.5ch}.ds-fita .t{color:#6a5844}.ds-fita .aviso{color:#8c2d16;font-weight:700}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Bench Receiver",
+    "overview": "One 1940s radio set, drawn in two finishes. The tuning dial is the frequency axis of the acoustic link: contracts, shadows, sounding margins, the 2-FSK pair and the live spectrum are all read off one glass scale, and the spectrogram falls beneath it as chart paper on the same axis. Panels are black crackle-finish metal, square 2px corners, a slotted screw in each corner, painted bone-white lettering over a khaki hairline. The projection finish re-values the same tokens in faded khaki with black stencil lettering for a one-screen demo.",
+    "keyCharacteristics": [
+      "Two finishes of one object: bench (default) and projection (one screen, no scroll).",
+      "Rust means what this station sends; steel blue means what reaches it; amber glow means live.",
+      "Depth comes from recessed windows and a lit glass, not from card shadows.",
+      "Three type voices with fixed jobs: League Gothic engraves, Jost explains, Courier Prime counts."
+    ],
+    "rules": [
+      {"name": "The Two Roles Rule", "body": "Rust is only ever what this station sends; steel is only ever what arrives. Never use either as decoration or as a generic accent.", "section": "colors"},
+      {"name": "The Only Light Rule", "body": "Only the dial glass, the paper surfaces and lit lamps are light on the bench finish. A new light surface needs a physical reason (it is a lamp or a sheet of paper).", "section": "colors"},
+      {"name": "The Lamp Means Live Rule", "body": "Amber glow marks a live state. A lit lamp that is not carrying state is wrong.", "section": "colors"},
+      {"name": "The Three Voices Rule", "body": "League Gothic engraves labels, Jost speaks, Courier Prime counts. Do not set sentences in League Gothic or labels in Courier.", "section": "typography"},
+      {"name": "The Recess Rule", "body": "Readings go into recessed dark windows; nothing floats on a card.", "section": "elevation"}
+    ],
+    "dos": [
+      "Do put any frequency-keyed information on the dial's axis (400-4600 Hz) so it lines up with the waterfall below.",
+      "Do keep square corners (2px) and a screw in each panel corner.",
+      "Do use a pilot lamp rather than a sentence for a binary state; put explanation in a tooltip.",
+      "Do define new colours as tokens that .projecao can override, and check both finishes.",
+      "Do keep every projection-visible element legible at 1280x720 and 1024x768 without scrolling."
+    ],
+    "donts": [
+      "Don't use grey cards, sparklines or soft rounded dashboard widgets.",
+      "Don't put rust or steel on anything other than sent or received.",
+      "Don't add a light surface that is not glass, paper or a lamp.",
+      "Don't put the diary or the bench-only controls (so-bancada) in the projection layout.",
+      "Don't use Courier Prime for prose or League Gothic for sentences."
+    ]
+  }
+}

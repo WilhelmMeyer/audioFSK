@@ -182,7 +182,9 @@ body {
 }
 /* lâmpada atrás do mostrador: só esquenta com sessão no ar */
 .vidro.no-ar { filter: sepia(.2) saturate(1.3) brightness(1.04); }
-#escala { display: block; width: 100%; height: 232px; }
+#escala { position: relative; display: block; width: 100%; height: 232px; }
+/* fósforo: cada espectro fica no vidro e se apaga devagar, como num osciloscópio antigo */
+#fosforo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 #ponteiro {
   position: absolute; top: 4px; bottom: 4px; left: 0; width: 2px; margin-left: -1px;
   background: #8e2414;
@@ -432,18 +434,17 @@ details.mais > div { display: grid; gap: 12px; }
   --funda: inset 0 1px 2px rgba(60,48,20,.35);
   color-scheme: light;
 }
-.projecao .so-bancada, .projecao .r-diario { display: none !important; }
+.projecao .so-bancada, .projecao .r-diario, .projecao .i-nivel { display: none !important; }
 .projecao body { overflow: hidden; }
 .projecao .chassi {
   height: 100vh; max-width: none; padding: 10px 14px; gap: 10px;
   grid-template-columns: repeat(3, minmax(0, 1fr)) clamp(300px, 27vw, 420px);
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
-  /* o que chegou é o que se mostra: duas colunas e a faixa de baixo mais alta */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* o que chegou é o que se mostra: duas colunas; o nível sai (o ponteiro do mostrador já diz o tom) */
   grid-template-areas:
-    "placa placa placa  placa"
-    "radio radio radio  cmd"
-    "radio radio radio  fases"
-    "nivel chegou chegou fases"
+    "placa placa  placa  placa"
+    "radio radio  radio  cmd"
+    "radio radio  radio  fases"
     "cont  chegou chegou fases";
 }
 .projecao .instrumentos, .projecao .registro { display: contents; }
@@ -462,7 +463,7 @@ details.mais > div { display: grid; gap: 12px; }
 .projecao .rotulo { font-size: 22px; margin-bottom: 8px; }
 .projecao .radio { display: flex; flex-direction: column; min-height: 0; }
 .projecao .legenda { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-.projecao .registrador { flex: 1; min-height: 70px; }
+.projecao .registrador { flex: 1; min-height: clamp(150px, 24vh, 320px); }
 .projecao #cascata { position: absolute; inset: 0; width: 100%; height: 100%; }
 .projecao #escala line { stroke-width: 2; }
 .projecao #ponteiro { width: 3px; margin-left: -1.5px; }
@@ -486,10 +487,13 @@ details.mais > div { display: grid; gap: 12px; }
 .projecao .contador { font-size: 13.5px; font-weight: 600; }
 .projecao .contador output { font-size: 17px; padding: 4px 7px; white-space: nowrap; overflow: hidden; text-overflow: clip; }
 .projecao .contador .barra { height: 3px; }
-.projecao .contadores { gap: 8px 10px; }
+.projecao .contadores { gap: 8px 10px; align-content: start; }
 .projecao .contador .barra { background: #b9ad86; }
 .projecao .i-nivel, .projecao .i-cont, .projecao .r-chegou { display: flex; flex-direction: column; }
-.projecao .r-chegou { min-height: clamp(240px, 38vh, 460px); }
+.projecao .r-chegou { min-height: clamp(200px, 27vh, 400px); }
+.projecao .campo-modo > label { font-size: 15px; }
+.projecao .campo-modo select { font-size: clamp(16px, 1.2vw, 21px); padding: 6px 8px; }
+.projecao select:disabled { opacity: 1; background: #e4dbbf; }
 .projecao .r-chegou pre { flex: 1; height: auto; min-height: 0; font-size: clamp(22px, 2.3vw, 44px); line-height: 1.3; padding: 12px 18px; }
 .projecao .r-chegou #r-info { font-size: 20px; }
 .projecao .chegou .info { margin-bottom: 6px; font-weight: 600; }
@@ -504,7 +508,7 @@ details.mais > div { display: grid; gap: 12px; }
 .projecao .leitura output.mal, .projecao .contador output.mal { color: #fff1e6; background: var(--alarme); border-color: var(--alarme); }
 @media (max-width: 1100px) {
   .projecao .chassi { grid-template-columns: repeat(2, minmax(0, 1fr)) 272px; grid-template-areas:
-    "placa placa placa" "radio radio cmd" "radio radio fases" "cont chegou fases" "cont chegou fases"; }
+    "placa placa placa" "radio radio cmd" "radio radio fases" "cont chegou fases"; }
   .projecao .i-nivel { display: none !important; }
   .projecao .placa .estacao span:first-child { display: none; }
 }
@@ -553,7 +557,7 @@ details.mais > div { display: grid; gap: 12px; }
         <input type="file" id="arquivo" name="arquivo">
       </div>
 
-      <div class="campo so-bancada">
+      <div class="campo campo-modo">
         <label for="modo" title="as duas pontas precisam do mesmo modo">Modo dos dados</label>
         <select id="modo" name="modo_dados">
           <option value="auto">auto — escada de degraus</option>
@@ -608,11 +612,13 @@ details.mais > div { display: grid; gap: 12px; }
         <span><i style="background:var(--envio)"></i>envio</span>
         <span><i style="background:var(--chega)"></i>chega</span>
         <span title="margem por tom na sondagem, 0–45 dB; vermelho abaixo de 12"><i style="background:var(--chega);width:5px;height:12px"></i>margem</span>
-        <span><i style="background:var(--ambar)"></i>espectro</span>
+        <span title="o que esta estação toca, descendo do alto do vidro"><i style="background:#a6532f;opacity:.6"></i>tocado</span>
+        <span title="o que o microfone desta estação ouve, subindo da escala"><i style="background:var(--ambar)"></i>ouvido</span>
       </div>
     </div>
     <div class="moldura">
       <div class="vidro" id="vidro">
+        <canvas id="fosforo" aria-hidden="true"></canvas>
         <svg id="escala" role="img" aria-label="Escala de frequência com os contratos de cada sentido e o espectro ouvido agora"></svg>
         <div id="ponteiro"><b id="ponteiro-f"></b></div>
       </div>
@@ -869,8 +875,90 @@ function pintaEspectro() {
     d += ` L${x.toFixed(1)} ${(base - v * (base - top)).toFixed(1)}`;
   }
   d += ` L${w} ${base} Z`;
-  el('path', {d, fill: 'rgba(241,178,74,.38)', stroke: '#b3741c', 'stroke-width': 1.3, 'stroke-linejoin': 'round'}, g);
+  el('path', {d, fill: 'rgba(241,178,74,.22)', stroke: 'none'}, g);
+  if (st.envioAgora) el('path', {d: caminhoTocado(st.envioAgora), fill: 'rgba(140,52,22,.30)', stroke: 'none'}, g);
 }
+
+// O que a estação toca desce do alto do vidro até 70% da faixa do espectro.
+// Cada coluna é medida pelo próprio pico, 24 dB abaixo dele no alto: numa
+// janela de 85 ms um tom de 16-FSK soa um oitavo do tempo e fica ~28 dB
+// abaixo de 0 dBFS, então uma escala fixa sumiria com os dados; e é sinal
+// limpo, sem chão de ruído, cujo único resto é o respingo da troca de tom
+// (uns 40 dB abaixo dos tons), que esta escala deixa de fora.
+function pontosTocado(s) {
+  const w = geo.w, y0 = geo.ySpecTop - 8, n = s.length, fundo = 0.7 * (geo.ySpecBase - geo.ySpecTop);
+  let pico = -140;
+  for (const v of s) if (v > pico) pico = v;
+  const p = [];
+  for (let i = 0; i < n; i++)
+    p.push([i / (n - 1) * w, y0 + Math.max(0, Math.min(1, (s[i] - pico + 24) / 24)) * fundo]);
+  return p;
+}
+function caminhoTocado(s) {
+  const w = geo.w, y0 = geo.ySpecTop - 8;
+  return `M0 ${y0}` + pontosTocado(s).map(([x, y]) => ` L${x.toFixed(1)} ${y.toFixed(1)}`).join('') + ` L${w} ${y0} Z`;
+}
+
+/* ---------- fósforo ---------- */
+// Cada coluna que chega vira um traço no canvas, na cadência em que foi
+// gravada; o canvas inteiro perde opacidade aos poucos, então um tom que soou
+// há dois segundos ainda deixa o pico desbotado no lugar.
+const PERSISTE_S = 3;                    // até restar ~3% do traço
+const fo = $('fosforo'), fq = fo.getContext('2d');
+const fosforo = {fila: [], acum: 0, t: 0, desbota: 0};
+function ajustaFosforo() {
+  const v = $('vidro'), dpr = window.devicePixelRatio || 1;
+  const W = Math.round(v.clientWidth * dpr), H = Math.round(v.clientHeight * dpr);
+  if (fo.width !== W || fo.height !== H) { fo.width = W; fo.height = H; fq.setTransform(dpr, 0, 0, dpr, 0, 0); }
+}
+function tracoFosforo({rx: s, tx}) {
+  if (tx) {
+    const w = geo.w, y0 = geo.ySpecTop - 8;
+    fq.beginPath(); fq.moveTo(0, y0);
+    for (const [x, y] of pontosTocado(tx)) fq.lineTo(x, y);
+    fq.lineTo(w, y0); fq.closePath();
+    fq.fillStyle = 'rgba(140,52,22,.16)';
+    fq.fill();
+  }
+  // área, não linha: dezenas de contornos por segundo viram um emaranhado; áreas
+  // translúcidas se somam onde o sinal se repete e desbotam onde ele passou
+  const w = geo.w, top = geo.ySpecTop, base = geo.ySpecBase, n = s.length;
+  fq.beginPath();
+  fq.moveTo(0, base);
+  for (let i = 0; i < n; i++) {
+    const v = Math.max(0, Math.min(1, (s[i] - st.piso) / 60));
+    fq.lineTo(i / (n - 1) * w, base - v * (base - top));
+  }
+  fq.lineTo(w, base); fq.closePath();
+  fq.fillStyle = projetando() ? 'rgba(160,82,24,.10)' : 'rgba(214,128,36,.12)';
+  fq.fill();
+}
+function poeFosforo(cols, envio) {
+  // só o último meio segundo: ao reabrir o papel o servidor manda a tela inteira de volta
+  const max = Math.ceil(0.5 / passoS), k0 = Math.max(0, cols.length - max);
+  for (let k = k0; k < cols.length; k++) fosforo.fila.push({rx: cols[k], tx: envio && envio[k]});
+  if (fosforo.fila.length > 2 * max) fosforo.fila.splice(0, fosforo.fila.length - max);
+}
+function animaFosforo(t) {
+  const dt = Math.min(0.5, fosforo.t ? (t - fosforo.t) / 1000 : 0);
+  fosforo.t = t;
+  ajustaFosforo();
+  // desbota em passos de 0,1 s: passos pequenos demais param no arredondamento de 8 bits e deixam fantasma
+  fosforo.desbota += dt;
+  if (fosforo.desbota >= 0.1) {
+    const a = 1 - Math.exp(-fosforo.desbota * 3.5 / PERSISTE_S);
+    fq.save(); fq.setTransform(1, 0, 0, 1, 0, 0);
+    fq.globalCompositeOperation = 'destination-out';
+    fq.fillStyle = `rgba(0,0,0,${a})`; fq.fillRect(0, 0, fo.width, fo.height);
+    fq.restore();
+    fosforo.desbota = 0;
+  }
+  fosforo.acum += dt;
+  while (fosforo.fila.length && fosforo.acum >= passoS) { tracoFosforo(fosforo.fila.shift()); fosforo.acum -= passoS; }
+  if (!fosforo.fila.length) fosforo.acum = 0;
+  requestAnimationFrame(animaFosforo);
+}
+requestAnimationFrame(animaFosforo);
 
 function poePonteiro(f) {
   const p = $('ponteiro');
@@ -1089,7 +1177,17 @@ function pintaEstado() {
   $('b-pausa').textContent = e && e.pausado ? 'Retomar' : 'Pausar';
   $('b-pausa').dataset.cmd = e && e.pausado ? 'retoma' : 'pausa';
   $('b-finaliza').disabled = !vivo || (e && e.finalizando);
-  $('b-para').disabled = !vivo;
+  // processo vivo e painel mudo: normal por alguns segundos (gravando o WAV ao
+  // sair); passado isso está preso, e o Parar já passa a encerrar o processo
+  const preso = lancada && !vivo;
+  if (!preso) st.presoDesde = null;
+  else if (st.presoDesde == null) st.presoDesde = Date.now();
+  const travada = preso && Date.now() - st.presoDesde > 10000;
+  $('b-para').disabled = !vivo && !travada;
+  $('b-para').dataset.cmd = vivo ? 'para' : 'mata';
+  $('b-para').title = vivo ? 'Sai já e grava a sessão'
+    : 'A sessão não responde há mais de 10 s: encerra o processo';
+  if (preso && !travada) $('iniciar').title = 'a sessão anterior está gravando e saindo';
   $('b-mata').disabled = !lancada;
   pintaFases();
   pintaContratos();
@@ -1163,7 +1261,7 @@ async function cicloAudio() {
     $('l-reg').className = 'lampada' + (r.ativo ? ' acesa' : '');
     $('p-reg').title = r.ativo ? 'Registrador correndo: o microfone desta máquina, inclusive o que ela mesma toca.'
       : 'Registrador parado: nenhuma sessão gravando o microfone agora.';
-    if (!r.ativo) { poePonteiro(null); poeForma([], 0); return; }
+    if (!r.ativo) { poePonteiro(null); poeForma([], 0); fosforo.fila.length = 0; return; }
     if (r.passo_s && Math.abs(r.passo_s - passoS) > 1e-6) { passoS = r.passo_s; marcasTempo(); }
     // o papel mudou de tamanho enquanto o pedido viajava: esta resposta é do papel velho
     if (gen !== st.papelGen) return;
@@ -1174,6 +1272,8 @@ async function cicloAudio() {
       const med = ult[Math.floor(ult.length / 2)];
       st.piso = st.piso * 0.9 + (med - 4) * 0.1;
       empurraColunas(r.colunas);
+      poeFosforo(r.colunas, r.envio);
+      st.envioAgora = r.envio ? r.envio[r.envio.length - 1] : null;
       st.espectro = r.colunas[r.colunas.length - 1];
       pintaEspectro();
     }

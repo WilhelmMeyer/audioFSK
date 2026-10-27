@@ -248,6 +248,83 @@ Acima de 9 kHz o nível trava e não muda mais: isso é o piso de ruído, não s
 
 Sintoma de saturação: pico recebido ≥ 0,8 com blocos falhando sem padrão. Os acordes nunca sofriam disso.
 
+## Apresentação: o enlace pela tela, sem cabo e sem ninguém no terminal
+
+Roteiro para mostrar as duas máquinas conversando pelo som. Cada máquina roda o **visor** (`visor.py`), uma página no navegador que lança a sessão (`saudacao.py`), mostra a negociação ao vivo e exibe em letras grandes o que chegou. Não há cabo serial nem túnel SSH: a saudação, a sondagem, o contrato e os dados vão todos pelo ar. O que foi ensaiado em 2026-10-22, numa sala quieta, a ~2 m: 207 e 44 bytes íntegros nos dois sentidos, em 113 s no 16-FSK.
+
+### Antes do dia (uma vez, nas duas máquinas)
+
+As duas máquinas precisam estar **no mesmo commit**. A negociação muda de formato entre versões, e duas versões diferentes não fecham a sessão, sem dar nenhum erro explícito.
+
+Linux (A):
+
+```bash
+cd ~/audioFSK
+git pull
+git log --oneline -1          # anote o commit
+```
+
+Windows (B), num `cmd` ou PowerShell:
+
+```bat
+cd C:\Users\Home\Workspace\audioFSK
+git status                    rem sem arquivos modificados; se houver: git stash
+git pull
+git log --oneline -1          rem o mesmo commit do Linux
+```
+
+Ensaie uma vez sem som, em cada máquina, para conferir que a página abre e que uma sessão vai até o fim:
+
+```bash
+./venv/bin/python visor.py --simulado limpo --out sessoes-sim                 # Linux
+venv\Scripts\python.exe visor.py --simulado limpo --out sessoes-sim           # Windows
+```
+
+Escreva um texto e clique em **Iniciar chamada**. Com `--simulado`, a página roda as duas pontas no mesmo processo e não abre microfone nem alto-falante. Em ~80-110 s o texto aparece em "O que chegou". Feche com Ctrl-C no terminal.
+
+### No dia
+
+**1. Som.** Sala quieta: conversa ao fundo derrubou um ensaio. Caixas apontadas uma para a outra; quanto mais perto, melhor, e 10 cm fecha tudo.
+- Linux: o microfone volta **mudo** com frequência e não dá erro. Confira com `wpctl get-volume @DEFAULT_AUDIO_SOURCE@`. Se aparecer `MUTED`, rode `wpctl set-mute @DEFAULT_AUDIO_SOURCE@ 0`. **Não** rode `set-volume 1.0`, porque satura; o nível certo aparece como `0.56`.
+- Windows: o microfone fica em −14 dB, com os aprimoramentos de áudio desligados. A +6 dB ele satura.
+
+**2. Visor, nas duas máquinas.** Rode da pasta do repositório. O navegador abre sozinho em http://127.0.0.1:7120:
+
+```bash
+./venv/bin/python visor.py                 # Linux
+```
+
+```bat
+venv\Scripts\python.exe visor.py           rem Windows
+```
+
+A página só escuta em 127.0.0.1. Para projetar, o projetor vai ligado na própria máquina. O botão **Projeção**, ou a tecla **P**, deixa só o que interessa à plateia, em letra grande. O papel, o texto e o modo ficam na projeção; os dispositivos, a duração e o diário só aparecem no modo bancada, então escolha os dispositivos **antes** de ligar a projeção.
+
+**3. Formulário, nas duas máquinas.**
+- **Papel:** uma é **Ouvinte** e a outra **Chamador**. No ensaio, o Windows foi o ouvinte e o Linux o chamador.
+- **Texto a enviar:** curto, de uma a três frases. Cada lado manda o seu. O 16-FSK leva ~11 B/s depois de ~55 s de saudação.
+- **Modo dos dados:** **16-FSK**, o mesmo nas duas. Modos diferentes nas duas pontas não fecham.
+- **Microfone / alto-falante:** deixe "padrão do sistema", a menos que o ensaio tenha pedido outro.
+- **Duração máx.:** 600 s basta.
+
+**4. Iniciar.** Clique primeiro no **ouvinte** e depois no **chamador**. O quadro "Aperto de mão" acende fase a fase: chamada, saudação, sondagem, contrato, canal aberto, dados, concluída. O texto do outro lado aparece em "O que chegou" quando a troca termina.
+
+**5. Fim.** A sessão sai sozinha 120 s depois de tudo confirmado (o campo "fim por silêncio"). Para encerrar antes, use **Parar já**, que grava a sessão. Tudo fica em `sessoes-enlace/`: o WAV do microfone, o diário, o estado e o que chegou.
+
+### Se algo der errado
+
+| Sintoma | O que fazer |
+|---|---|
+| Fica em "chamada" e nunca passa | O ouvinte não está ouvindo. Confira o microfone mudo (Linux), a caixa ligada e o volume. Aproxime as máquinas. |
+| Passa da saudação e trava ou repete muito | Ruído ou distância. Silêncio na sala, aproxime, **Parar já** nas duas e recomece pelo ouvinte. |
+| "já há uma sessão nesta máquina" | Uma sessão anterior ainda está viva. Clique **Parar já**; se não responder, ligue o modo bancada (tecla P) e use **Matar processo**. |
+| "as sessões desta pasta são simuladas" | Um ensaio sem som foi gravado nessa pasta (faltou o `--out sessoes-sim`). Rode `visor.py --out sessoes-demo` para usar outra pasta. |
+| A página não abre | Abra http://127.0.0.1:7120 à mão. Se a porta estiver ocupada, use `visor.py --porta 7121`. |
+
+O diário da sessão, à esquerda no modo bancada, diz em que passo parou. O mesmo texto fica em `sessoes-enlace/<data>.diario.txt`.
+
+**Plano B, com uma máquina só:** `visor.py --simulado limpo --out sessoes-sim` mostra o mesmo fluxo, com as duas pontas simuladas e sem som. A página marca **SIMULADA** no topo; diga isso à plateia.
+
 ## Uso: uma máquina
 
 Modem ao vivo, modo terminal:
