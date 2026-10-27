@@ -138,6 +138,9 @@ def roda(cenario, verbose=False, semente=0):
     rng_perda = np.random.default_rng(semente + 100)   # à parte: não muda o canal
     perdidos = 0
     falas = {'A': [], 'B': []}       # (início, fim) do que cada uma tocou
+    completo = None                  # instante em que tudo foi entregue
+    apos_fim = {'A': 0, 'B': 0}      # turnos tocados depois de encerrada
+    injetou = False
     t0 = time.time()
     while t < fim:
         for est, ar_meu, ar_outro, canal in ((a, ar_a, ar_b, ab), (b, ar_b, ar_a, ba)):
@@ -156,13 +159,23 @@ def roda(cenario, verbose=False, semente=0):
                     est.ouvir(np.zeros(BLOCO))
             else:
                 est.ouvir(bloco)
+            ja_encerrada = getattr(est, 'encerrada', False)
             x = est.passo()
+            if x is not None and ja_encerrada:
+                # Depois de se despedir, uma estação só toca o que já estava
+                # na fila (a resposta do ouvinte ao FIM), e uma vez.
+                apos_fim[est.nome] += 1
             if x is not None:
                 # Latência da saída que a estação não sabe (um alto-falante
                 # Bluetooth declara menos do que tem): o som sai depois do
                 # instante em que ela acha que tocou, para os dois ouvidos.
                 oculta = c.get('latencia_oculta_b' if est is b else 'latencia_oculta',
                                c.get('latencia_oculta', 0.0))
+                muda = c.get('latencia_b_depois')
+                if est is b and muda and t >= muda[0] * FS:
+                    # A latência de um alto-falante Bluetooth não é a da
+                    # saudação para sempre: no ar ela variou de 0,5 a 0,7 s.
+                    oculta = muda[1]
                 lat = t + BLOCO + int(oculta * FS)
                 falas['A' if est is a else 'B'].append((lat, lat + len(x)))
                 ar_outro.soma(lat, canal.passa(x))
@@ -175,17 +188,46 @@ def roda(cenario, verbose=False, semente=0):
                     ar_outro.soma(lat, rng.normal(0, 2.0, a.ctrl.amostras + E.FS // 10))
                 # O próprio alto-falante no próprio microfone, bem alto.
                 ar_meu.soma(lat, 0.8 * np.tanh(x / 0.35))
+        if c.get('falsas_apos_fim') and b and not injetou and getattr(a, 'encerrada', False) \
+                and getattr(b, 'encerrada', False):
+            # O que se ouviu no ar depois da despedida (sessão 6): em A, uma
+            # marca de quadro seguida de lixo; em B, um ACK legível de A.
+            # Nenhum dos dois pode voltar a falar por isso.
+            injetou = True
+            q = E.MOLDES['quadro']
+            ar_a.soma(t + 2 * FS, ba.passa(np.concatenate([0.3 * q, rng.normal(0, 0.05, 4 * FS)])))
+            d = a.contrato_tx.descritor(a.degrau_tx, E.CTRL_N, a.modo_dados)
+            ack = E.modula_quadro(d, E.empacota(E.ACK, a.sessao, bytes([a.ultimo_rx, 0]), E.CTRL_N))
+            ar_b.soma(t + 2 * FS, ab.passa(ack))
         t += BLOCO
-        if b and a.aberto and b.aberto and a.confirmado and b.confirmado \
-                and a.recebido == msg_b and b.recebido == msg_a \
+        if completo is None and b and a.aberto and b.aberto and a.confirmado \
+                and b.confirmado and a.recebido == msg_b and b.recebido == msg_a \
                 and not a.fila and not b.fila and a.pendente_tx is None \
                 and b.pendente_tx is None:
+            completo = t
+        if completo is not None and (
+                (getattr(a, 'encerrada', False) and getattr(b, 'encerrada', False)
+                 and not a.agenda and not b.agenda
+                 and t >= max(a.livre_em, b.livre_em) + DEPOIS_FIM * FS)
+                or t >= completo + DEPOIS * FS):
+            # Entregue não é terminado: as duas pontas ainda têm de parar de
+            # falar sozinhas. Antes o laço parava aqui e nunca via o que
+            # acontecia depois -- no ar (2026-10-27) o chamador seguiu
+            # repetindo turnos e as duas pontas falaram juntas.
             break
     a.perdidos = perdidos
-    a.colisao = sum(max(0, min(f1, g1) - max(f0, g0))
-                    for f0, f1 in falas['A'] for g0, g1 in falas['B']) / FS
+    a.apos_fim = dict(apos_fim)
+    a.completo = None if completo is None else completo / FS
+    a.terminou = bool(getattr(a, 'encerrada', False) and b is not None
+                      and getattr(b, 'encerrada', False))
+    a.sobreposicoes = [(max(f0, g0) / FS, min(f1, g1) / FS, (f0 / FS, f1 / FS), (g0 / FS, g1 / FS))
+                       for f0, f1 in falas['A'] for g0, g1 in falas['B'] if min(f1, g1) > max(f0, g0)]
+    a.colisao = sum(f - i for i, f, _, _ in a.sobreposicoes)
     return a, b, msg_a, msg_b, t / FS, time.time() - t0
 
+
+DEPOIS = 150                     # s simulados depois de tudo entregue, para ver se param
+DEPOIS_FIM = 30                  # s depois das duas encerradas, para ver se ficam caladas
 
 CANAL_BOM = dict(perda=0.4, cauda_db=-16.0)
 CENARIOS = {
@@ -263,6 +305,17 @@ CENARIOS = {
     'rajadas': dict(segundos=600, ruido_a=0.002, ruido_b=0.002,
                     ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
                     dados_a=120, dados_b=60, rajadas=(1 / 12, 0.4, 0.05)),
+    # A sessão 6 no ar (2026-10-27): a latência do alto-falante Bluetooth de B
+    # medida na saudação (0,5 s) e mais curta depois (0,2 s), de modo que a
+    # marca de abertura do que B toca escapa da cegueira e B a lê como o
+    # turno do outro; e estouros de ruído que deixam ilegível um turno aqui e
+    # ali, inclusive em volta do FIM. No ar: esperas de 40-55 s, um FIM
+    # trocado por ACK, e as duas pontas falando depois de encerradas.
+    'jitter_bt': dict(segundos=600, ruido_a=0.002, ruido_b=0.002,
+                      ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
+                      dados_a=120, dados_b=60, latencia_oculta_b=0.5,
+                      latencia_b_depois=(30, 0.2), rajadas=(1 / 12, 0.4, 0.05),
+                      falsas_apos_fim=True),
     'sem_parceiro': dict(segundos=120, ruido_a=0.01, ruido_b=0.01,
                          ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
                          sem_parceiro=True),
@@ -275,13 +328,27 @@ def julga(nome, a, b, msg_a, msg_b, seg, cpu):
         print(f"  {nome}: {seg:.0f}s simulados ({cpu:.0f}s cpu); saudado={a.saudado} "
               f"-> {'ok' if ok else 'FALHOU: achou parceiro onde não há'}")
         return ok
-    ok = (a.confirmado if a.aberto else False) and b.aberto and \
-        a.recebido == msg_b and b.recebido == msg_a
+    entregue = a.completo is not None
+    # Falar junto é falha em si: a regra é que o ouvinte nunca fala quando
+    # o chamador pode falar. E entregar sem parar também: as duas pontas
+    # têm de se despedir e calar.
+    falou_depois = a.apos_fim['A'] > 0 or a.apos_fim['B'] > 1
+    ok = entregue and a.colisao == 0 and a.terminou and not falou_depois
+    porque = [] if ok else [m for m, f in (("não entregou", not entregue),
+                                           ("falaram juntos", a.colisao > 0),
+                                           ("não pararam", entregue and not a.terminou),
+                                           (f"tocou depois do FIM {a.apos_fim}", falou_depois))
+                            if f]
     print(f"  {nome}: {seg:.0f}s simulados ({cpu:.0f}s cpu); A {a.estado}, B {b.estado}; "
           f"A recebeu {len(a.recebido)}/{len(msg_b)}, B recebeu {len(b.recebido)}/{len(msg_a)}"
-          f" -> {'ok' if ok else 'FALHOU'}" + f" [modo de dados {a.modo_dados}]"
+          f"; entregue em {a.completo if entregue else float('nan'):.0f}s"
+          f" -> {'ok' if ok else 'FALHOU (' + ', '.join(porque) + ')'}"
+          f" [modo de dados {a.modo_dados}]"
           f" [falando juntos {a.colisao:.1f}s]"
           + (f" [B perdeu {a.perdidos} blocos]" if a.perdidos else ""))
+    for i, f, ta, tb in a.sobreposicoes[:5]:
+        print(f"     juntos {i:.1f}-{f:.1f}s: A tocava {ta[0]:.1f}-{ta[1]:.1f}s, "
+              f"B {tb[0]:.1f}-{tb[1]:.1f}s")
     if a.contrato_tx:
         print(f"     A->B: {a.contrato_tx.descreve()} (degrau em uso {a.degraus[a.degrau_tx]})")
     if b.contrato_tx:

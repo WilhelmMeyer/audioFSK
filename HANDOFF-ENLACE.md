@@ -1,3 +1,64 @@
+# Handoff -- enlace no ar numa máquina só, 2026-10-27
+
+Montagem (a máquina B e o notebook da Giselle não estavam disponíveis na maior parte do dia):
+duas `saudacao.py` no mesmo notebook Linux. Chamador fala pelo alto-falante do notebook,
+ouvinte pela caixa BT AL-1888 (ao lado do notebook no fim), **as duas ouvem pelo mesmo
+microfone do notebook** (Mic1). Testa a lógica do protocolo, não distância nem dois
+microfones independentes. Sessões em `sessoes-enlace-mesma/` e `sessoes-enlace-mesma-B/`
+(ignoradas pelo git, `sessoes-*/`). Volumes no fim: notebook 1.0, BT 0.19.
+
+## Resultado
+
+- Sessão 5 (código antigo + Lacunas corrigido + caixa BT com chiado): 207/207 e 44/44 em
+  136 s, mas depois do fim as duas pontas ficaram trocando ACK para sempre e falaram juntas
+  (~209 s).
+- Sessão 7 (calendário de vezes + FIM): 207/207 e 44/44, tudo entregue em 273 s, **as duas
+  saíram sozinhas** (ouvinte 289 s, chamador 351 s após 3 FIM sem resposta).
+
+## O que foi descoberto e corrigido
+
+1. **`Lacunas` inseria silêncio falso** (saudacao.py). Pelo PulseAudio o instante do ADC
+   anda em degraus (~80 ms parado, depois salto); lido bloco a bloco cada salto virava
+   buraco: 420 s de silêncio em 900 s, nada legível. Agora compara no acumulado e só repõe
+   um salto acima do maior `d` recente (janela 3 s). Carimbos reais: 0 s inseridos;
+   perda sintética de 2,5%: repõe 8,24 de 8,28 s; relógio 3% lento: 0. O simulador
+   (`Mundo`) passou a dar carimbo em degraus de 80 ms.
+2. **Caixa BT engole o início de cada rajada** (não é código; memória
+   `caixa-bt-engole-inicio`). Ociosa: bipe de 200 ms some ou chegam 50 ms a +1,17 s, o que
+   gerou latência de eco falsa de +1,24 s, cegueira longa e marca de sondagem apagada.
+   Aberta com zeros: o amplificador ainda corta ~150 ms (marca de 80 ms some, o fechamento é
+   tomado pela abertura). Com chiado a -60 dBFS num fluxo à parte: inteiro. Usado nos testes:
+   script fora do repo (`acordada_chiado.py`, fluxo de ruído 0.001 no bluez_output).
+   **A fazer no código**: pré-rolagem ou chiado de fundo na saída, porque B (Windows) também
+   usa caixa BT.
+3. **Calendário de vezes** (enlace.py, pedido do usuário: o emissor dá o ritmo, o ouvinte
+   nunca fala quando o emissor pode falar). Vez do ouvinte começa 2,5 s após o fim do turno
+   do chamador (+ leitura de turnos longos, + acréscimo de longe), calculada igual nas duas
+   pontas; ouvinte não pronto em 1,5 s ou que não leu o turno até o fim cala; chamador
+   espera a vez inteira (sem sorteio 0–1 s); ACK sozinho conta como resposta; vez contada
+   pelo último segmento lido.
+4. **FIM explícito**: chamador manda FIM com tudo entregue, ouvinte responde e cala;
+   encerrada, a estação não lê nem toca mais; `saudacao.py` sai 3 s após o último som.
+   3 FIM sem resposta com tudo entregue = encerra.
+5. **Cegueira começa no instante em que a estação toca** (a latência da BT varia e a marca do
+   próprio quadro escapava, lida como do outro: ~136 s perdidos na sessão 6).
+6. `simula_enlace.py` reprova fala sobreposta após a saudação e estação que não para;
+   cenário novo `jitter_bt`. 18 cenários passam (17 + assimetrico sementes 0-3).
+
+## Aberto
+
+- Resposta FIM do ouvinte não foi lida pelo chamador na sessão 7 (~80 s de repetições).
+- Saudação lenta no ar (80 s na sessão 7 contra 17 s na 5): primeiro OLA não passa.
+- `modo_2fsk` no simulador 568 s (recomeço na primeira abertura), causa não investigada.
+- Margem da vez em 2,5 s: 2,0 s quebrou `assimetrico` semente 1.
+- Quadros de tamanho padrão por etapa (ideia do usuário) não foram feitos; a garantia veio do
+  calendário.
+- **Mudança de fio**: as duas máquinas precisam deste commit.
+- Próximo: notebook da Giselle (Windows, SSH pelo Tailscale, dados em ~/infra) como B, com a
+  caixa BT passada para ele; teste de verdade com dois microfones e distância.
+
+---
+
 # Handoff -- enlace pela simulação, 2026-10-23
 
 Sessão só de simulação (a máquina B não estava na bancada). Nada foi ao ar.

@@ -35,6 +35,7 @@ sessão SSH (um processo filho do sshd morre com ela):
 """
 
 import argparse
+import collections
 import os
 import queue
 import sys
@@ -120,12 +121,24 @@ class Lacunas:
     parede adiantar, e aí inserir silêncio cortaria quadros ao meio em vez
     de consertá-los. Qual dos dois acontece em B ainda não se sabe; os
     contadores (`buracos` com `transbordos`, ou sem) é que vão dizer.
+
+    O instante do ADC é comparado no acumulado, nunca bloco a bloco: pelo
+    PulseAudio ele anda em degraus (medido aqui em 2026-10-27: parado por
+    ~80 ms de blocos, depois um salto de ~80 ms), e cada salto lido sozinho
+    parecia um buraco -- 420 s de silêncio inseridos numa sessão de 900 s
+    que não perdeu nada, e nenhum quadro legível. `d` é quanto o ADC andou
+    além das amostras entregues; o degrau faz `d` oscilar sem crescer, um
+    relógio lento faz `d` subir aos poucos, e só um bloco perdido faz `d`
+    saltar acima do maior valor recente. Só esse salto é reposto.
     """
 
     FOLGA_PAREDE = 0.25        # s; abaixo disto é jitter do callback, não perda
+    JANELA_ADC = 3.0           # s; o maior `d` recente é a referência do salto
+    APRENDE_ADC = 1.0          # s; antes disto só se aprende a oscilação
 
     def __init__(self):
-        self.prox_adc = None
+        self.adc0 = None
+        self.recentes = collections.deque()    # (amostra, d) para o máximo recente
         self.t0 = None
         self.n = 0
         self.perdidas = 0          # amostras repostas
@@ -142,10 +155,22 @@ class Lacunas:
         if self.t0 is None:
             self.t0 = agora - n / FS
             self.com_adc = bool(adc)
-        elif adc and self.prox_adc and adc > self.prox_adc - 1.0:
-            f = int(round((adc - self.prox_adc) * FS))
-            if f > n // 2:
-                falta = f
+            if adc:
+                self.adc0 = adc
+        elif adc and self.adc0 is not None:
+            d = (adc - self.adc0) * FS - self.n
+            while self.recentes and self.recentes[0][0] < self.n - self.JANELA_ADC * FS:
+                self.recentes.popleft()
+            ref = max(r[1] for r in self.recentes) if self.recentes else d
+            if d < ref - FS:
+                # O instante do ADC voltou atrás (dispositivo reaberto):
+                # recomeça a referência em vez de ler um buraco negativo.
+                self.adc0 = adc - self.n / FS
+                self.recentes.clear()
+                d = 0.0
+            elif self.n > self.APRENDE_ADC * FS and d - ref > n // 2:
+                falta = int(round(d - ref))
+            self.recentes.append((self.n + falta, d - falta))
         elif transbordo:
             # O bloco logo depois do transbordo: o que falta na parede é o
             # que se perdeu, em blocos inteiros (o PortAudio perde buffers).
@@ -156,7 +181,6 @@ class Lacunas:
             f = int((agora - self.t0) * FS) - self.n - n
             if f > self.FOLGA_PAREDE * FS:
                 falta = f - int(0.05 * FS)
-        self.prox_adc = adc + n / FS if adc else None
         if falta:
             self.perdidas += falta
             self.buracos += 1
@@ -175,6 +199,8 @@ class Mundo:
     do relógio como no ar. O que uma ponta toca entra no ar bloco a bloco,
     para que `cala` (pausa) corte o resto como `sd.stop()` corta.
     """
+
+    DEGRAU_ADC = 0.08          # s
 
     def __init__(self, cenario, semente=0):
         import simula_enlace as S
@@ -226,8 +252,12 @@ class Mundo:
             for lado, cb in cbs.items():
                 if self.rng_perda.random() < self.perde.get(lado, 0.0):
                     continue             # transbordo: o bloco some, o próximo avisa
-                # Instante do ADC, como o PortAudio o dá: o do relógio do ar.
-                cb(blocos[lado].astype(np.float32), a / FS + 1.0, False)
+                # Instante do ADC, como o PortAudio o dá pelo PulseAudio: o
+                # do relógio do ar, mas em degraus de DEGRAU_ADC (medido em
+                # 2026-10-27). Um carimbo exato escondeu que `Lacunas` lia
+                # cada degrau como um buraco.
+                adc = 1.0 + np.floor(a / FS / self.DEGRAU_ADC) * self.DEGRAU_ADC
+                cb(blocos[lado].astype(np.float32), adc, False)
             if self.rapido:
                 # Sem relógio de parede: cada bloco só sai quando as duas
                 # pontas já consumiram o anterior. Para separar o que é do
@@ -341,9 +371,10 @@ def main():
     th.start()
     try:
         r = sessao(args, AudioSim(mundo, args.papel, args.latencia))
-        th.join()
     except KeyboardInterrupt:
         r = 1
+    # A ponta com o painel acabou (parada, finalizada, duração): a outra acaba
+    # junto. Esperá-la deixava o processo vivo e sem painel, e o visor travado.
     mundo.fim.set()
     th.join(timeout=10)
     sys.exit(r)
@@ -453,10 +484,19 @@ def sessao(args, audio):
                 elif c == 'pausa' and not pausado:
                     pausado, pausa_t = True, time.time()
                     audio.cala()
+                    pn.corta(lat)
                 elif c == 'retoma' and pausado:
                     pausado, pausa_s, pausa_t = False, pausa_s + time.time() - pausa_t, None
             if finalizar and est.agora >= est.livre_em and not est.agenda:
                 motivo = 'finalizada pelo painel'
+                break
+            if (getattr(est, 'encerrada', False) and not est.agenda
+                    and est.agora > est.livre_em + 3 * FS):
+                # Despediu-se (FIM) e o último som já saiu. Não espera silêncio
+                # na sala: um ruído acima do piso adiava a saída para sempre.
+                motivo = 'encerrada pelo FIM'
+                log(f"[saudacao] {motivo}; saindo")
+                anotado = True
                 break
             if (concluido and args.fim_silencio
                     and est.agora - est.ouvido_em > args.fim_silencio * FS
@@ -486,6 +526,7 @@ def sessao(args, audio):
                 atraso = sum(len(c) for c in list(q.queue)) + lat
                 est.desloca_saida(atraso)
                 audio.toca(burst)
+                pn.saida(burst, atraso + est.lat_extra)
             if (not concluido and est.aberto and est.confirmado and not est.fila
                     and est.pendente_tx is None):
                 concluido = True

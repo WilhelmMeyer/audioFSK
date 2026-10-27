@@ -320,9 +320,9 @@ def le_quadro(audio, p1, desc, p2=None):
 # receptor precisa do tamanho para saber onde o quadro termina, e um tamanho
 # que viajasse dentro do quadro só seria lido depois de o quadro ter sido lido.
 
-OLA, OLA_OK, CONTRATO, SONDA_G, DADOS, ACK = 1, 2, 3, 4, 5, 6
+OLA, OLA_OK, CONTRATO, SONDA_G, DADOS, ACK, FIM = 1, 2, 3, 4, 5, 6, 7
 NOMES = {OLA: 'OLA', OLA_OK: 'OLA_OK', CONTRATO: 'CONTRATO', SONDA_G: 'SONDA_G',
-         DADOS: 'DADOS', ACK: 'ACK'}
+         DADOS: 'DADOS', ACK: 'ACK', FIM: 'FIM'}
 CTRL_N = 12
 SONDA_N = 16
 DADOS_N = 40
@@ -829,6 +829,26 @@ class Ouvido:
 # --- Estação ------------------------------------------------------------------
 
 RESP = int(0.8 * FS)           # pausa antes de responder
+# A vez de cada um. Só o chamador abre um turno; o ouvinte responde numa vez
+# que as duas pontas calculam igual, contada do fim do turno do chamador:
+# começa RESP_VEZ depois (mais o que leva ler um turno longo, e mais de
+# longe), e se o ouvinte não estiver pronto até TOL_VEZ depois disso, cala e
+# espera o próximo turno do chamador. O chamador, que sabe quando a vez do
+# ouvinte começa e quanto ela pode durar, nunca fala dentro dela -- nem para
+# repetir. Antes o ouvinte respondia quando acabava de ler, a qualquer hora,
+# e o chamador repetia depois de um prazo com sorteio: no ar (2026-10-27) os
+# dois falaram juntos.
+RESP_VEZ = int(2.5 * FS)
+TOL_VEZ = int(1.5 * FS)
+LAT_OUTRO = int(1.5 * FS)      # latência de saída do outro lado, que daqui não se mede
+FIM_TENTATIVAS = 3
+
+
+def atraso_vez(n, esforco):
+    """Do fim de um turno de `n` amostras do chamador ao começo da vez do
+    ouvinte. Cresce com o turno porque a leitura cresce com ele (em
+    2026-10-22, de longe, um turno de 75 s foi respondido ~6 s depois)."""
+    return RESP_VEZ + n // 8 + 4 * FS * esforco
 GUARDA = int(0.5 * FS)         # cegueira depois de tocar
 ESPERA = int(3.0 * FS)         # quanto esperar o começo de uma resposta
 # Quanto esperar outro segmento num turno. Tem de cobrir o atraso da
@@ -906,6 +926,10 @@ class Estacao:
         self.lat_extra = 0         # latência de saída não declarada, medida no próprio eco
         self._eco = None           # (tipo, início) da última varredura de saudação tocada
         self._niveis = []          # (instante, rms) de 0,25 s fora da cegueira, para o piso
+        self._turno_ini = 0        # abertura do turno que está chegando
+        self._lido_ini = 0         # abertura do último segmento lido
+        self.encerrada = False     # despediu-se: tudo entregue nos dois sentidos
+        self.fim_tentativas = 0    # FIMs mandados sem resposta
         self._piso = None
         self._nivel_em = 0
         self.reinicia()
@@ -938,10 +962,14 @@ class Estacao:
         self.espera_ate = None
         self.tentativas = 0
         self.sem_progresso = 0
+        self.encerrada = False
+        self.fim_tentativas = 0
 
     def _toca(self, partes, depois=0, espera=True, guarda_turno=True, apos=None, eco=None):
         """Agenda um turno: segmentos separados por GAP, `depois` amostras
         após o fim do que chegou por último (ou a partir de `apos`)."""
+        if self.encerrada:
+            return
         s = []
         for p in partes:
             s += [p, np.zeros(GAP)]
@@ -965,8 +993,40 @@ class Estacao:
         # E a resposta inteira, não só o começo dela: se a marca de abertura
         # se perder, é o comprimento previsto que impede falar por cima.
         self._resp_len = self._vez_do_outro()
-        self.espera_ate = (quando + len(x) + RESP + ESPERA + len(x) // 8
-                           + 4 * FS * self.esforco + self._resp_len) if espera else None
+        self.espera_ate = self._fim_da_vez(quando, len(x)) if espera else None
+
+    def _fim_da_vez(self, a, n):
+        """Até quando a resposta a um turno de `n` amostras tocado em `a` pode
+        chegar: a vez do outro lado inteira, com a tolerância dele, a
+        latência das duas saídas e a resposta mais longa que o estado admite.
+        Antes disto, repetir seria falar por cima de uma resposta."""
+        return (a + self.lat_extra + n + atraso_vez(n, self.esforco) + TOL_VEZ
+                + LAT_OUTRO + self._resp_len + 2 * Ouvido.PASSO)
+
+    def _minha_vez(self, partes, espera=True):
+        """O ouvinte fala só na vez dele: a partir de RESP_VEZ (mais a leitura)
+        depois do fim do turno do chamador, e nunca mais tarde que TOL_VEZ
+        disso. Atrasado, cala -- o chamador repete o turno, e a vez volta."""
+        if not self._terminal:
+            # O fim do turno do chamador só se sabe ao certo pelo último
+            # segmento dele, lido: um ilegível no fim deixa o instante em
+            # aberto, e uma vez contada de um fim errado cairia em cima da
+            # repetição dele. Calo; ele repete, e desce o degrau se preciso.
+            self.anota("turno do chamador não lido até o fim; calo e espero a repetição")
+            return False
+        # O tamanho que conta para a leitura é o do último segmento lido, não
+        # desde a primeira marca do turno: uma marca falsa (eco) antes dele
+        # inflava a conta, a vez saía depois do prazo do chamador e ele
+        # repetia por cima ('latencia', 2026-10-27). Menor nunca é perigoso:
+        # a vez continua começando depois do fim de verdade do turno.
+        n = max(0, self.turno_ultimo - max(self._turno_ini, self._lido_ini))
+        quando = self.turno_ultimo + atraso_vez(n, self.esforco)
+        if self.agora > quando + TOL_VEZ:
+            self.anota(f"perdi a minha vez ({(self.agora - quando) / FS:.1f}s tarde); "
+                       "calo e espero o chamador repetir")
+            return False
+        self._toca(partes, apos=quando, espera=espera)
+        return True
 
     def _quadro(self, desc, tipo, carga, mais=False):
         return modula_quadro(desc, empacota(tipo, self.sessao, carga, desc.nbytes, mais))
@@ -1077,11 +1137,16 @@ class Estacao:
                 if eco == 'chamada':
                     self._chamou_fim = a + len(x)
             else:
-                self.ouvido.cego(a + self.lat_extra, a + self.lat_extra + len(x) + GUARDA)
+                # Desde o instante em que toca, não desde a latência medida:
+                # a de um alto-falante Bluetooth varia (0,5 a 0,7 s medidos
+                # em 2026-10-27), e quando saía mais cedo que a medida a
+                # marca de abertura escapava da cegueira e a estação abria
+                # "o turno do outro" sobre o próprio quadro (no ar, sessão 6,
+                # três esperas de 40-55 s). Com as vezes, o outro lado não
+                # fala enquanto eu toco, então começar cedo não custa nada.
+                self.ouvido.cego(a, a + self.lat_extra + len(x) + GUARDA)
             if self.espera_ate is not None:
-                self.espera_ate = max(self.espera_ate,
-                                      a + self.lat_extra + len(x) + RESP + ESPERA + len(x) // 8
-                                      + 4 * FS * self.esforco + self._resp_len)
+                self.espera_ate = max(self.espera_ate, self._fim_da_vez(a, len(x)))
             return x
         return None
 
@@ -1106,12 +1171,26 @@ class Estacao:
         if (self.papel == 'chamador') == (tipo == 'chamada') and tipo in ('chamada', 'resposta'):
             return                      # a do meu tipo, de um eco que já não espero
         self.ouvido_em = pos
+        if tipo == 'chamada' and self.papel == 'ouvinte' and self._piso:
+            r = self._rms_valido(pos - FS // 2, pos)
+            if r is not None and r > 1.5 * self._piso:
+                # Uma chamada de verdade começa no silêncio: o chamador só chama
+                # depois de esperar. Achada no meio de outro som, é a varredura
+                # casando com um pedaço do quadro do chamador, e responder a ela
+                # seria falar por cima dele ('assimetrico', semente 2: 0,20
+                # dentro de um quadro de dados, duas vezes).
+                if _DEPURA:
+                    self.anota(f"  chamada dentro de outro som ignorada ({sc:.2f})")
+                return
         if tipo == 'chamada':
             if self.papel == 'ouvinte' and self.aberto and sc >= LIMIAR_RECOMECO and \
                     self.agora - self.progresso_em > SILENCIO_MORTO:
+                # Recomeça, mas não responde a esta: se for mesmo o chamador
+                # recomeçando, ele chama de novo em seguida.
                 self.anota("chamada nova com o canal mudo há tempo; o outro lado "
                            "recomeçou -- recomeço também")
                 self.reinicia()
+                return
             if self.papel == 'ouvinte' and not self.aberto and self.saudado:
                 # No meio da negociação. Com o limiar da chamada rente ao
                 # falso (0,17), os tons da sondagem chegam a 0,20 nela; se o
@@ -1205,6 +1284,7 @@ class Estacao:
                     # Abertura de um turno novo: ele dura o que a máquina de
                     # estados diz, leia-se o meio dele ou não (ver também
                     # `_segmento`, que corrige isto se a abertura era falsa).
+                    self._turno_ini = pos
                     self.ouve_ate = pos + int(self._vez_do_outro() * 1.006)
                     if _DEPURA:
                         self.anota(f"  turno do outro aberto em {pos / FS:.2f}s ({tipo}), estado "
@@ -1412,6 +1492,8 @@ class Estacao:
         return fim
 
     def _segmento(self, ev, fim, inicio=None):
+        if ev[0] != 'ilegivel' and inicio is not None:
+            self._lido_ini = inicio        # abertura do último segmento lido
         if (inicio is not None and ev[0] != 'ilegivel'
                 and all(e[0] == 'ilegivel' for e in self.turno)):
             # O primeiro segmento lido do turno é a abertura de verdade; as
@@ -1469,6 +1551,8 @@ class Estacao:
     # --- prazos
 
     def _prazos(self):
+        if self.encerrada:
+            return
         if self.aberto and self.agora - self.progresso_em > 3 * SILENCIO_MORTO:
             # Nem a chamada de quem recomeçou foi ouvida com força (ver
             # LIMIAR_RECOMECO): sem nada legível por tanto tempo, recomeço
@@ -1526,30 +1610,19 @@ class Estacao:
             self.ab = ordem[self.tentativas % len(ordem)]
             self.anota(f"sem OLA_OK; tentando {ABORDAGENS[self.ab].nome}")
             self._envia_ola()
-        elif self.estado == 'sondando' or (self.aberto and self.papel == 'chamador'):
-            self.tentativas += 1
-            self.sem_progresso += 1
-            if self.tentativas > 8 or self.sem_progresso > 10:
-                self.anota(f"sem resposta em '{self.estado}'; voltando ao começo")
-                self.reinicia()
+        elif self.fim_tentativas and self.aberto and self.papel == 'chamador':
+            if self.fim_tentativas >= FIM_TENTATIVAS:
+                # Tudo já tinha sido entregue e confirmado antes do FIM; o
+                # que se perdeu foi só a despedida. Não há o que esperar.
+                self.anota(f"{self.fim_tentativas} FIM sem resposta; tudo já estava "
+                           "entregue -- encerro")
+                self.encerrada = True
                 return
-            if self.aberto and self.confirmado and self.tentativas % 2 == 0 \
-                    and self.degrau_tx < self.ultimo_degrau:
-                # Silêncio não é falha que o receptor possa contar: se nem a
-                # marca foi achada, ele não sabe que falei. Quem desce o
-                # degrau, então, sou eu; o receptor tenta todos os degraus
-                # pelo comprimento do quadro, sem precisar ser avisado.
-                self.degrau_tx += 1
-                self.anota(f"duas repetições sem resposta; desço para {self.degraus[self.degrau_tx]}")
-                if self.degrau_rx < self.ultimo_degrau:
-                    # O silêncio pode ser eu que não ouço o outro lado: o
-                    # ouvinte não repete por conta própria, então o pedido
-                    # para ele descer também tem de partir daqui.
-                    self.degrau_rx += 1
-                    self.anota(f"e peço {self.degraus[self.degrau_rx]} ao outro lado")
-            self.anota(f"sem resposta em '{self.estado}'; repetindo o turno")
-            self._toca(self._retransmite(),
-                       apos=self.agora + int(self.rng.uniform(0, 1.0) * FS))
+            self.fim_tentativas += 1
+            self.anota(f"FIM sem resposta; repito ({self.fim_tentativas}/{FIM_TENTATIVAS})")
+            self._toca(self._turno_fim(), apos=self.agora)
+        elif self.estado == 'sondando' or (self.aberto and self.papel == 'chamador'):
+            self._sem_resposta()
         elif self.estado in ('aguarda_sonda', 'aguarda_contrato') and self.tentativas < 3:
             # O turno do outro lado chegou ilegível (ou não chegou): ele vai
             # repeti-lo, que é o que faz quem fala ao não ouvir resposta.
@@ -1563,6 +1636,38 @@ class Estacao:
         elif self.estado in ('aguarda_ola', 'aguarda_sonda', 'aguarda_contrato'):
             self.anota(f"nada mais em '{self.estado}'; voltando a escutar")
             self.reinicia()
+
+    def _sem_resposta(self):
+        """O turno ficou sem resposta lida: conta, desce o degrau se for
+        o caso e repete. Um caminho só, venha do prazo vencido ou de um
+        turno ilegível que chegou depois dele -- antes o segundo repetia
+        sem descer, e com o ouvinte calado (ele não fala sobre o que não
+        leu) a escada nunca descia ('assimetrico', semente 1)."""
+        self.tentativas += 1
+        self.sem_progresso += 1
+        if self.tentativas > 8 or self.sem_progresso > 10:
+            self.anota(f"sem resposta em '{self.estado}'; voltando ao começo")
+            self.reinicia()
+            return
+        if self.aberto and self.confirmado and self.tentativas % 2 == 0 \
+                and self.degrau_tx < self.ultimo_degrau:
+            # Silêncio não é falha que o receptor possa contar: se nem a
+            # marca foi achada, ele não sabe que falei. Quem desce o
+            # degrau, então, sou eu; o receptor tenta todos os degraus
+            # pelo comprimento do quadro, sem precisar ser avisado.
+            self.degrau_tx += 1
+            self.anota(f"duas repetições sem resposta; desço para {self.degraus[self.degrau_tx]}")
+            if self.degrau_rx < self.ultimo_degrau:
+                # O silêncio pode ser eu que não ouço o outro lado: o
+                # ouvinte não repete por conta própria, então o pedido
+                # para ele descer também tem de partir daqui.
+                self.degrau_rx += 1
+                self.anota(f"e peço {self.degraus[self.degrau_rx]} ao outro lado")
+        self.anota(f"sem resposta em '{self.estado}'; repetindo o turno")
+        # Já depois da vez inteira do ouvinte (o prazo é o fim dela), e
+        # sem sorteio: só o chamador abre turnos, não há com quem
+        # desempatar.
+        self._toca(self._retransmite(), apos=self.agora)
 
     def _retransmite(self):
         if self.aberto and self.confirmado:
@@ -1591,6 +1696,11 @@ class Estacao:
         self._toca([self._quadro(d, OLA, bytes([self.ab, self.esforco]))], depois=RESP)
 
     def _turno(self, eventos):
+        if self.encerrada:
+            # Despediu-se: não responde a mais nada. No ar (sessão 6) o
+            # chamador encerrado leu ilegíveis, "pediu degrau" e voltou a
+            # tocar; o ouvinte respondeu a um ACK depois do próprio FIM.
+            return
         quadros = [(abre(e[1]), e[2]) for e in eventos if e[0] == 'quadro'
                    and abre(e[1])[0] in NOMES]
         sondas = [e for e in eventos if e[0] == 'sonda']
@@ -1619,7 +1729,7 @@ class Estacao:
                 self.estado = 'aguarda_sonda'
                 self.anota(f"OLA lido em {d.nome}; saudação concluída, respondendo OLA_OK "
                            f"em {self.ctrl.nome}")
-                self._toca([self._quadro(self.ctrl, OLA_OK, bytes([i, self.esforco]))], depois=RESP)
+                self._minha_vez([self._quadro(self.ctrl, OLA_OK, bytes([i, self.esforco]))])
                 return
         quadros = [(q, d) for q, d in quadros if q[2] == self.sessao]
         tipos = {q[0]: (q, d) for q, d in quadros}
@@ -1645,8 +1755,10 @@ class Estacao:
                 self.contrato_rx = self._contrato_de(sondas[0], "chega")
                 self.estado = 'aguarda_contrato'
                 self.tentativas = 0
-                self._toca([self._quadro(self.ctrl, CONTRATO, self.contrato_rx.empacota() + self._byte_modo(), mais=True),
-                            self._sonda()], depois=RESP)
+                self._minha_vez([self._quadro(self.ctrl, CONTRATO,
+                                              self.contrato_rx.empacota() + self._byte_modo(),
+                                              mais=True),
+                                 self._sonda()])
             return
 
         if self.estado == 'sondando':
@@ -1793,7 +1905,31 @@ class Estacao:
             q = self._quadro(d, ACK, bytes([self.ultimo_rx, self.degrau_rx]))
         return [q]
 
+    def _turno_fim(self):
+        d = self.contrato_tx.descritor(self.degrau_tx, CTRL_N, self.modo_dados)
+        return [self._quadro(d, FIM, bytes([self.ultimo_rx]))]
+
     def _dados(self, quadros, ruins):
+        if any(q[0][0] == FIM for q in quadros):
+            if self.papel == 'ouvinte':
+                # Responde a todo FIM, também a um repetido (o meu se perdeu),
+                # e não fala mais nada: não tem relógio próprio para isso.
+                # Responde uma vez e não fala mais nada. Se a vez passou, cala
+                # sem encerrar: o chamador repete o FIM.
+                if self._minha_vez(self._turno_fim(), espera=False):
+                    self.anota("FIM do chamador: respondo FIM e calo")
+                    self.encerrada = True
+            else:
+                self.anota("FIM respondido: sessão encerrada")
+                self.espera_ate = None
+                self.encerrada = True
+            return
+        if self.papel == 'chamador' and self.fim_tentativas:
+            # Já me despedi: só o FIM do outro lado interessa. Antes um turno
+            # ilegível aqui caía no caminho dos dados e eu mandava um ACK em
+            # vez de repetir o FIM, e o ouvinte respondia com um pedido de
+            # degrau que reabria tudo (sessão 6: dois FIMs, 70 s).
+            return
         responder = not self.confirmado
         progresso = False
         for (tipo, mais, sess, carga), d in quadros:
@@ -1826,6 +1962,12 @@ class Estacao:
                 self.anota(f"o outro lado pede o degrau {self.degraus[pede]} para o que envio")
                 self.degrau_tx = pede
         if progresso:
+            if self.papel == 'chamador':
+                # Um turno lido do ouvinte é a resposta, com dados ou só o ACK.
+                # Antes o ACK sozinho não desarmava o prazo, e o chamador
+                # "repetia o turno" a cada ~13 s depois de tudo entregue (no
+                # ar, 2026-10-27), até as duas pontas falarem juntas.
+                self.espera_ate = None
             self.progresso_em = self.agora
             self.falhas_rx = 0
             self.sem_progresso = 0
@@ -1856,17 +1998,40 @@ class Estacao:
                 return
         recebeu = any(q[0][0] == DADOS for q in quadros)
         if self.papel == 'ouvinte':
-            # O ouvinte responde a todo turno do chamador e nunca fala sem
-            # ser chamado: o prazo, e com ele a repetição, é só do chamador.
-            self._toca(self._turno_dados(), depois=RESP, espera=False)
+            # O ouvinte responde a todo turno do chamador, na vez dele, e
+            # nunca fala sem ser chamado: o prazo, e com ele a repetição, é
+            # só do chamador.
+            self._minha_vez(self._turno_dados(), espera=False)
+            return
+        if not progresso and self.espera_ate is not None and self.agora < self.espera_ate:
+            # Nada lido, e a vez do ouvinte ainda não acabou: o que soou pode
+            # ser o começo da resposta dele. Responder agora seria falar por
+            # cima dela ('piora', 2026-10-27: 3,9 s juntos). Quando a vez
+            # acabar sem resposta lida, o prazo repete o turno.
             return
         self.outro_tem_mais = recebeu
         if self.pendente_tx is not None or self.fila or recebeu:
             responder = True
+        if not progresso and ruins:
+            # Nada lido e o prazo já passou: é um turno sem resposta, como o
+            # do prazo vencido -- conta e desce o degrau do mesmo jeito.
+            self.espera_ate = None
+            self._sem_resposta()
+            return
         if responder:
-            self._toca(self._turno_dados(), depois=RESP)
-        else:
-            self.sondar_em = self.agora + (90 if self.esforco else 30) * FS
+            # Sem confirmação o outro lado pode não ter o CONTRATO: a resposta
+            # é a repetição, que o leva no formato medido ('meio_aberto': com
+            # DADOS sozinhos o ouvinte ficou 140 s preso em 'aguarda_contrato').
+            self._toca(self._turno_dados() if self.confirmado else self._retransmite(),
+                       depois=RESP)
+        elif progresso:
+            # O ouvinte respondeu só com ACK: não tem mais nada, e o que ele
+            # mandou antes eu já confirmei (senão ele repetiria os DADOS). Do
+            # meu lado também acabou. Despedida explícita, em vez de consultar
+            # o outro lado para sempre.
+            self.anota("tudo entregue nos dois sentidos; mando FIM")
+            self.fim_tentativas = 1
+            self._toca(self._turno_fim(), depois=RESP)
 
     # A fila de dados de quem está ocioso: se o canal está aberto, o outro
     # lado calado e há o que mandar, mandar sem ser chamado.
