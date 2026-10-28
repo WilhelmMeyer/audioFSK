@@ -16,9 +16,12 @@
 # deixa nada instalado. A saída vai para enlace_teste\saudacao.log nos dois.
 set -euo pipefail
 
+# Outra máquina B: ENLACE_B=gi_se@giselle ENLACE_B_REPO='C:\Users\gi_se\audioFSK'
+# ENLACE_B_DIR='C:\Users\gi_se\audioFSK' ENLACE_B_REL=audioFSK (DIR relativo ao perfil, para o scp).
 B=${ENLACE_B:-Home@100.114.48.25}
-DIR='C:\Users\Home\enlace_teste'
-REPO='C:\Users\Home\Workspace\audioFSK'
+DIR=${ENLACE_B_DIR:-'C:\Users\Home\enlace_teste'}
+REPO=${ENLACE_B_REPO:-'C:\Users\Home\Workspace\audioFSK'}
+REL=${ENLACE_B_REL:-enlace_teste}
 PY="$REPO\\venv\\Scripts\\python.exe"
 AQUI=$(cd "$(dirname "$0")" && pwd)
 
@@ -28,7 +31,7 @@ painel() { ssh_b "cd /d $DIR && $PY painel.py $*"; }
 cmd=${1:-}; shift || true
 case "$cmd" in
   envia)
-    scp -q -o LogLevel=ERROR "$AQUI"/{enlace.py,saudacao.py,painel.py} "$B:enlace_teste/"
+    scp -q -o LogLevel=ERROR "$AQUI"/{enlace.py,saudacao.py,painel.py} "$B:$REL/"
     for f in enlace.py saudacao.py painel.py; do
       l=$(md5sum "$AQUI/$f" | cut -d' ' -f1)
       r=$(ssh_b "certutil -hashfile $DIR\\$f MD5" | sed -n 2p | tr -d ' \r')
@@ -46,7 +49,7 @@ case "$cmd" in
       for a in "$@"; do printf ' "%s"' "$a"; done
       printf ' --log saudacao.log\r\n'
     } > "$t"
-    scp -q -o LogLevel=ERROR "$t" "$B:enlace_teste/roda.cmd"; rm -f "$t"
+    scp -q -o LogLevel=ERROR "$t" "$B:$REL/roda.cmd"; rm -f "$t"
     if [ "$cmd" = inicia ]; then
       # O ssh fica em segundo plano aqui; a sessão vive enquanto ele viver.
       nohup ssh -o BatchMode=yes -o LogLevel=ERROR -o ServerAliveInterval=15 "$B" \
@@ -73,8 +76,8 @@ case "$cmd" in
     dest=${1:-sessoes-enlace-B}; mkdir -p "$dest"
     stem=$(ssh_b "powershell -NoProfile -Command \"(Get-ChildItem $DIR\\sessoes-enlace\\*.diario.txt | Sort-Object LastWriteTime | Select-Object -Last 1).BaseName -replace '\\.diario$',''\"" | tr -d '\r')
     [ -n "$stem" ] || { echo "nenhuma sessão em B"; exit 1; }
-    scp -q -o LogLevel=ERROR "$B:enlace_teste/sessoes-enlace/$stem.*" "$dest/"
-    scp -q -o LogLevel=ERROR "$B:enlace_teste/saudacao.log" "$dest/" 2>/dev/null || true
+    scp -q -o LogLevel=ERROR "$B:$REL/sessoes-enlace/$stem.*" "$dest/"
+    scp -q -o LogLevel=ERROR "$B:$REL/saudacao.log" "$dest/" 2>/dev/null || true
     ls -t "$dest" | head ;;
   *) sed -n '2,14p' "$0"; exit 2 ;;
 esac

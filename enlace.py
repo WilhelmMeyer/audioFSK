@@ -866,7 +866,12 @@ _DEPURA = bool(_os.environ.get('ENLACE_DEPURA'))
 # Era 0,30, acima da chamada de longe (0,18-0,27 em 2026-10-22): um canal que
 # morria longe nunca era recomeçado pela chamada do outro lado. O silêncio
 # exigido abaixo (SILENCIO_MORTO sem nada legível) já afasta os dados.
-LIMIAR_RECOMECO = 0.20
+# Era 0,20, e no ar (2026-10-27, notebook da Giselle) as chamadas do chamador
+# que recomeçou chegavam a ~0,18 de longe: o ouvinte, de canal aberto, não
+# voltou nunca. O falso que motivou o limiar alto -- a varredura casando com
+# um quadro de dados -- hoje cai antes, em "chamada dentro de outro som", e o
+# silêncio exigido continua valendo; basta a chamada passar do limiar dela.
+LIMIAR_RECOMECO = LIMIARES['chamada']
 SILENCIO_MORTO = 90 * FS       # canal aberto sem nada legível: dado por morto (o muito lento leva 52 s por quadro de dados)
 
 
@@ -1119,6 +1124,7 @@ class Estacao:
                            f"{self.ouvido.varrido / FS:.2f}s, ouve_ate {self.ouve_ate / FS:.2f}s")
             turno, self.turno, self.turno_fim = self.turno, [], None
             self._turno(turno)
+            self._terminal = False         # vale para o turno que acabou de ser tratado
         self._prazos()
         if self.agenda and self.agenda[0][0] <= self.agora and self.agora >= self.livre_em:
             _, x, eco = self.agenda.pop(0)
@@ -1270,6 +1276,14 @@ class Estacao:
                 prox = [m for m in prox if m[1] == quero or m[1] not in QUADROS or not any(
                     o[1] == quero and abs(o[0] - m[0]) < FS // 2 for o in prox)]
                 if not prox:
+                    return
+                if self.turno and self._terminal:
+                    # O turno já acabou: o segmento que o fecha foi lido. Uma
+                    # marca logo depois é de outro turno -- ou falsa -- e não
+                    # entra neste; antes ela virava um ilegível no fim dele e
+                    # o ouvinte calava ("não lido até o fim"), a cada
+                    # repetição: no ar (2026-10-27, notebook da Giselle), a
+                    # sala dava 12 ilegíveis por turno e a sessão não fechou.
                     return
                 pos, tipo, _ = prox[0]
                 if tipo in QUADROS and tipo != quero and self.ouvido.varrido < pos + FS // 2:
@@ -1513,6 +1527,8 @@ class Estacao:
         # continuam valendo. Antes o cursor ia para "agora" e pulava a marca
         # do OLA verdadeiro que começara durante a leitura de um falso.
         self._cursor = ev[1] + 1 if ev[0] == 'ilegivel' else max(self._cursor, fim)
+        if ev[0] == 'ilegivel' and self.turno and self._terminal:
+            return                         # o turno já fechou no lido; ver `_le_segmentos`
         ultimo = (ev[0] == 'sonda'
                   or (ev[0] == 'quadro' and not abre(ev[1])[1]))
         self._terminal = ultimo

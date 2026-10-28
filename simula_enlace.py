@@ -136,6 +136,7 @@ def roda(cenario, verbose=False, semente=0):
         b.enviar(msg_b)
     t, fim = 0, int(c['segundos'] * FS)
     rng_perda = np.random.default_rng(semente + 100)   # à parte: não muda o canal
+    rng_falsa = np.random.default_rng(semente + 300)   # idem
     perdidos = 0
     falas = {'A': [], 'B': []}       # (início, fim) do que cada uma tocou
     completo = None                  # instante em que tudo foi entregue
@@ -186,6 +187,16 @@ def roda(cenario, verbose=False, semente=0):
                     # debaixo de um estouro, toda vez -- a abordagem que
                     # passou na saudação deixou de passar neste sentido.
                     ar_outro.soma(lat, rng.normal(0, 2.0, a.ctrl.amostras + E.FS // 10))
+                if c.get('falsa_apos_turno') and est is a and b and a.saudado:
+                    # Uma marca de quadro falsa logo depois de cada turno de A,
+                    # seguida de lixo (no ar, 2026-10-27, B anotava 12
+                    # ilegíveis por turno: a sala da Giselle gera marcas). Cai
+                    # depois do último quadro lido, antes de B fechar o turno.
+                    q = E.MOLDES['quadro_longo' if b.esforco else 'quadro']
+                    y = canal.passa(x)
+                    t_f = lat + len(y) + int(c['falsa_apos_turno'] * FS)
+                    ar_outro.soma(t_f, ab.passa(np.concatenate(
+                        [0.3 * q, rng_falsa.normal(0, 0.05, FS)])))
                 # O próprio alto-falante no próprio microfone, bem alto.
                 ar_meu.soma(lat, 0.8 * np.tanh(x / 0.35))
         if c.get('falsas_apos_fim') and b and not injetou and getattr(a, 'encerrada', False) \
@@ -316,6 +327,14 @@ CENARIOS = {
                       dados_a=120, dados_b=60, latencia_oculta_b=0.5,
                       latencia_b_depois=(30, 0.2), rajadas=(1 / 12, 0.4, 0.05),
                       falsas_apos_fim=True),
+    # A sessão das 18:19 no ar (2026-10-27, notebook da Giselle como B): B
+    # leu o CONTRATO e os DADOS do turno de A, uma marca falsa da sala logo
+    # depois virou um segmento ilegível no fim do mesmo turno, e B calou
+    # ("turno do chamador não lido até o fim") -- toda vez, porque a sala
+    # fazia isso a cada repetição. A recomeçou, e B não voltou.
+    'marca_falsa': dict(segundos=600, ruido_a=0.002, ruido_b=0.002,
+                        ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
+                        dados_a=120, dados_b=60, falsa_apos_turno=0.3),
     'sem_parceiro': dict(segundos=120, ruido_a=0.01, ruido_b=0.01,
                          ab=dict(CANAL_BOM), ba=dict(CANAL_BOM),
                          sem_parceiro=True),

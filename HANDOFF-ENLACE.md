@@ -1,3 +1,26 @@
+# Handoff -- duas máquinas: Linux (A) x notebook giselle (B), 2026-10-27 noite
+
+**Estado: código NÃO commitado** (enlace.py, simula_enlace.py, visor.py, enlace_b.sh). Já copiado
+para B (hash conferido). Próximo passo: o usuário roda uma sessão pelos visores; depois commit+push.
+
+- B = notebook da Giselle, Windows 11, `ssh gi_se@giselle` (Tailscale; anotado em ~/infra/CLAUDE.md).
+  Repo em `C:\Users\gi_se\audioFSK` (clone raso em 2aeb24e + arquivos copiados), venv Python 3.12.
+  Saída "Fones de ouvido (AL-1888)" (nome COMPLETO: "AL-1888" casa com a entrada HFP "Headset"),
+  entrada "Microfone (Realtek(R) Audio)"; aperfeiçoamentos de áudio desligados pelo usuário.
+  Chiado de manter a caixa acordada: `chiado.py "Fones de ouvido (AL-1888)" 0.001` via ssh em 2º plano.
+  Visor de B na tela dela: tarefa agendada `audioFSK-visor` (/it, roda visor.cmd), porta 7120.
+  Visor de A: `visor.py --porta 7160 --painel-porta 7110 --out sessoes-enlace-2maq`.
+  `enlace_b.sh` aceita ENLACE_B=gi_se@giselle ENLACE_B_DIR/REPO='C:\Users\gi_se\audioFSK' ENLACE_B_REL=audioFSK.
+  Imports no Windows levam ~1 min; o notebook desliga fora da tomada (powercfg oferecido, não feito).
+- Sessão 8 (manual, ENLACE_DEPURA): 207/207 A->B e 44/44 B->A, FIM nos dois, 405 s; travou 182-405 s.
+- Sessão 18:19 (pelos visores, sem depuração): B recebeu 17/17 mas calou ("turno do chamador não
+  lido até o fim") -> A repetiu 4x, "recomeçando", chamou até esgotar; B (aberto) ignorava chamadas 0.18 < 0.20.
+- Consertos (fork, simulador): (1) depois de lido o segmento que fecha o turno, marcas seguintes vão
+  para o próximo turno e ilegível não desfaz `_terminal` (`_le_segmentos`, `_segmento`, `passo`);
+  cenário novo `marca_falsa`: antes não entregava, agora 94 s. (2) LIMIAR_RECOMECO 0.20 -> 0.17.
+  Bateria toda passa (assimetrico s1 311->248 s, modo_2fsk 568->473 s). Sem mudança de formato no ar.
+- visor.py lança saudacao com ENLACE_DEPURA=1.
+
 # Handoff -- enlace no ar numa máquina só, 2026-10-27
 
 Montagem (a máquina B e o notebook da Giselle não estavam disponíveis na maior parte do dia):

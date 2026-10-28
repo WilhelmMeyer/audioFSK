@@ -134,6 +134,9 @@ class Sessao:
             env = dict(os.environ)
             env['PYTHONPATH'] = os.pathsep.join(
                 x for x in (str(AQUI), env.get('PYTHONPATH', '')) if x)
+            # O diário detalhado (ordem das marcas, fim de turno) é o que
+            # explica uma sessão no ar depois; sem ele, só se vê o resumo.
+            env.setdefault('ENLACE_DEPURA', '1')
             self.proc = subprocess.Popen(a, cwd=str(self.base), env=env,
                                          stdin=subprocess.DEVNULL,
                                          stdout=subprocess.DEVNULL,
