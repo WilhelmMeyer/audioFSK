@@ -1,0 +1,37 @@
+    0.00 [chamador    0.00s] manual: 5×2-FSK multicanal 100 baud rep3, caixa 30%, assinatura 19, quadro de 7.3 s, com confirmação
+    0.04 [volume] de partida: caixa 61%, microfone 57%; passos da caixa 15%, 20%, 30%, 40%, 55%, 70%, 100%, microfone 57%, 34%
+    0.04 [saudacao] protocolo 2 (enlace_manual, versão 1)
+    0.04 [saudacao] papel chamador, entrada 'default', saída 'default', latência 0.009s, 320 bytes a enviar
+    0.04 [saudacao] pid 1621028, painel em 127.0.0.1:7130, gravando em sessoes-enlace-celular/20261030-141034-enlace-chamador.*
+    0.13 [saudacao] escutando: 0.1s desde o início do processo
+    0.13 [volume] caixa no passo 2: 30% (+0.04s da hora marcada)
+    2.13 [chamador    2.01s] mando quadro seq 0 (caixa 30%) em 2.0s
+   12.55 [chamador   12.42s] confirmado o seq 0 (0.77), 1ª tentativa
+   13.75 [chamador   13.65s] marca de quadro (quadro, 0.25) em 12.70s: lendo
+   14.08 [chamador   13.95s] mando quadro seq 1 (caixa 30%) em 14.0s
+   23.53 [chamador   23.42s] marca de quadro (quadro, 0.21) em 22.42s: lendo
+   24.56 [chamador   24.41s] confirmado o seq 1 (0.67), 1ª tentativa
+   31.33 [chamador   31.19s] marca fraca (0.21) em 22.42s sem quadro legível
+   31.36 [chamador   31.19s] mando quadro seq 2 (caixa 30%) em 31.2s
+   41.82 [chamador   41.69s] confirmado o seq 2 (0.75), 1ª tentativa
+   43.34 [chamador   43.22s] mando quadro seq 3 (caixa 30%) em 43.2s
+   53.80 [chamador   53.67s] confirmado o seq 3 (0.74), 1ª tentativa
+   55.33 [chamador   55.21s] mando quadro seq 4 (caixa 30%) em 55.2s
+   65.76 [chamador   65.66s] confirmado o seq 4 (0.70), 1ª tentativa
+   67.33 [chamador   67.20s] mando quadro seq 5 (caixa 30%) em 67.2s
+   77.75 [chamador   77.65s] confirmado o seq 5 (0.78), 1ª tentativa
+   79.31 [chamador   79.19s] mando quadro seq 6 (caixa 30%) em 79.2s
+   89.82 [chamador   89.69s] confirmado o seq 6 (0.68), 1ª tentativa
+   91.34 [chamador   91.22s] mando quadro seq 7 (caixa 30%) em 91.2s
+  101.00 [chamador  100.91s] marca de quadro (quadro, 0.24) em 99.95s: lendo
+  101.52 [chamador  101.42s] marca de quadro (quadro, 0.25) em 100.32s: lendo
+  101.77 [chamador  101.67s] confirmado o seq 7 (0.68), 1ª tentativa
+  109.32 [chamador  109.18s] marca fraca (0.25) em 100.32s sem quadro legível
+  109.35 [chamador  109.18s] mando quadro seq 8 (caixa 30%) em 109.2s
+  119.86 [chamador  119.68s] confirmado o seq 8 (0.73), 1ª tentativa
+  121.34 [chamador  121.22s] mando quadro seq 9 (caixa 30%) em 121.2s
+  131.81 [chamador  131.67s] confirmado o seq 9 (0.70), 1ª tentativa
+  135.38 [saudacao] comando do painel: para
+  135.38 [saudacao] parada pelo painel
+  135.38 [saudacao] entrada: instante do ADC informado, 0 transbordo(s) avisado(s)
+  135.53 [volume] restaurado: caixa 61%, microfone 57%

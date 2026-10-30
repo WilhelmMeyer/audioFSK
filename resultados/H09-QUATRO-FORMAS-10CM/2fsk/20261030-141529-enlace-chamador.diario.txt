@@ -1,0 +1,31 @@
+    0.01 [chamador    0.00s] manual: 2-FSK 100 baud rep3, caixa 30%, assinatura 8c, quadro de 30.4 s, com confirmação
+    0.04 [volume] de partida: caixa 61%, microfone 57%; passos da caixa 15%, 20%, 30%, 40%, 55%, 70%, 100%, microfone 57%, 34%
+    0.04 [saudacao] protocolo 2 (enlace_manual, versão 1)
+    0.04 [saudacao] papel chamador, entrada 'default', saída 'default', latência 0.009s, 320 bytes a enviar
+    0.04 [saudacao] pid 1642101, painel em 127.0.0.1:7130, gravando em sessoes-enlace-celular/20261030-141529-enlace-chamador.*
+    0.13 [saudacao] escutando: 0.1s desde o início do processo
+    0.13 [volume] caixa no passo 2: 30% (+0.07s da hora marcada)
+    2.14 [chamador    2.01s] mando quadro seq 0 (caixa 30%) em 2.0s
+   35.77 [chamador   35.67s] confirmado o seq 0 (0.81), 1ª tentativa
+   37.34 [chamador   37.21s] mando quadro seq 1 (caixa 30%) em 37.2s
+   71.02 [chamador   70.91s] confirmado o seq 1 (0.75), 1ª tentativa
+   72.60 [chamador   72.45s] mando quadro seq 2 (caixa 30%) em 72.4s
+  106.25 [chamador  106.15s] confirmado o seq 2 (0.77), 1ª tentativa
+  107.83 [chamador  107.69s] mando quadro seq 3 (caixa 30%) em 107.7s
+  141.54 [chamador  141.44s] confirmado o seq 3 (0.33), 1ª tentativa
+  143.14 [chamador  142.98s] mando quadro seq 4 (caixa 30%) em 143.0s
+  176.78 [chamador  176.68s] confirmado o seq 4 (0.79), 1ª tentativa
+  178.38 [chamador  178.22s] mando quadro seq 5 (caixa 30%) em 178.2s
+  212.05 [chamador  211.93s] confirmado o seq 5 (0.79), 1ª tentativa
+  213.65 [chamador  213.46s] mando quadro seq 6 (caixa 30%) em 213.5s
+  247.27 [chamador  247.17s] confirmado o seq 6 (0.79), 1ª tentativa
+  248.89 [chamador  248.70s] mando quadro seq 7 (caixa 30%) em 248.7s
+  282.55 [chamador  282.41s] confirmado o seq 7 (0.79), 1ª tentativa
+  284.12 [chamador  283.95s] mando quadro seq 8 (caixa 30%) em 283.9s
+  317.75 [chamador  317.65s] confirmado o seq 8 (0.76), 1ª tentativa
+  319.37 [chamador  319.19s] mando quadro seq 9 (caixa 30%) em 319.2s
+  353.18 [chamador  352.94s] confirmado o seq 9 (0.79), 1ª tentativa
+  357.29 [saudacao] comando do painel: para
+  357.29 [saudacao] parada pelo painel
+  357.29 [saudacao] entrada: instante do ADC informado, 0 transbordo(s) avisado(s)
+  357.48 [volume] restaurado: caixa 61%, microfone 57%

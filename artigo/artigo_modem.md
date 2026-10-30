@@ -148,9 +148,13 @@ O receptor não entrega apenas o valor decidido. Para cada bit do símbolo, ele 
 
 ### 3.3 Sincronismo de símbolo
 
-As duas máquinas não compartilham relógio, e o receptor precisa estimar onde cada símbolo começa. A primeira solução é uma malha de adiantamento e atraso, que a cada símbolo mede três janelas deslocadas de um oitavo de símbolo e corrige o instante do símbolo seguinte na direção da janela mais nítida. A malha só se ajusta em transições de tom, e por isso a transmissão começa com um preâmbulo de tons alternados.
+Os dois computadores não compartilham relógio. Cada um conta o tempo pelo próprio oscilador, e as contagens se afastam pouco a pouco. O receptor precisa, portanto, descobrir onde começa cada símbolo e quanto ele dura de fato.
 
-A malha acompanha bem a média, mas pode perder o alinhamento no meio de um quadro e levar consigo todos os símbolos seguintes. A segunda solução marca o quadro por fora, com uma varredura de frequência de 80 ms em cada extremidade. O receptor localiza as duas varreduras por correlação com a varredura conhecida, e a primeira dá o início do quadro.
+A primeira implementação do sistema usou uma malha de adiantamento e atraso. A cada símbolo, o receptor mede o tom também um pouco antes e um pouco depois do instante esperado e desloca a leitura seguinte para o lado em que o tom apareceu mais nítido. Só há o que medir quando o tom muda, e por isso a transmissão começa com um preâmbulo de tons alternados, que dá à malha tempo de se ajustar.
+
+A malha leva alguns símbolos para se ajustar, e enquanto não se ajusta lê errado justamente o início do quadro, onde estão a palavra de referência e os primeiros bits do bloco.
+
+A implementação atual marca o quadro por fora, com uma varredura em cada extremidade. A varredura é um som de 80 ms cuja frequência sobe continuamente de 700 a 3400 Hz, como um assobio que vai do grave ao agudo. Essa forma não se confunde com os tons dos dados nem com o ruído, e o receptor a localiza comparando o sinal recebido, posição a posição, com uma cópia dela, pela mesma correlação usada para a palavra de referência (seção 4.2). A primeira varredura dá o início do quadro.
 
 A distância entre as duas varreduras dá também o período real do símbolo, conforme (4).
 
@@ -167,7 +171,7 @@ No sistema implementado, em quatro quadros de 2453 símbolos recebidos entre as 
 
 O mesmo cálculo mostra por que $S$ tem de ser exato. Um símbolo a mais ou a menos na contagem erra o período em 480/2453 ≈ 0,2 amostra, e o erro acumulado ao longo do quadro chega a um símbolo inteiro.
 
-No enlace negociado da seção 4.4, todo quadro leva as duas varreduras, e o receptor usa só elas. A malha permanece nas transmissões configuradas à mão, em que as varreduras são opcionais.
+No enlace negociado da seção 4.4, todo quadro leva as duas varreduras, e o receptor usa só elas. A malha permanece apenas no primeiro protótipo, configurado por comandos, em que as varreduras são opcionais.
 
 ### 3.4 Nível de operação
 
@@ -257,41 +261,39 @@ Sobre o mesmo enlace estão em implementação uma conversa, em que o canal perm
 
 ## 6 RESULTADOS EXPERIMENTAIS
 
+Os ensaios foram feitos com dois computadores na mesma sala, cada um com alto-falante e microfone de uso geral, e com um celular no lugar de um deles nos ensaios das formas de transmissão e da transferência de arquivo. No ensaio do sincronismo, um canal de controle entre os computadores apenas comanda a gravação, e os bytes avaliados viajam somente pelo ar. Foram usadas duas montagens, uma com o alto-falante a 10 cm do microfone e outra com ele afastado, sempre com o nível abaixo da saturação.
 
-Dois computadores na mesma sala, cada um com alto-falante e microfone de uso geral. Um canal de controle entre eles apenas comanda o ensaio, e os bytes avaliados viajam somente pelo ar. Foram usadas duas montagens, uma com o alto-falante a 10 cm do microfone e outra com ele afastado, ambas com o nível abaixo da saturação.
-
-
-A Figura 15 mostra as formas de transmissão na bancada a 10 cm, com blocos de 48 bytes e ganho 0,5.
+Com o alto-falante a 10 cm do microfone de um celular, cada forma de transmissão enviou o mesmo texto de 320 bytes em 10 pacotes de 32 bytes, a 100 símbolos por segundo e com repetição 3, configurados à mão nas duas pontas. A Figura 15 mostra a taxa efetiva de cada uma, contadas as confirmações, e os bits recebidos errados em cerca de 29 mil.
 
 ![](figuras/resultado-formas.png "0.95")
-Figura 15 - Taxa útil de cada forma de transmissão, a 10 cm, calculada pela duração do quadro (barras, eixo esquerdo), e a média de bits recebidos errados, todos recuperados pela correção de erros (pontos, eixo direito). Todas entregaram o bloco íntegro, de quatro a cinco gravações por forma. A 5×2-FSK votada exclui uma gravação em que a malha de sincronismo perdeu o alinhamento.
+Figura 15 - Taxa efetiva de cada forma de transmissão, a 10 cm, do primeiro envio à última confirmação, e, dentro de cada barra, os bits recebidos errados antes da correção, em cerca de 29 mil. As quatro entregaram os 10 pacotes na primeira tentativa, idênticos ao enviado.
 
-Com correção de erros, as quatro formas entregam todos os blocos. A 5×2-FSK multicanal tem a maior taxa, 13,8 B/s, e também a maior fração de bits recebidos errados, 8,6%, e a 16-FSK chega a 10,7 B/s com 3,5%.
+As quatro formas entregaram o texto inteiro, sem nenhuma retransmissão, com no máximo 8 bits errados, todos corrigidos. As que transmitem quatro ou cinco bits por símbolo, a 16-FSK e a 5×2-FSK multicanal, chegam a 2,5 B/s, quase três vezes as de um bit por símbolo. Com essa folga de erros, a repetição 3 é mais do que o canal exige, e as taxas não medem o limite de cada forma.
 
-Com o alto-falante afastado, a 16-FSK entregou 4 blocos de 4 a 11,3 B/s, com 5,9% a 9,5% dos bits codificados trocados, todos corrigidos.
+<!-- Fontes: H09-QUATRO-FORMAS-10CM (RESUMO.md; uma sessão por forma, 2026-10-30; votada com o embaralhamento da carga, as outras sem). Script: resultados/H09-QUATRO-FORMAS-10CM/figuras/figura_formas.py. A figura antiga (blocos de 48 bytes entre computadores, F02 com uma gravação excluída) saiu pela regra do autor: só testes em que as quatro formas passam. -->
 
-<!-- Fontes: H03-2FSK-FEC (2-FSK com correção, 4 gravações), F02 (4 de 5 gravações: r2, 79,1%, excluída por decisão do autor em 2026-10-30, e relida a 100,0% com o relógio fixo), F03, F04-16FSK-10CM (2026-10-08); fora da figura por decisão do autor em 2026-10-30, só o que funcionou e é usado: F01-2FSK-10CM (Bell 202 sem correção, 0/5) e F00-NIVEL-10CM (16-FSK sem varreduras, 3/5); 14-FEC-REP (2026-09-03; rep 2 e 4 também 4/4, a 6,7 e 3,7 B/s). Taxas calculadas pelo código (RESUMO-CAMPANHA-FINAL.md). Gravações com o mapeamento Gray anterior à correção de 2026-10-29. Script: resultados/FIG-RESULTADOS/. -->
+Além de decidir cada tom, o receptor precisa saber onde começa cada símbolo, e a seção 3.3 apresenta duas formas de obter isso. Na primeira, a malha de adiantamento e atraso corrige o instante símbolo a símbolo, a partir do próprio sinal. Na segunda, as duas varreduras nas pontas do quadro marcam por fora onde ele começa e quanto dura cada símbolo. A Figura 16 compara as duas sobre as mesmas 24 gravações de blocos de 48 bytes em 16-FSK, feitas num único computador que tocava e gravava ao mesmo tempo.
 
+![](figuras/sincronismo-bloco.png "0.95")
+Figura 16 - Bits certos ao longo do quadro, em janelas de 5%, na média de 24 gravações lidas com a malha e com as varreduras. Ao lado de cada curva, os blocos entregues íntegros.
 
-O receptor precisa saber onde começa cada símbolo, e a seção 3.3 apresenta duas formas de obter isso. Na primeira, a malha de adiantamento e atraso corrige o instante símbolo a símbolo, a partir do próprio sinal. Na segunda, as duas varreduras nas pontas do quadro marcam por fora onde ele começa e quanto dura cada símbolo. A Figura 16 compara as duas, aplicadas às mesmas gravações.
-
-![](figuras/resultado-sincronismo.png "0.95")
-Figura 16 - Blocos íntegros com o ajuste símbolo a símbolo da malha e com as varreduras nas pontas do quadro, aplicados às mesmas gravações, em três conjuntos.
-
-Quando a malha acompanha o sinal, as duas empatam. A diferença está nos quadros em que a malha perde o alinhamento no meio do caminho e leva junto todos os símbolos seguintes, que as varreduras recuperam, e é maior no conjunto de 24 gravações da 16-FSK com blocos de 48 bytes, em que as varreduras leram mais bits que a malha em 23 gravações.
+Com as varreduras, o acerto fica perto de 91% desde o primeiro bit. Com a malha, cai a 83,5% nos primeiros 10% do quadro e só se iguala depois que ela se ajusta. É nesse trecho que fica a palavra de referência, e um início mal lido basta para o bloco se perder: a malha entregou 15 dos 24 blocos, e as varreduras, 23.
 
 <!-- Fontes: 12-13-SYNC (4 gravações, 192 B, rep 2), H03-2FSK-FEC (as 8 com varreduras), studies/20260903-111105-ganho-mary (uma máquina, ganho 0,20 a 0,38). -->
 
+Com os blocos entregues, a transferência de arquivo depende dos pacotes e da retransmissão da seção 4.3. Uma imagem de 1334 bytes foi transferida entre os dois computadores com o alto-falante afastado e chegou idêntica, conferida pelo CRC de 32 bits. Em pacotes de 64 bytes, os 21 pacotes chegaram sem retransmissão, a 6,8 B/s, e em pacotes de 128 bytes, os 11 chegaram com 3 retransmissões, a 7,2 B/s. A 10 cm, três transferências da mesma imagem também chegaram idênticas, de 5,0 a 7,6 B/s. A taxa fica abaixo da do bloco isolado pelo preâmbulo, pelo cabeçalho e pela espera entre pacotes.
 
-Uma imagem de 1334 bytes foi transferida entre os dois computadores com o alto-falante afastado e chegou idêntica, conferida pelo CRC de 32 bits. Em pacotes de 64 bytes, os 21 pacotes chegaram sem retransmissão, a 6,8 B/s, e em pacotes de 128 bytes, os 11 chegaram com 3 retransmissões, a 7,2 B/s. A 10 cm, três transferências da mesma imagem também chegaram idênticas, de 5,0 a 7,6 B/s. A taxa fica abaixo da do bloco isolado pelo preâmbulo, pelo cabeçalho e pela espera entre pacotes.
-
-A Figura 17 mostra outra transferência, do computador para um celular, com a 16-FSK a 100 símbolos por segundo e repetição 2, fixadas à mão. O logotipo do IF, de 1270 bytes, chegou idêntico em 40 pacotes de 32 bytes, com uma retransmissão, em 492 s, ou 2,6 B/s. A taxa menor vem dos pacotes curtos, em que a espera pela confirmação pesa mais, e da repetição do bloco.
+A Figura 17 mostra duas imagens enviadas do computador para um celular, com a 16-FSK a 100 símbolos por segundo e repetição 2, fixadas à mão, em pacotes de 32 bytes. As duas chegaram idênticas às enviadas, conferidas pelo CRC de 32 bits. A bandeira, de 934 bytes, chegou em 30 pacotes, todos na primeira tentativa, em 324 s, com 5,4% dos bits recebidos errados, todos corrigidos. O logotipo, de 1270 bytes, chegou em 40 pacotes, um deles na segunda tentativa, em 492 s. A taxa, de 2,6 a 2,9 B/s, fica abaixo da do bloco isolado porque, em pacotes curtos, a espera pela confirmação pesa mais, e porque o bloco é repetido.
 
 ![](figuras/arquivo-enviado-recebido.png "0.6")
-Figura 17 - Logotipo do IF, de 1270 bytes, enviado pelo computador (a) e recebido pelo celular pelo ar (b), idênticos byte a byte.
+Figura 17 - Imagens recebidas pelo celular pelo ar, idênticas byte a byte às enviadas pelo computador.
 
+Por fim, no enlace negociado as duas pontas partem sem configuração prévia. Com os computadores a cerca de 2 m, uma sessão entregou completos os 207 bytes de um sentido e os 44 do outro, em 302 s contados da chamada. A Figura 18 mostra o que cada receptor mediu na sondagem e o que contratou.
 
-Com as máquinas a cerca de 2 m e sem configuração prévia, cada sessão válida entregou completos os 207 bytes de um sentido e os 44 do outro, em 302 s com a negociação automática. Os contratos dos dois sentidos excluíram tons diferentes e fixaram ganhos diferentes, o que confirma a medida por sentido. Com outro computador em uma das pontas, a sessão também se completou, em 405 s.
+![](figuras/enlace-contratos.png "0.95")
+Figura 18 - Margem de cada tom na sondagem de uma sessão negociada, em cada sentido, e os tons que o contrato daquele sentido usou. Acima de cada faixa, o ganho digital, a repetição e a velocidade contratados, e os bytes entregues.
+
+Num sentido, o receptor excluiu os três tons de margem mais baixa, entre 1862 e 2188 Hz, e deslocou a faixa para cima; no outro, todos os tons da faixa de fábrica tinham margem acima de 30 dB e nenhum foi excluído. Os ganhos contratados também diferem, 0,20 e 0,12. Com outro computador em uma das pontas, a sessão também se completou, em 405 s.
 
 <!-- Fontes: H07-ENLACE-MODOS (2026-10-22), H06-ENLACE-AR sessão 3 (contratos: A->B exclui 4 tons, ganho 0,45, rep 2; B->A exclui 3, ganho 0,3, rep 1), sessoes-enlace-2maq/20261027-175531 (405 s). Figura do visor em modo projeção com as fases: a capturar. 6.6 chat e terminal: quando medidos. -->
 

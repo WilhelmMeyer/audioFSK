@@ -1,0 +1,176 @@
+{
+ "papel": "chamador",
+ "simulado": null,
+ "protocolo": 2,
+ "fase": "terminada",
+ "estado_estacao": "dados_tx",
+ "etapa": "dados_tx",
+ "esperando": null,
+ "saudado": true,
+ "aberto": true,
+ "confirmado": true,
+ "contrato_tx": "16-FSK 100 baud rep2",
+ "contrato_rx": "16-FSK 100 baud rep2",
+ "velocidade": "16-FSK 100 baud rep2",
+ "tocando": [
+  "quadro seq 29"
+ ],
+ "percurso": [
+  {
+   "id": "parametros",
+   "nome": "Parâmetros",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Modo",
+     "valor": "16-FSK 100 baud, repetição 2"
+    },
+    {
+     "rotulo": "Volume",
+     "valor": "30%",
+     "lado": "envio"
+    },
+    {
+     "rotulo": "Microfone",
+     "valor": "57%"
+    }
+   ]
+  },
+  {
+   "id": "tons",
+   "nome": "Tons",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Em uso",
+     "valor": "16 tons",
+     "regua": [
+      {
+       "hz": 888.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 1050.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 1212.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 1375.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 1538.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 1700.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 1862.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 2025.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 2188.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 2350.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 2512.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 2675.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 2838.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 3000.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 3162.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 3325.0,
+       "estado": "usado"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "conversa",
+   "nome": "Conversa",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Quadros enviados",
+     "valor": "30",
+     "lado": "envio"
+    },
+    {
+     "rotulo": "Perdidos",
+     "valor": "4"
+    },
+    {
+     "rotulo": "Ilegíveis",
+     "valor": "2"
+    }
+   ]
+  }
+ ],
+ "atividade": "manual, 16-FSK 100 baud rep2: escutando",
+ "a_enviar": 0,
+ "pendente_tx": false,
+ "enviados_total": 934,
+ "recebidos": 0,
+ "estacao_s": 758.83,
+ "atraso_s": 0.44,
+ "fila_s": 0.04,
+ "passo_ms": 0.0,
+ "atrasado": false,
+ "ultima_marca_ha_s": 4.1,
+ "rms_entrada": 0.0024,
+ "pausado": false,
+ "concluido": false,
+ "finalizando": false,
+ "entrada_perdida_s": 0.0,
+ "buracos_entrada": 0,
+ "transbordos": 0,
+ "ultimas": [
+  "  754.89 [chamador  754.69s] confirmado o seq 29 (0.85), 1ª tentativa",
+  "  758.99 [saudacao] comando do painel: para",
+  "  758.99 [saudacao] parada pelo painel",
+  "  758.99 [saudacao] entrada: instante do ADC informado, 0 transbordo(s) avisado(s)",
+  "  759.10 [volume] restaurado: caixa 57%, microfone 57%"
+ ],
+ "volume": {
+  "caixa": 2,
+  "mic": null,
+  "mic_pos": 0.57,
+  "caixa_pos": 0.3
+ },
+ "conversa": true,
+ "texto_enviado": [],
+ "texto_recebido": "",
+ "fim": "parada pelo painel",
+ "pid": 1874865,
+ "porta": 7130,
+ "parede_s": 759.39,
+ "atualizado": "15:26:53"
+}

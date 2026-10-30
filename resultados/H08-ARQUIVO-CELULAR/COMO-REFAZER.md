@@ -8,3 +8,9 @@ Sessão de 13:19: computador como chamador, celular (app Android) como ouvinte, 
 - Gray: código corrigido de 2026-10-29 nas duas pontas.
 
 Figura: `./venv/bin/python resultados/H08-ARQUIVO-CELULAR/figuras/figura_arquivo.py`, que confere a igualdade antes de desenhar.
+
+## Bandeira (15:43, `bandeira-embaralhada/`)
+
+`figurinhas/bandeira-br-48.bmp`, 934 bytes, mesma configuração (16-FSK, 100 baud, rep 2), caixa a 30%, com os pacotes embaralhados (`enlace_manual.embaralha`). 30 pacotes, todos na 1ª tentativa, último confirmado aos 323,67 s (2,9 B/s). No JSON do celular, 3180 de 58680 bits lidos errados (5,4%), todos corrigidos; o `.bin` é idêntico ao BMP (CRC-32 ca8b9cf3). A tentativa anterior, sem embaralhar (`bandeira/`, 15:14), errava os pacotes só de zeros e ficou fora do artigo.
+
+A Figura 17 mostra as duas imagens recebidas, uma vez cada; o script confere as duas contra as enviadas antes de desenhar.

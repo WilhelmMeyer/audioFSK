@@ -1,4 +1,4 @@
-"""Figura do artigo: o logo enviado pelo computador e o recebido pelo celular, pelo ar.
+"""Figura do artigo: as duas imagens recebidas pelo celular, pelo ar, cada uma conferida contra a enviada.
 
 O celular grava tudo o que recebeu na sessao num .bin: os 1270 bytes do BMP e,
 depois, 23 bytes de texto digitados na mesma sessao. A figura usa os primeiros
@@ -23,16 +23,19 @@ SAIDAS = (os.path.join(AQUI, 'arquivo-enviado-recebido.png'),
 
 plt.rcParams.update({'font.size': 8.5, 'savefig.dpi': 300, 'figure.dpi': 300})
 
-enviado = open(os.path.join(ARQ, 'if-logo-enviado.bmp'), 'rb').read()
-recebido = open(os.path.join(ARQ, '20261030-131754-enlace-ouvinte-recebido.bin'), 'rb').read()
-recebido = recebido[:len(enviado)]
-assert recebido == enviado, 'o recebido difere do enviado'
-print(f'{len(enviado)} bytes, CRC-32 {zlib.crc32(enviado):08x} nos dois')
+PARES = (('if-logo-enviado.bmp', '20261030-131754-enlace-ouvinte-recebido.bin',
+          '(a) logotipo do IF, 1270 B'),
+         ('../../../figurinhas/bandeira-br-48.bmp',
+          '../bandeira-embaralhada/20261030-154344-enlace-ouvinte-recebido.bin',
+          '(b) bandeira, 934 B'))
 
 fig, eixos = plt.subplots(1, 2, figsize=(3.4, 1.9))
-for ax, (dados, titulo) in zip(eixos, ((enviado, '(a) enviada pelo computador'),
-                                       (recebido, '(b) recebida pelo celular'))):
-    ax.imshow(Image.open(io.BytesIO(dados)).convert('RGB'), interpolation='nearest')
+for ax, (env, rec, titulo) in zip(eixos, PARES):
+    enviado = open(os.path.join(ARQ, env), 'rb').read()
+    recebido = open(os.path.join(ARQ, rec), 'rb').read()[:len(enviado)]
+    assert recebido == enviado, f'{rec} difere do enviado'
+    print(f'{titulo}: {len(enviado)} bytes, CRC-32 {zlib.crc32(enviado):08x} nos dois')
+    ax.imshow(Image.open(io.BytesIO(recebido)).convert('RGB'), interpolation='nearest')
     ax.set_title(titulo, fontsize=8)
     ax.set_xticks([]); ax.set_yticks([])
     for lado in ax.spines.values():
