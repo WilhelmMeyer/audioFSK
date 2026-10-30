@@ -23,7 +23,7 @@ SAIDAS = (os.path.join(AQUI, 'arquivo-enviado-recebido.png'),
 
 plt.rcParams.update({'font.size': 8.5, 'savefig.dpi': 300, 'figure.dpi': 300})
 
-PARES = (('if-logo-enviado.bmp', '20261030-131754-enlace-ouvinte-recebido.bin',
+PARES = (('if-logo-enviado.bmp', '../logo-rep1/20261030-160037-enlace-ouvinte-recebido.bin',
           '(a) logotipo do IF, 1270 B'),
          ('../../../figurinhas/bandeira-br-48.bmp',
           '../bandeira-embaralhada/20261030-154344-enlace-ouvinte-recebido.bin',
