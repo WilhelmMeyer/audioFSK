@@ -134,8 +134,6 @@ body[data-papel=chamador] .comando button { color: #fff4e4; background: var(--en
 .conversa p { margin: 0; }
 .conversa .ele { color: #2d4664; }
 .conversa .eu { color: #8a3b22; text-align: right; }
-.manter { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 14px; color: var(--osso-2); }
-.manter input { width: 18px; height: 18px; accent-color: var(--ambar); }
 .papel.hex { max-height: 168px; overflow-y: auto; white-space: pre; font-size: 12px; overflow-wrap: normal; }
 #imagem { display: none; width: 100%; max-width: 288px; margin: 10px auto 2px; image-rendering: pixelated; background: var(--papel); }
 .fita { height: 42vh; min-height: 240px; overflow-y: auto; }
@@ -220,7 +218,6 @@ body[data-papel=chamador] .comando button { color: #fff4e4; background: var(--en
       <label class="ack"><input id="m-ack" type="checkbox" checked>Confirmar quadros</label>
       <p class="nota">Modulação, velocidade, repetição, tons e confirmação têm de ser iguais nos dois lados. O volume é de cada um.</p>
     </div>
-    <label class="ack manter"><input id="m-conversa" type="checkbox" checked>Manter a conversa aberta</label>
     <div class="campo">
       <input id="texto" placeholder="Texto a enviar" autocomplete="off" enterkeyhint="send">
       <button id="enviar" disabled>Enviar</button>
@@ -448,7 +445,7 @@ $('acao').addEventListener('pointerdown', () => {
 $('acao').addEventListener('click', e => {
   if (document.body.classList.contains('ligada')) { if (e.detail === 0) nativo.parar(); return; }
   const t = $('texto').value; $('texto').value = '';
-  tela.limpa(); if (t) fala('eu', t); nativo.iniciar(papel(), t, manual(), $('m-conversa').checked);
+  tela.limpa(); if (t) fala('eu', t); nativo.iniciar(papel(), t, manual());
 });
 function envia() { const t = $('texto').value; if (t && !$('enviar').disabled) { nativo.enviar(t); fala('eu', t); $('texto').value = ''; } }
 $('enviar').addEventListener('click', envia);

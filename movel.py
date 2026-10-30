@@ -51,7 +51,7 @@ class Sessao:
     `cala()`, `latencia()`, `perdidas()`, `fonte()`, `linha(str)`, `estado(str)`,
     `recebido(caminho)`."""
 
-    def __init__(self, papel, pasta, ponte, texto='', semente=None, manual=None, conversa=False):
+    def __init__(self, papel, pasta, ponte, texto='', semente=None, manual=None):
         """`manual`: JSON dos campos de `enlace_manual.Params.de_dict`; None negocia."""
         self.papel, self.ponte = papel, ponte
         self.dados = texto.encode('utf-8')
@@ -72,7 +72,6 @@ class Sessao:
                                              params=enlace_manual.Params.de_dict(json.loads(manual)))
         else:
             self.est = enlace2.Estacao(papel, semente=semente, log=self.log)
-            self.est.conversa = bool(conversa)
         self.est.enviar(self.dados)
         self.log(f"[movel] enlace2 versão {enlace2.VERSAO}, papel {papel}, "
                  f"latência declarada {self.lat / FS:.3f}s, "
@@ -122,7 +121,7 @@ class Sessao:
                 self.log(f"[movel] microfone sem ajuste (pico ouvido {pico:.2f})")
         est.pedidos_mic_passo.clear()
         est.pedidos_mic.clear()
-        if (not manual_est(est) and not est.conversa and not self.concluido and est.aberto and est.confirmado
+        if (not manual_est(est) and not self.concluido and est.aberto and est.confirmado
                 and not est.fila and est.pendente_tx is None):
             self.concluido = True
             self.log(f"[movel] tudo enviado e confirmado; recebidos {len(est.recebido)} bytes")

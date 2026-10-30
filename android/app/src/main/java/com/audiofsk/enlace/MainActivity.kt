@@ -69,7 +69,7 @@ class MainActivity : Activity() {
     }
 
     /** `manual`: JSON dos parâmetros escolhidos à mão; vazio, negocia pelo ar. */
-    private fun inicia(papel: String, inicial: String, manual: String, conversa: Boolean) {
+    private fun inicia(papel: String, inicial: String, manual: String) {
         if (ocupado) return
         ocupado = true
         emSessao(true)
@@ -79,7 +79,7 @@ class MainActivity : Activity() {
                 ponte = Ponte(this, ::linha, ::mostra, ::abre)
                 linha("[app] carregando a estação...")
                 val s = Python.getInstance().getModule("movel")
-                    .callAttr("Sessao", papel, pasta().path, ponte, inicial, null, manual.ifEmpty { null }, conversa)
+                    .callAttr("Sessao", papel, pasta().path, ponte, inicial, null, manual.ifEmpty { null })
                 ponte.abre()
                 sessao = s
                 s.callAttr("roda")
@@ -114,7 +114,7 @@ class MainActivity : Activity() {
     }
 
     inner class Controles {
-        @JavascriptInterface fun iniciar(papel: String, texto: String, manual: String, conversa: Boolean) = inicia(papel, texto, manual, conversa)
+        @JavascriptInterface fun iniciar(papel: String, texto: String, manual: String) = inicia(papel, texto, manual)
         @JavascriptInterface fun parar() { sessao?.put("parar", true) }
         @JavascriptInterface fun enviar(texto: String) { sessao?.callAttr("envia", texto) }
         @JavascriptInterface fun repetir(papel: String) = repete(papel)
