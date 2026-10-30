@@ -11,7 +11,7 @@
 
 ## RESUMO
 
-Apresenta-se a transmissão de dados por som audível entre dois computadores, com alto-falante e microfone de uso geral. No canal acústico a amplitude recebida difere da emitida, frequências próximas chegam com níveis distintos, o ruído do ambiente ocupa a mesma faixa e a cadeia analógica satura em nível alto e gera harmônicos. Para tratar essas condições, na camada física são comparadas quatro modulações por deslocamento de frequência, do inglês *frequency shift keying* (FSK). A 2-FSK transmite um bit por símbolo, em um de dois tons, e a 5×2-FSK votada repete esse mesmo bit em cinco pares de tons e decide pela maioria. A 5×2-FSK multicanal usa os mesmos pares para transmitir cinco bits distintos por símbolo, e a 16-FSK emite um único tom por símbolo, entre dezesseis, que carrega quatro bits. Duas varreduras de frequência nas pontas do quadro dão o início e a duração dos símbolos. Na camada de enlace, a correção antecipada de erros por código convolucional repara os bits que a camada física entrega errados, uma palavra de referência localiza o bloco, e pacotes com verificação de redundância cíclica e retransmissão automática completam a entrega. Uma negociação pelo próprio som mede o canal em cada sentido e escolhe a modulação e a taxa sem configuração prévia. Com o alto-falante afastado do microfone, a 16-FSK com correção de erros entregou 11,3 bytes por segundo, com 4 blocos íntegros de 4, e um arquivo de 1334 bytes chegou idêntico em 21 pacotes, sem retransmissão.
+Apresenta-se a transmissão de dados por som audível entre dois computadores, com alto-falante e microfone de uso geral. No canal acústico a amplitude recebida difere da emitida, frequências próximas chegam com níveis distintos, o ruído do ambiente ocupa a mesma faixa e a cadeia analógica satura em nível alto e gera harmônicos. Para tratar essas condições, na camada física são comparadas quatro modulações por deslocamento de frequência, do inglês *frequency shift keying* (FSK). A 2-FSK usa um de dois tons, as 5×2-FSK usam cinco pares, votando o mesmo bit ou levando cinco bits distintos, e a 16-FSK emite um tom entre dezesseis, que carrega quatro bits. Na camada de enlace, a correção antecipada de erros por código convolucional repara os bits que a camada física entrega errados, uma palavra de referência localiza o bloco, e pacotes com verificação de redundância cíclica e retransmissão automática completam a entrega. Uma negociação pelo próprio som mede o canal em cada sentido e escolhe a modulação e a taxa sem configuração prévia. Com o alto-falante afastado do microfone, a 16-FSK com correção de erros entregou 11,3 bytes por segundo, com 4 blocos íntegros de 4, e um arquivo de 1334 bytes chegou idêntico em 21 pacotes, sem retransmissão.
 
 **PALAVRAS-CHAVE:** Modem acústico. Modulação por deslocamento de frequência. Codificação convolucional. Canal acústico.
 
@@ -23,15 +23,15 @@ Rádio e infravermelho transferem dados sem cabo entre computadores próximos co
 
 <!-- LOPES; AGUIAR (2003) está fechada (IEEE Xplore 1228528) e ainda não foi lida. Abrir pelo Periódicos CAPES e conferir que a comparação está lá antes de manter a citação. -->
 
-A modulação por deslocamento de frequência, do inglês *frequency shift keying* (FSK), representa cada valor de bit por uma frequência. Na rede telefônica, o padrão Bell 202, da AT&T, usa 1200 e 2200 Hz a 1200 símbolos por segundo (FINNEGAN; BENSON, 2014). O mesmo padrão segue na instrumentação industrial, onde o protocolo de transdutor remoto endereçável, do inglês *Highway Addressable Remote Transducer* (HART), superpõe FSK de 1200 bits por segundo à malha de corrente de 4 a 20 mA sem alterar o valor analógico que ela transporta (WU, 2023).
+A modulação por deslocamento de frequência, do inglês *frequency shift keying* (FSK), representa cada valor de bit por uma frequência.
 
-Lopes e Aguiar (2001) demonstraram a transmissão pelo ar com várias frequências audíveis. O ar, porém, não é um par de fios. O som se propaga a cerca de 343 m/s, aproximadamente 875 mil vezes mais devagar que a onda eletromagnética, e em ambiente fechado as reflexões chegam dezenas de milissegundos depois do som direto (PUTZ *et al.*, 2026).
+Lopes e Aguiar (2001) demonstraram a transmissão pelo ar com várias frequências audíveis. O ar, porém, não é um par de fios, e em ambiente fechado as reflexões chegam dezenas de milissegundos depois do som direto (PUTZ *et al.*, 2026).
 
 Em uma revisão de 31 estudos, com mais de 11 mil transmissões em aparelhos reais, Putz *et al.* (2026) apontam o multipercurso como a principal degradação e situam os produtos comerciais entre 10 e 200 bits por segundo. Uma implementação aberta que transmite quatro bits por tom opera entre 8 e 16 bytes por segundo (GERGANOV, 2021).
 
 <!-- Os 8 a 16 B/s do ggwave vêm do README, conforme referencias.md. Conferir no repositório antes de submeter. -->
 
-Este trabalho apresenta um modem acústico que transmite bytes entre dois computadores por som audível, com alto-falante e microfone de uso geral, e que a aplicação vê como uma porta serial virtual. Descrevem-se os fenômenos do canal, as quatro modulações, a camada de enlace e a negociação do enlace pelo próprio som, com as medidas de cada recurso. A Figura 1 mostra o arranjo.
+Este trabalho apresenta um modem acústico que transmite bytes entre dois computadores por som audível, com alto-falante e microfone de uso geral. A Figura 1 mostra o arranjo.
 
 ![](figuras/bancada.png "0.95")
 Figura 1 - O sistema. Os dados saem de uma máquina como som, atravessam o ar e são reconstruídos na outra a partir do que o microfone capta.
@@ -40,9 +40,9 @@ Figura 1 - O sistema. Os dados saem de uma máquina como som, atravessam o ar e 
 
 ### 2.1 Frequência e detecção
 
-O som se propaga no ar a cerca de 343 m/s. A banda disponível para os dados é a faixa audível, porque é a que alto-falantes e microfones de uso geral reproduzem.
+A banda disponível para os dados é a faixa audível, porque é a que alto-falantes e microfones de uso geral reproduzem.
 
-Cada valor de bit, ou de grupo de bits, corresponde a uma frequência combinada entre as duas pontas. A cada intervalo fixo, chamado símbolo, o transmissor emite um tom e o receptor identifica qual esteve presente. Um tom puro concentra a energia em uma única frequência, ao contrário da fala, que ocupa banda larga e varia com o locutor, e por isso os símbolos são tons.
+Cada valor de bit, ou de grupo de bits, corresponde a uma frequência combinada entre as duas pontas. A cada intervalo fixo, chamado símbolo, o transmissor emite um tom e o receptor identifica qual esteve presente.
 
 O receptor escolhe a frequência de maior energia. Um ganho comum a todas, vindo do volume ou da distância, não altera a escolha, mas a probabilidade de erro depende da relação sinal-ruído, do inglês *signal-to-noise ratio* (SNR), em cada frequência.
 
@@ -56,16 +56,14 @@ O descarte cobre a transição do tom anterior, que alto-falante e microfone nã
 
 ### 2.2 Efeitos do canal
 
-Uma sala em silêncio não produz sinal nulo no microfone. Tráfego, máquinas e fala ocupam a faixa dos dados, de forma contínua e em rajadas (PUTZ *et al.*, 2026), e o microfone acrescenta ruído e processamento próprios, que variam de uma máquina para outra. Resulta um piso de ruído permanente, com nível diferente em cada frequência.
+Uma sala em silêncio não produz sinal nulo no microfone. Tráfego, máquinas e fala ocupam a faixa dos dados, de forma contínua e em rajadas (PUTZ *et al.*, 2026). Resulta um piso de ruído permanente, com nível diferente em cada frequência.
 
-A Figura 2 mostra esse piso no sistema implementado, medido com o enlace parado em quatro gravações de 8 s e analisado em janelas de 50 Hz. Concentrado abaixo de 2 kHz, ele varia 27 dB sob os dezesseis tons da 16-FSK, de −67,6 a −94,8 dBFS.
+A Figura 2 mostra esse piso no sistema implementado. Concentrado abaixo de 2 kHz, ele varia 27 dB sob os dezesseis tons da 16-FSK, de −67,6 a −94,8 dBFS.
 
 ![](figuras/piso-ruido.png "0.95")
 Figura 2 - Piso de ruído com o enlace parado, média de quatro gravações de 8 s. A faixa cinza mostra os extremos entre elas, e as marcas no rodapé, os dezesseis tons.
 
-Um tom transmitido precisa superar esse piso na sua frequência, e não o silêncio. A SNR de cada tom é a razão entre a sua energia e a desse piso, e um mesmo nível de transmissão dá SNR diferentes a tons diferentes. Por isso cada tom é comparado com o piso da sua própria frequência, e não com um limiar único.
-
-Entre o conversor do transmissor e o do receptor, amplificador, alto-falante, ar, superfícies que refletem ou absorvem o som e microfone alteram o tom, de modo que o sinal recebido difere do emitido mesmo sem ruído.
+Um tom transmitido precisa superar esse piso na sua frequência, e não o silêncio. Por isso cada tom é comparado com o piso da sua própria frequência, e não com um limiar único.
 
 O som chega ao microfone pelo caminho direto e por reflexões atrasadas pelo seu percurso, que o reforçam em algumas frequências e o cancelam em outras. A resposta do canal toma a forma de um pente de máximos e mínimos fixado pela geometria (KUTTRUFF, 2016). Frequências próximas podem chegar com níveis muito diferentes, e os mínimos se deslocam quando objetos ou pessoas se movem na sala.
 
@@ -82,20 +80,18 @@ A Figura 3 mostra o efeito no sistema implementado, com um símbolo do tom de 17
 ![](figuras/espalhamento-janela.png "0.95")
 Figura 3 - Tom de 1700 Hz recebido. (a) Um símbolo, com o intervalo de descarte e a janela analisada. (b) Espectro da janela, contra um seno ideal cortado na mesma janela. As linhas pontilhadas marcam os dezesseis tons da 16-FSK.
 
-O tom vizinho da 16-FSK, 162 Hz acima, cai no primeiro lóbulo lateral e recebe −13,0 dB, contra −13,4 dB previstos por (2). Essa margem separa um tom do vizinho na decisão, mesmo sem ruído, e diminui se os tons forem aproximados.
+O tom vizinho da 16-FSK, 162 Hz acima, cai no primeiro lóbulo lateral e recebe −13,0 dB, contra −13,4 dB previstos por (2). Essa margem separa um tom do vizinho na decisão, mesmo sem ruído.
 
 O detector vê apenas a energia de cada um dos dezesseis tons na janela. A Figura 4 mostra esses valores no sistema implementado, com o tom de 1700 Hz transmitido, sobre a curva de (2) para um seno ideal no mesmo nível, somada em potência ao piso da sala em silêncio. O tom transmitido fica 47,4 dB acima do nível da mesma frequência com a sala em silêncio, que é a sua margem sobre o piso.
 
 ![](figuras/deteccao-tom.png "0.95")
 Figura 4 - Energia nos dezesseis tons da 16-FSK na janela de decisão, com o tom de 1700 Hz transmitido. A curva é o previsto por (2) mais o piso de ruído, e os círculos vazados, o previsto em cada tom. Os quadrados são a sala em silêncio, mediana de quatro gravações.
 
-Os outros quinze tons também sobem acima do silêncio, porque recebem os lóbulos laterais do tom transmitido. Até 2,5 kHz o medido difere do previsto em 0,9 dB na mediana, e em até 3,5 dB perto dos zeros da curva, onde o nível muda rápido com a frequência. Acima de 2,5 kHz o medido excede o previsto em 4,5 dB na mediana, o que o vazamento não explica, e o maior desvio, 7,1 dB em 3325 Hz, fica a 75 Hz do segundo harmônico de 1700 Hz (Figura 5).
+Os outros quinze tons também sobem acima do silêncio, porque recebem os lóbulos laterais do tom transmitido. Até 2,5 kHz o medido difere do previsto em 0,9 dB na mediana. Acima de 2,5 kHz o medido excede o previsto em 4,5 dB na mediana, o que o vazamento não explica, e o maior desvio, 7,1 dB em 3325 Hz, fica a 75 Hz do segundo harmônico de 1700 Hz (Figura 5).
 
-Para ser escolhido, o tom transmitido precisa vencer ao mesmo tempo o piso de ruído, que supera por 47,4 dB, e o vazamento sobre o vizinho, que supera por 13,0 dB.
+A cadeia analógica cria ainda frequências não transmitidas. Amplificador, alto-falante e microfone não são perfeitamente lineares, e a não linearidade põe energia nos múltiplos inteiros da frequência do tom, os harmônicos, que acompanham todo tom e crescem com o nível. Em nível alto, o cone do alto-falante e o amplificador atingem seus limites e achatam os picos.
 
-A cadeia analógica cria ainda frequências não transmitidas. Amplificador, alto-falante e microfone não são perfeitamente lineares, e a não linearidade põe energia nos múltiplos inteiros da frequência do tom, os harmônicos, que acompanham todo tom e crescem com o nível. Em nível alto, o cone do alto-falante e o amplificador atingem seus limites e achatam os picos, e Putz *et al.* (2026) mediram distorção não linear na maioria dos aparelhos acima de cerca de 75% do volume máximo.
-
-A Figura 5 mostra o efeito no sistema implementado, com uma varredura de 300 a 6000 Hz em seis segundos, transmitida pelo ar e captada pelo receptor. O segundo e o terceiro harmônicos aparecem como diagonais, em mediana 30,5 e 42,2 dB abaixo da fundamental, respectivamente. Entre os dezesseis tons, de 888 a 3325 Hz, o segundo harmônico de seis deles cai a até 76 Hz de outro tom, e o terceiro de dois, a até 12 Hz, somando energia onde nada foi transmitido.
+A Figura 5 mostra o efeito no sistema implementado, com uma varredura de 300 a 6000 Hz em seis segundos, transmitida pelo ar e captada pelo receptor. Entre os dezesseis tons, de 888 a 3325 Hz, o segundo harmônico de seis deles cai a até 76 Hz de outro tom, e o terceiro de dois, a até 12 Hz, somando energia onde nada foi transmitido.
 
 ![](figuras/varredura.png "0.95")
 Figura 5 - Varredura de 300 a 6000 Hz, em janela de 4096 amostras. As diagonais são o segundo e o terceiro harmônicos, e os riscos verticais são sons da sala.
@@ -110,16 +106,16 @@ Alto-falantes e microfones de uso geral respondem bem na faixa da fala e perdem 
 
 ## 3 CAMADA FÍSICA
 
-A camada física converte os bits em tons e, na recepção, o som captado de volta em bits, cada um com a confiança da decisão. A correção de erros, a localização do bloco e os pacotes ficam acima dela, na camada de enlace.
+A camada física converte os bits em tons e, na recepção, o som captado de volta em bits, cada um com a confiança da decisão.
 
 ### 3.1 Formas de transmissão
 
 A Figura 6 mostra os tons que cada forma emite para o mesmo byte, 1011 0010, no sistema implementado.
 
 ![](figuras/formas-transmissao.png "0.95")
-Figura 6 - Tons emitidos por cada forma para o byte 1011 0010. As linhas claras são as frequências disponíveis em cada forma, e os traços escuros, as que soam em cada símbolo. Acima de cada símbolo estão os bits que ele carrega. Os símbolos duram 0,83 ms na 2-FSK e 10 ms nas demais.
+Figura 6 - Tons emitidos por cada forma para o byte 1011 0010. As linhas claras são as frequências disponíveis em cada forma, e os traços escuros, as que soam em cada símbolo. Acima de cada símbolo estão os bits que ele carrega.
 
-A 2-FSK usa os tons do padrão Bell 202, 1200 e 2200 Hz, a 1200 símbolos por segundo. O receptor multiplica o sinal por uma cópia atrasada de si mesmo, e o sinal algébrico do produto filtrado indica o tom presente. Essa decisão depende do nível relativo dos dois tons, e um canal que atenue um deles mais que o outro desloca todas as decisões no mesmo sentido.
+A 2-FSK usa os tons do padrão Bell 202, 1200 e 2200 Hz, a 1200 símbolos por segundo (FINNEGAN; BENSON, 2014). O receptor multiplica o sinal por uma cópia atrasada de si mesmo, e o sinal algébrico do produto filtrado indica o tom presente. Essa decisão depende do nível relativo dos dois tons, e um canal que atenue um deles mais que o outro desloca todas as decisões no mesmo sentido.
 
 A 5×2-FSK votada emite, a cada símbolo, um tom de cada um de cinco pares, todos com o mesmo bit, a 100 símbolos por segundo. Os tons de cada par distam 200 Hz, próximos o bastante para que o canal os trate de modo semelhante, e cada par vota no mais forte. A maioria dá o bit, e um par em um mínimo da resposta em pente perde a votação sem decidir o resultado.
 
@@ -139,7 +135,7 @@ $$\hat{k} = \arg\max_k \frac{E_k}{P_k} \tag{3}$$
 
 Nela, $E_k$ é a energia no tom $k$ e $P_k$ é a média corrente dessa energia, atualizada a cada símbolo em todos os tons menos o vencedor. Como cada tom fica em silêncio em quinze de cada dezesseis símbolos, essa média estima o piso sem contaminação pelo sinal.
 
-A Figura 7 mostra essa decisão em um símbolo recebido no sistema implementado. O tom transmitido fica 8,0 dB acima do segundo colocado, contra uma mediana de 7,9 dB ao longo do bloco.
+A Figura 7 mostra essa decisão em um símbolo recebido no sistema implementado.
 
 ![](figuras/16fsk-decisao.png "0.95")
 Figura 7 - Decisão da 16-FSK em um símbolo. Em cima, o espectro da janela e o piso corrente de cada tom. Embaixo, a energia de cada tom acima do próprio piso, que é a grandeza comparada em (3).
@@ -162,14 +158,14 @@ $$T = \frac{n_2 - n_1}{S} \tag{4}$$
 
 Nela, $n_1$ e $n_2$ são as posições das duas varreduras, em amostras, e $S$ é o número de símbolos entre elas.
 
-A Figura 8 mostra, no formato do visor da seção 5, um quadro curto de 18 símbolos, gerado pelo modulador sem passar pelo ar para que cada símbolo fique visível. O receptor marca $n_1$ no fim da primeira varredura e $n_2$ no início da segunda, e (4) dá as fronteiras de símbolo desenhadas.
+A Figura 8 mostra, no formato do visor da seção 5, um quadro curto de 18 símbolos, gerado pelo modulador sem passar pelo ar. O receptor marca $n_1$ no fim da primeira varredura e $n_2$ no início da segunda, e (4) dá as fronteiras de símbolo desenhadas.
 
 ![](figuras/sincronismo-varreduras.png "0.95")
 Figura 8 - Quadro curto de 16-FSK entre as duas varreduras de sincronismo, gerado pelo modulador do sistema, com a frequência na horizontal e o mais recente no alto. As linhas finas são as fronteiras de símbolo obtidas por (4).
 
 No sistema implementado, em quatro quadros de 2453 símbolos recebidos entre as duas máquinas, o período medido por (4) variou de 479,90 a 480,07 amostras, contra 480 nominais. Um desvio de 0,1 amostra por símbolo acumula cerca de 245 amostras no quadro, meio símbolo e mais que as 72 do intervalo de descarte, e com o período nominal o fim do quadro seria lido fora do símbolo.
 
-Pela mesma conta, $S$ tem de ser exato, pois um símbolo a mais ou a menos erra o período em 480/2453 ≈ 0,2 amostra, e o erro acumulado no quadro chega a um símbolo inteiro.
+O mesmo cálculo mostra por que $S$ tem de ser exato. Um símbolo a mais ou a menos na contagem erra o período em 480/2453 ≈ 0,2 amostra, e o erro acumulado ao longo do quadro chega a um símbolo inteiro.
 
 No enlace negociado da seção 4.4, todo quadro leva as duas varreduras, e o receptor usa só elas. A malha permanece apenas no primeiro protótipo, configurado por comandos, em que as varreduras são opcionais.
 
@@ -183,26 +179,24 @@ Na 16-FSK, a troca abrupta de tom a cada símbolo produz picos cerca de 2,5 veze
 
 ## 4 CAMADA DE ENLACE
 
-A camada de enlace recebe da camada física os bits com a sua confiança e entrega à aplicação os dados íntegros e na ordem de envio. Ela corrige erros, localiza o bloco no fluxo recebido, divide os dados em pacotes com retransmissão e negocia o enlace pelo próprio som.
+A camada de enlace recebe da camada física os bits com a sua confiança e entrega à aplicação os dados íntegros e na ordem de envio.
 
 ### 4.1 Correção de erros
 
 Mesmo com o nível ajustado, parte dos bits chega trocada. Para corrigi-los sem nova transmissão, o transmissor envia bits além dos da mensagem, e esse excesso, chamado redundância, permite ao receptor desfazer as trocas.
 
-A redundância mais simples é repetir cada bit três vezes e decidir pela maioria, o que corrige uma cópia trocada, mas cada cópia só confere o próprio bit. Duas cópias trocadas bastam para a maioria errar, mesmo com os vizinhos certos, e esse único bit faz o pacote inteiro falhar na verificação.
+A redundância mais simples é repetir cada bit três vezes e decidir pela maioria, o que corrige uma cópia trocada, mas cada cópia só confere o próprio bit. Duas cópias trocadas bastam para a maioria errar, mesmo com os vizinhos certos.
 
 O sistema usa um código convolucional, que também envia três bits por bit da mensagem, mas nenhum deles é cópia. Cada bit enviado resulta de uma operação lógica entre o bit que entra e alguns dos anteriores, e por isso confere vários bits da mensagem de uma vez. Um bit trocado no ar pode então ser reconstituído pelos demais bits enviados que dependem dos mesmos bits da mensagem.
 
-A operação é o ou-exclusivo, que dá 1 quando a quantidade de uns é ímpar e 0 quando é par. A Figura 9 mostra o cálculo com um exemplo. O codificador guarda em fila os sete últimos bits da mensagem, e cada um dos três bits enviados é o ou-exclusivo de um grupo diferente desses sete. A cada bit novo a fila anda uma posição, e cada bit da mensagem participa de sete cálculos seguidos.
+A operação é o ou-exclusivo, que dá 1 quando a quantidade de uns é ímpar e 0 quando é par. A Figura 9 mostra o cálculo com um exemplo. O codificador guarda em fila os sete últimos bits da mensagem, e cada um dos três bits enviados é o ou-exclusivo de um grupo diferente desses sete. Cada bit da mensagem participa de sete cálculos seguidos.
 
 ![](figuras/codificador.png "0.95")
 Figura 9 - Codificador convolucional com um exemplo. A fila guarda os sete últimos bits da mensagem, e cada bit enviado é o ou-exclusivo dos bits marcados na sua linha. Ao lado de cada linha, o padrão de ligações, com 1 para caixa ligada, e o mesmo padrão em octal.
 
-Na nomenclatura da literatura, o código tem taxa um terço, três bits enviados por bit da mensagem, e comprimento de restrição sete, os sete bits de cada cálculo (PROAKIS; SALEHI, 2008). Cada grupo é identificado pelo padrão de ligações da sua linha na Figura 9, lido do bit que entra ao mais antigo. A primeira linha dá 1111001, que em octal, de três em três bits, se escreve 171, e as outras duas dão 133 e 165.
+Na nomenclatura da literatura, o código tem taxa um terço, três bits enviados por bit da mensagem, e comprimento de restrição sete, os sete bits de cada cálculo (PROAKIS; SALEHI, 2008).
 
-Na recepção, o algoritmo de Viterbi procura a mensagem cuja codificação mais se parece com o que chegou (VITERBI, 1967). Como cada bit da mensagem entra em vários bits enviados, uma mensagem errada discorda do recebido em muitas posições, e a certa, só nas poucas trocadas. Cada discordância pesa conforme a confiança do bit, o que se chama decisão suave, e um bit trocado com baixa confiança quase não pesa.
-
-A combinação de código convolucional e decodificação de Viterbi se firmou nos enlaces de comunicação espacial, em que o canal também entrega bits ruidosos e o decodificador alcança desempenho próximo do ótimo com complexidade modesta (FORNEY, 1973).
+Na recepção, o algoritmo de Viterbi procura a mensagem cuja codificação mais se parece com o que chegou (VITERBI, 1967; FORNEY, 1973). Como cada bit da mensagem entra em vários bits enviados, uma mensagem errada discorda do recebido em muitas posições, e a certa, só nas poucas trocadas. Cada discordância pesa conforme a confiança do bit, o que se chama decisão suave, e um bit trocado com baixa confiança quase não pesa.
 
 A Figura 10 mostra a correção de um bloco recebido no sistema implementado. Dos 1170 bits codificados, 112 chegaram errados, 9,6%, e a mensagem saiu sem erro. O painel de baixo mostra por quê, 107 dos 112 bits errados chegaram com confiança abaixo de 1,7, contra 273 dos 1058 certos, e por isso os errados pesaram pouco.
 
@@ -215,7 +209,7 @@ Antes da transmissão, os bits codificados são entrelaçados, escritos em linha
 
 A camada física entrega uma sequência contínua de bits, com o preâmbulo e o que veio antes e depois do bloco, sem indicar qual é o primeiro bit do bloco, e decodificar a partir de um único bit adiantado ou atrasado já produz mensagem errada. Contar os bits desde o início não resolve, pois a malha de sincronismo da seção 3.3 pode ganhar ou perder um símbolo no preâmbulo, e na 16-FSK cada símbolo vale quatro bits.
 
-Logo antes do bloco o transmissor coloca uma palavra de referência de 31 bits, conhecida pelas duas pontas. O receptor desliza essa palavra sobre os bits recebidos e conta as coincidências em cada posição. Fora da palavra elas ficam em torno da metade, como num sorteio, e na posição da palavra quase todos os 31 bits coincidem. Essa busca é a correlação, e o bloco começa no bit seguinte ao da maior coincidência.
+Logo antes do bloco o transmissor coloca uma palavra de referência de 31 bits, conhecida pelas duas pontas. O receptor desliza essa palavra sobre os bits recebidos e conta as coincidências em cada posição. Essa busca é a correlação, e o bloco começa no bit seguinte ao da maior coincidência.
 
 A Figura 11 mostra a palavra no quadro transmitido, entre o preâmbulo e o bloco codificado, que ocupa a maior parte do tempo no ar.
 
@@ -230,9 +224,9 @@ A retransmissão só converge se a maioria dos pacotes chegar íntegra na primei
 
 ### 4.4 Negociação do enlace pelo ar
 
-Até aqui, as duas pontas precisam combinar de antemão a forma de transmissão, os tons, o nível e a taxa. A negociação faz esse acordo pelo próprio som, sem canal auxiliar nem ajuste manual, no início de cada sessão, nome dado a cada conexão da chamada ao último pacote de dados.
+Até aqui, as duas pontas precisam combinar de antemão a forma de transmissão, os tons, o nível e a taxa. A negociação faz esse acordo pelo próprio som, sem canal auxiliar nem ajuste manual, no início de cada sessão.
 
-A estação que chama emite um par de varreduras de frequência, e a que escuta responde. Cada uma sonda então o canal no sentido em que transmite, com tons isolados em todas as frequências candidatas e com blocos conhecidos em volumes crescentes do alto-falante, repetidos com dois ganhos do microfone de quem escuta.
+A estação que chama emite um par de varreduras de frequência, e a que escuta responde. Cada uma sonda então o canal no sentido em que transmite, com tons isolados em todas as frequências candidatas e com blocos conhecidos em volumes crescentes do alto-falante.
 
 O receptor, que mediu a sondagem, decide a configuração de cada sentido. O acordo, chamado contrato, fixa a modulação, 16-FSK ou 2-FSK, os tons utilizáveis, o volume do alto-falante de quem transmite, o ganho do microfone de quem recebe, a velocidade em símbolos por segundo e o número de repetições do bloco codificado (seção 4.1). Enviado o contrato ao transmissor, os dados seguem em pare-e-espere, e se os pacotes falharem repetidamente o transmissor recua para mais repetições ou menos símbolos por segundo.
 
@@ -241,7 +235,7 @@ A Figura 12 mostra uma sessão do sistema implementado, da chamada aos dados, co
 ![](figuras/negociacao.png "0.8")
 Figura 12 - Sequência de uma sessão negociada pelo ar, em escala de tempo. Cada seta vai do fim da leitura de um turno ao fim da leitura do seguinte. A seta tracejada é um pacote ilegível.
 
-A medição se repete a cada sessão porque o canal muda com o tempo. No sistema implementado, em três séries de gravações do mesmo dia, três dos dezesseis tons concentraram de 47% a 90% dos erros de símbolo de cada série, e não foram os mesmos de uma série para outra (Figura 13). Uma lista fixa de tons a evitar serviria a uma conexão e não à seguinte.
+A medição se repete a cada sessão porque o canal muda com o tempo. No sistema implementado, em três séries de gravações do mesmo dia, três dos dezesseis tons concentraram de 47% a 90% dos erros de símbolo de cada série, e não foram os mesmos de uma série para outra (Figura 13).
 
 ![](figuras/erros-por-tom.png "0.95")
 Figura 13 - Fração dos erros de símbolo em cada tom da 16-FSK, em três séries de gravações do mesmo dia e no mesmo sentido. Os marcadores cheios são os três piores tons de cada série, e a linha pontilhada, a fração de cada tom se os erros se distribuíssem por igual.
@@ -250,12 +244,10 @@ Figura 13 - Fração dos erros de símbolo em cada tom da 16-FSK, em três séri
 
 O enlace negociado é operado em cada computador por uma tela no navegador, o visor, que inicia a sessão, mostra o estado do enlace e apresenta ao final os dados recebidos.
 
-A Figura 14 mostra o visor. O espectrograma do microfone, com o mais recente no alto, mostra os sinais que chegam, e a escala de frequência acima dele marca os tons contratados em cada sentido. Um fluxograma indica a etapa da negociação, da chamada ao contrato e aos dados, e contadores e listas registram os últimos sinais enviados e ouvidos e as decisões tomadas. Com isso, a sessão é acompanhada sem consultar registros.
+A Figura 14 mostra o visor. O espectrograma do microfone, com o mais recente no alto, mostra os sinais que chegam, e a escala de frequência acima dele marca os tons contratados em cada sentido.
 
 ![](figuras/telas-visor-celular.png "0.95")
 Figura 14 - Visor no computador (a) e no celular (b), durante a transferência de um arquivo.
-
-Sobre o mesmo enlace estão em implementação uma conversa, com o canal aberto entre as mensagens, e um terminal de comandos.
 
 <!-- Figura 14 PROVISÓRIA: as duas telas ainda mudam (percurso e régua de tons); refazer no fim dos testes, com resultados/FIG-TELAS/COMO-REFAZER.md, e rever o parágrafo acima, que ainda descreve a tela antiga. Chat e terminal: descrever quando estiverem prontos (outra sessão). Porta serial virtual: hoje só app.py --pty, sobre a 2-FSK de Bell 202 sem correção de erros, que não entregou mensagem pelo ar; o enlace negociado não expõe porta serial. O resumo e a introdução afirmam a porta serial virtual: rever. -->
 
@@ -333,6 +325,5 @@ TANENBAUM, Andrew S.; WETHERALL, David J. **Computer networks**. 5. ed. Boston: 
 
 VITERBI, Andrew J. Error bounds for convolutional codes and an asymptotically optimum decoding algorithm. **IEEE Transactions on Information Theory**, v. IT-13, n. 2, p. 260-269, abr. 1967.
 
-WU, Joseph. **A basic guide to the HART protocol**. Dallas: Texas Instruments, nov. 2023. (Application Report SLAAEH0). Disponível em: https://www.ti.com/lit/pdf/slaaeh0.
 
 <!-- KUTTRUFF, PROAKIS, TANENBAUM e VITERBI ficam se os capítulos 2 a 4 os citarem; retirar os que sobrarem sem citação. -->
