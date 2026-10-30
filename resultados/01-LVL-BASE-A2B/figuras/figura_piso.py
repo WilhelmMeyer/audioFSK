@@ -70,7 +70,7 @@ LARGURA = 6.3           # polegadas ~ 16 cm, uma coluna
 # proprios, e a cor apenas reforca.
 TEAL = '#0F5257'
 TEAL_MED = '#2E7D82'
-GELO = '#BFDDE4'
+GELO = '#7FB3C0'        # escuro o bastante para nao sumir sobre GELO_CLARO na faixa util
 GELO_CLARO = '#E8F2F5'
 
 # Dois destinos e uma geracao so. O PNG do artigo e o mesmo arquivo que
