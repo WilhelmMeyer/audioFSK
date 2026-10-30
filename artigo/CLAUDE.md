@@ -24,21 +24,23 @@ Artigo em **português** para o VII SIMECA (IFPR) sobre o modem acústico do rep
 
 ## Nomenclatura, fixa (decisão do autor, 2026-09-05)
 
+- **Segunda versão (2026-10-29): os termos "M-ária" e "MFSK" não são usados.** A seção 2.1 diz que M frequências dão log₂M bits por símbolo, e as formas são chamadas só pela notação abaixo. As duas entradas seguintes valem só para a primeira versão.
 - **M-ária:** modulação de ordem M, em que cada símbolo é um tom escolhido entre M frequências e carrega log₂M bits. Abrange as quatro formas, inclusive a binária (M = 2). Explicar assim na primeira ocorrência.
-- **FSK:** modulação por chaveamento na frequência, do inglês *frequency shift keying* (FSK). Designa a 2-FSK.
-- **MFSK:** chaveamento em múltiplas frequências, do inglês *multiple frequency shift keying* (MFSK). Designa as que usam mais de duas frequências: 5×2-FSK, nas duas variantes, e 16-FSK. Cada sigla apresentada uma vez; depois só a sigla ou a notação numerada.
+- **FSK:** modulação por deslocamento de frequência, do inglês *frequency shift keying* (FSK). Designa a 2-FSK.
+- **MFSK:** modulação por deslocamento em múltiplas frequências, do inglês *multiple frequency shift keying* (MFSK). Designa as que usam mais de duas frequências: 5×2-FSK, nas duas variantes, e 16-FSK. Cada sigla apresentada uma vez; depois só a sigla ou a notação numerada.
 - **Quatro formas de transmissão, sempre por esta notação:** 2-FSK (um tom entre dois, um bit; tons do padrão Bell 202, nome do padrão dito uma vez); 5×2-FSK votada (cinco canais 2-FSK com o mesmo bit, decisão por maioria, um bit por símbolo); 5×2-FSK multicanal (cinco canais 2-FSK, um bit distinto em cada, cinco bits por símbolo); 16-FSK (um tom entre dezesseis, quatro bits por símbolo).
 - **Nunca:** "20-FSK" para as de cinco pares (M conta tons dos quais um só soa); "M-ário" sem o M explicado; "MFSK" como nome de uma única forma; nomes internos do código (`mary`, `mfsk-par`, `fecrep`) na prosa.
 - **Desvio em relação ao código e ao CLAUDE.md da raiz:** lá "MFSK" é a de cinco pares e "M-ary" é a de dezesseis tons. No artigo não. O código não muda; a correspondência está no CLAUDE.md da raiz, seção "Nomes no código e nomes no artigo".
 - **Palavra de sincronismo:** o código e a raiz a chamam de sequência de comprimento máximo (m-sequence); medido em 2026-09-05, não é (17 uns em 31, autocorrelação cíclica entre −9 e 11). No artigo: "palavra de referência de 31 bits, localizada por correlação", sem nomear o tipo.
+- **Intervalo de descarte** (decisão do autor, 2026-10-29): o trecho inicial de cada símbolo que o receptor não analisa (72 de 480 amostras, `guard` no código). Nunca "guarda" nem "intervalo de guarda" na prosa.
 - **Toda sigla estrangeira:** nome em português, "do inglês", termo em itálico, sigla entre parênteses depois do termo. Exemplos: correção antecipada de erros, do inglês *forward error correction* (FEC); verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC); verossimilhança logarítmica, do inglês *log-likelihood ratio* (LLR); retransmissão automática, do inglês *automatic repeat request* (ARQ).
 
 ## Arquivos desta pasta
 
-- `artigo_modem.md`: **fonte única da prosa.** Esqueleto com o resumo redigido; o resto são seções e comentários com o que entra em cada trecho, orçamento de palavras e a pasta de `resultados/` que sustenta cada número.
+- `artigo_modem.md`: **fonte única da prosa, segunda versão** (recomeçada em 2026-10-29). Resumo e introdução redigidos; os demais capítulos seguem o roteiro discutido entre os autores e têm só o comentário do que entra.
 - `estilo.md`: o estilo do autor, extraído dos dois artigos dele (SIMECA roda de reação e IEEE TIE). **Ler antes de redigir qualquer trecho.** Tem lista de verificação no fim.
 - `referencias.md`: as referências levantadas, com a fonte da verificação de cada uma, onde cada uma é citada hoje e o que foi levantado e descartado, com a razão. Teto de 40 referências, decisão do autor. Nenhuma foi inventada e nenhuma fonte não lida entrou no texto.
-- `procedencia.md`: **de onde veio cada número já escrito, e se ele se reconfere.** Auditado em 2026-09-07 importando `modem.py` e recalculando a varredura. Ler antes de mexer em número da 2.1 ou da 2.2, e antes de responder "de onde saiu isso". Registra dois números da 2.1 que **não** se sustentam e as duas falhas de ferramenta que impedem reconferir.
+- `primeiro-envio/`: **a primeira versão, como foi enviada** (md, docx, pdf), com `PARECERES.md` (os pareceres e como cada ponto é tratado), `REVISAO-2026-09-07.md` e `procedencia.md` (de onde veio cada número da primeira versão). Consulta para reaproveitar trechos; não se edita.
 - `referencias-pdf/`: os PDFs abertos das fontes, **ignorada pelo git** por serem textos de terceiros. Quem clona refaz a pasta pelas URLs de `referencias.md`.
 - `monta.py`: **a montagem, em um lugar só.** Confere a versão do Python e chama o conversor com caminhos absolutos. Não roda `cd` para dentro do conversor: as figuras já resolvem a partir da pasta do `.md`.
 - `monta.sh` e `monta.cmd`: invocadores finos do `monta.py`, um para Linux e macOS, outro para Windows. Só escolhem o interpretador. **Não duplicar lógica neles**, pela mesma razão que a tabela de comandos do `console.py` é única. Aceitam `--verifica`, `--sem-figuras`. Rode de qualquer pasta.
@@ -60,7 +62,8 @@ Fonte dos números: `../CLAUDE.md` (a tabela de camadas e as entradas de "coisas
 - **Um parágrafo = uma ideia** (regra do autor, 2026-09-06). Passou de uma ideia, abre parágrafo novo. Na prática isso põe um teto de umas quatro frases e umas 80 palavras; parágrafo de sete frases e 160 palavras, que é o que a introdução e a fundamentação tinham nesta data, é sempre duas ou três ideias empilhadas. A exceção é o resumo, que o modelo do evento exige em parágrafo único, de 150 a 300 palavras; ali a regra vira corte, não quebra.
 - **Direto, e curto pelo corte, não pela compressão** (regra do autor, 2026-09-06). Falar mais é dizer menos. Uma informação está bem dada quando é dada franca e direta, então some a frase que só prepara a próxima, o adjetivo que não muda o fato e a recapitulação do que o parágrafo anterior já disse. Encurtar não é espremer duas ideias numa frase longa, é tirar o que não informa.
 - **Um parágrafo = uma linha.** Quebra só em fim de parágrafo, nunca para ficar bonito. Vale para comentários também.
-- Voz: primeira pessoa do plural para o que fizemos, medimos ou apresentamos ("medimos", "apresentamos"). Impessoal para física e dedução.
+- Voz: **impessoal em todo o texto** (a pedido do revisor 1, 2026-10-29; até então era primeira pessoa do plural para o que foi feito).
+- **Dado medido fora do capítulo de resultados** (regra do autor, 2026-10-29): só quando sustenta um fundamento que sem ele ficaria fraco, e sempre marcado como dado do sistema implementado ("no sistema implementado", "entre as duas máquinas do sistema implementado"). Número que só descreve a bancada vai para os resultados.
 - Tempo: presente para mecanismo e para o que a figura mostra; passado só para o ato de medir.
 - Nome físico antes do rótulo interno. Nomes de arquivo, comandos e flags do repositório (`fecrep`, `syncsweep`, `capture.py`) não entram na prosa; o artigo fala de redundância, varreduras de sincronismo, gravação.
 - Equações: a oração que introduz a equação se fecha antes dela; variáveis definidas logo depois com "Nela,"; leitura física em seguida; gancho para o resultado que a mede. Sem `\,` no LaTeX.

@@ -77,6 +77,7 @@ TEAL = '#0F5257'
 TEAL_MED = '#2E7D82'
 GELO = '#BFDDE4'
 GELO_CLARO = '#E8F2F5'
+CURVA = '#8DBCC7'
 
 
 # Dois destinos e uma geracao so. O PNG do artigo e o mesmo arquivo que
@@ -123,6 +124,25 @@ def sondagem(demod, samples, janelas=JANELAS):
     return 20 * np.log10(np.maximum(np.median(np.array(linhas), axis=0), 1e-12)), len(linhas)
 
 
+NFFT = 1 << 15
+
+
+def espectro(demod, samples, janelas=JANELAS):
+    """O mesmo nivel da sondagem, mas continuo: |FFT| da janela com zeros
+    ate NFFT, 2|X|/N, mediana de N simbolos. Nas frequencias dos tons e o
+    mesmo numero que `sondagem` devolve."""
+    nwin = demod.samples_per_tone - demod.guard
+    passo = demod.samples_per_symbol
+    inicio = max(0, len(samples) // 2 - janelas * passo // 2)
+    linhas = []
+    for k in range(janelas):
+        seg = samples[inicio + k * passo:inicio + k * passo + nwin]
+        if len(seg) < nwin:
+            break
+        linhas.append(np.abs(np.fft.rfft(seg, NFFT)) * 2 / nwin)
+    return np.median(np.array(linhas), axis=0)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -133,7 +153,7 @@ def main():
                          "destinos padrao (esta pasta e artigo/figuras)")
     args = ap.parse_args()
 
-    demod = MaryDemodulator(fs=recording.FS, baud=100)
+    demod = MaryDemodulator(fs=recording.FS, baud=100, gray='valor')
     nwin = demod.samples_per_tone - demod.guard
     res = recording.FS / nwin
 
@@ -152,6 +172,13 @@ def main():
     n = np.arange(int(2.0 * recording.FS))
     puro = (10 ** (com[i_tom] / 20)) * np.sin(2 * np.pi * TOM * n / recording.FS)
     sim, _ = sondagem(demod, puro)
+    # O previsto, continuo: o vazamento do seno ideal na janela (equacao 2 do
+    # artigo) somado em potencia ao piso de ruido da sala, medido com a mesma
+    # janela. Os pontos medidos devem cair sobre esta curva.
+    freqs = np.fft.rfftfreq(NFFT, 1 / recording.FS)
+    vaz = espectro(demod, puro)
+    piso = np.median(np.array([espectro(demod, recording.read(p)) for p in silencios]), axis=0)
+    prev = 20 * np.log10(np.maximum(np.sqrt(vaz ** 2 + piso ** 2), 1e-12))
     margem = com[i_tom] - sem[i_tom]
     ordem = np.argsort(com)
     i_seg = int(ordem[-2])
@@ -164,11 +191,13 @@ def main():
 
     fig, ax = plt.subplots(figsize=(LARGURA, 3.6), layout='constrained')
 
-    ax.plot(tons, com, color=TEAL, linewidth=1.2, marker='o', markersize=5,
+    faixa = (freqs > tons[0] - 120) & (freqs < tons[-1] + 120)
+    ax.plot(freqs[faixa], prev[faixa], color=CURVA, linewidth=1.3, zorder=1)
+    prev_tons = np.interp(tons, freqs, prev)
+    ax.plot(tons, prev_tons, linestyle='none', marker='o', markersize=8,
+            markerfacecolor='none', markeredgecolor=CURVA, markeredgewidth=1.2, zorder=2)
+    ax.plot(tons, com, color=TEAL, linestyle='none', marker='o', markersize=5,
             markerfacecolor=TEAL, zorder=4)
-    ax.plot(tons, sim, color=TEAL_MED, linewidth=1.0, linestyle=(0, (1, 2)),
-            marker='^', markersize=5, markerfacecolor='white',
-            markeredgecolor=TEAL_MED, zorder=5)
     ax.plot(tons, sem, color='#4C6B77', linewidth=1.0, linestyle=(0, (4, 3)),
             marker='s', markersize=5, markerfacecolor=GELO,
             markeredgecolor='#4C6B77', zorder=3)
@@ -195,8 +224,10 @@ def main():
     ax.annotate('', xy=(tons[i_seg], com[i_tom]), xytext=(tons[i_seg], com[i_seg]),
                 arrowprops=dict(arrowstyle='<->', linewidth=1.0, color=TEAL_MED,
                                 shrinkA=2, shrinkB=2))
-    ax.annotate(f"{virgula(vantagem)} dB sobre o segundo tom mais alto,\n"
-                f"contra {virgula(limiar_db)} dB exigidos pela decisão",
+    # Sem o limiar de 1,3 dB que a anotacao trazia ate 2026-10-29: o
+    # MaryDemodulator guarda contrast_min e nao o le, a 16-FSK decide so
+    # pelo maior.
+    ax.annotate(f"{virgula(vantagem)} dB sobre\no segundo tom mais alto",
                 xy=(tons[i_seg], (com[i_tom] + com[i_seg]) / 2),
                 xytext=(tons[-4], com[i_tom] - 1.5),
                 ha='center', va='center', fontsize=8.5,
@@ -216,18 +247,21 @@ def main():
     ax.set_axisbelow(True)
 
     ax.legend(handles=[
-        Line2D([], [], color=TEAL, linewidth=1.2, marker='o', markersize=5,
-               markerfacecolor=TEAL, label=f'Com tom de {virgula(TOM, 0)} Hz'),
-        Line2D([], [], color=TEAL_MED, linewidth=1.0, linestyle=(0, (1, 2)),
-               marker='^', markersize=5, markerfacecolor='white',
-               markeredgecolor=TEAL_MED,
-               label='Seno puro simulado, mesma janela'),
+        Line2D([], [], color=TEAL, linestyle='none', marker='o', markersize=5,
+               markerfacecolor=TEAL, label=f'Medido, com tom de {virgula(TOM, 0)} Hz'),
+        Line2D([], [], color=CURVA, linewidth=1.3, marker='o', markersize=8,
+               markerfacecolor='none', markeredgecolor=CURVA,
+               label='Previsto: vazamento da janela + piso de ruído'),
         Line2D([], [], color='#4C6B77', linewidth=1.0, linestyle=(0, (4, 3)),
                marker='s', markersize=5, markerfacecolor=GELO,
                markeredgecolor='#4C6B77',
                label=f'Sala parada, mediana de {len(sem_cada)} gravações'),
     ], loc='lower left', framealpha=0.95, borderpad=0.5)
 
+    dif = com - prev_tons
+    print("    medido - previsto por tom, dB: " + ' '.join(virgula(d) for d in dif))
+    print(f"    mediana |dif| {virgula(np.median(np.abs(dif)))} dB; ate 2500 Hz "
+          f"{virgula(np.median(np.abs(dif[tons < 2500])))} dB, acima {virgula(np.median(np.abs(dif[tons >= 2500])))} dB")
     for destino in (args.out or SAIDAS):
         os.makedirs(os.path.dirname(os.path.abspath(destino)), exist_ok=True)
         fig.savefig(destino)

@@ -84,3 +84,30 @@ ficam em -32,6 dBFS com as duas janelas, porque 162 Hz sao 1,38 bins de
 segundo harmonico do tom, 3400 Hz, cai a 75 Hz dessa sonda. E o mesmo
 harmonico que o espectrograma de `03-CH-CHIRP-A2B` mede 30 dB abaixo da
 fundamental.
+
+# espalhamento-janela.png -- como refazer
+
+Um símbolo do tom de 1700 Hz no tempo (guarda de 72 amostras e janela de 408) e o espectro dessa janela com preenchimento de zeros, mediana de 100 janelas da gravação `20260903-175101-lvl-tone-A2B.wav`, contra um seno ideal de 1700 Hz cortado na mesma janela. Mostra que o espalhamento do tom é o vazamento espectral da janela retangular e que o tom vizinho cai no primeiro lóbulo lateral.
+
+- **Programa:** `figura_janela.py`, nesta pasta. Grava aqui e em `artigo/figuras/`.
+- **Gerada em:** 2026-10-29.
+
+```bash
+./venv/bin/python resultados/02-LVL-TONE-A2B/figuras/figura_janela.py
+```
+
+## O que ele imprimiu nesta geração
+
+```
+    janela 408 amostras, 8,5 ms, fs/N = 117,6 Hz
+    vizinho 1862,0 Hz: recebido -13,0 dB, seno ideal -13,7 dB, sinc -13,4 dB
+```
+
+## Revisão de 2026-10-29 (deteccao-tom.png)
+
+A série "seno puro simulado" virou a curva contínua prevista: vazamento do seno ideal na janela de 408 amostras somado em potência ao piso da sala, medido com a mesma janela (FFT com zeros até 32768), com círculos vazados no valor previsto em cada tom. Saiu a anotação "contra 1,3 dB exigidos pela decisão": o `MaryDemodulator` guarda `contrast_min` e não o lê, a 16-FSK decide só pelo maior. Impresso nesta geração:
+
+```
+    medido - previsto por tom, dB: -0,3 -3,4 -3,5 -0,8 -0,7 -0,0 0,7 1,8 0,9 2,6 5,7 2,7 4,6 -3,2 4,4 7,1
+    mediana |dif| 2,7 dB; ate 2500 Hz 0,9 dB, acima 4,5 dB
+```
