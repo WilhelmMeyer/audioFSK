@@ -36,7 +36,8 @@ import fec
 import recording
 import spectro
 from modem import (MaryDemodulator, MARY_TONES, MFSKDemodulator, MFSK_PAIRS,
-                   chirp, find_chirp, find_chirp_pair, SYNC_CHIRP, TONE_LAYERS)
+                   chirp, find_chirp, find_chirp_pair, SYNC_CHIRP, TONE_LAYERS,
+                   gray_gravado)
 
 CHORD_MODES = fec.CHORD_LAYERS     # 'mfsk' (voted), 'mfsk-par' (parallel)
 
@@ -95,7 +96,7 @@ def genie_floor(samples, payload, meta, sps, repeat, skip):
     """
     tones, nb = TONE_LAYERS[meta['mode']]
     want = spectro.tx_tone_indices(payload, repeat, ifk=bool(meta.get('ifk')),
-                                   bits=nb)
+                                   bits=nb, gray=gray_gravado(meta))
     ntones = len(tones) + (1 if meta.get('ifk') else 0)
     # Deliberately the *same* offset the frozen-clock column used, not one
     # found independently. Two alignments and two divisors changing at once
@@ -167,7 +168,8 @@ def layer_kw(meta):
     """
     tones, nb = TONE_LAYERS[meta['mode']]
     kw = dict(fs=meta['fs'], baud=meta['baud'], gap=meta.get('gap', 0.0),
-              band=meta.get('band', 0.0), tones=tones, bits=nb)
+              band=meta.get('band', 0.0), tones=tones, bits=nb,
+              gray=gray_gravado(meta))
     if meta['mode'] == 'mary':
         kw.update(chord=bool(meta.get('chord')), ifk=bool(meta.get('ifk')))
     return kw

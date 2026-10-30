@@ -43,7 +43,9 @@ sys.path.insert(0, RAIZ)
 
 import fec                                                    # noqa: E402
 import recording                                              # noqa: E402
-from modem import MARY_BITS, MARY_TONES, MaryDemodulator, _GRAY   # noqa: E402
+# Gravacoes anteriores a 2026-10-29: tabela Gray antiga (tom = gray(valor)).
+from modem import MARY_BITS, MARY_TONES, MaryDemodulator             # noqa: E402
+from modem import _GRAY_ANTIGO as _GRAY                         # noqa: E402
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 GRAVACAO = os.path.join(os.path.dirname(AQUI), 'gravacao')
@@ -257,7 +259,7 @@ def alinha(stem=PADRAO):
 
     d = _Rastreada(fs=meta['fs'], baud=meta['baud'],
                    gap=meta.get('gap', 0.0), band=meta.get('band', 0.0),
-                   chord=bool(meta.get('chord')))
+                   chord=bool(meta.get('chord')), gray='valor')
     llr = np.concatenate([d.demodulate_soft(amostras[i:i + BLOCO])
                           for i in range(0, len(amostras), BLOCO)])
 

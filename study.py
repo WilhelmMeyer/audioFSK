@@ -46,7 +46,8 @@ import recording
 import spectro
 from align import bit_accuracy, soft
 from modem import (MaryDemodulator, MFSKDemodulator, MFSK_PAIRS,
-                   chirp, find_chirp, find_chirp_pair, SYNC_CHIRP)
+                   chirp, find_chirp, find_chirp_pair, SYNC_CHIRP,
+                   gray_gravado)
 
 FS = 48000
 BAUD = 100
@@ -120,7 +121,8 @@ def record_condition(args, value, outdir, label):
 def score_gate(samples, payload, meta):
     """What the receiver in the code today gets: the early/late gate."""
     kw = dict(fs=meta['fs'], baud=meta['baud'], gap=meta.get('gap', 0.0),
-              band=meta.get('band', 0.0), chord=meta.get('chord', False))
+              band=meta.get('band', 0.0), chord=meta.get('chord', False),
+              gray=gray_gravado(meta))
     if meta['mode'] == 'mary':
         d = MaryDemodulator(**kw)
     else:
@@ -160,7 +162,8 @@ def score_sweep(samples, meta, nbytes):
     d = MaryDemodulator(fs=fs, baud=meta['baud'], gap=meta.get('gap', 0.0),
                         band=meta.get('band', 0.0),
                         chord=meta.get('chord', False),
-                        steer=False, skip=skip, period=period)
+                        steer=False, skip=skip, period=period,
+                        gray=gray_gravado(meta))
     return soft(d, samples), period
 
 

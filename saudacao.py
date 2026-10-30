@@ -38,21 +38,30 @@ import argparse
 import collections
 import os
 import queue
+import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 import sounddevice as sd
 
-import aviso
 import enlace
+import enlace2
 import painel
+import volume
 import recording
+
+# Início do processo, para medir quanto a estação leva até ouvir de fato: em
+# 2026-10-29 (22:35) o ouvinte no Windows levou ~37 s para subir, e o chamador
+# chamou para ninguém nesse tempo.
+T0 = time.time()
 from selfcapture import resolve, wait_ready, _fan_out
 
 FS = enlace.FS
 BLOCO = 2048
+ATRASO_AVISO = 2.0      # s de entrada na fila: acima disto a estação está atrás do tempo real
 
 
 class AudioReal:
@@ -74,6 +83,7 @@ class AudioReal:
         self.nome_entrada = sd.query_devices(self.in_dev, 'input')['name']
         self.nome_saida = sd.query_devices(self.out_dev, 'output')['name']
         self.stream = None
+        self.chiado = None
 
     def abre(self, cb):
         # Latência alta: o callback é Python e precisa do GIL, e uma volta
@@ -85,6 +95,31 @@ class AudioReal:
                                          d[:, 0].copy(), t.inputBufferAdcTime,
                                          bool(st.input_overflow)))
         self.stream.start()
+        self.lat_in = int(self.stream.latency * FS)
+        self._abre_chiado()
+
+    def _abre_chiado(self):
+        # Um chiado a -60 dBFS, contínuo, num fluxo de saída à parte: uma
+        # caixa Bluetooth ociosa engole o começo de cada rajada (medido em
+        # 2026-10-27: bipe de 200 ms some inteiro; mantida com zeros ainda
+        # corta ~150 ms e some a marca de 80 ms de abertura; com o chiado,
+        # inteiro). Sempre, não só se o nome parecer Bluetooth -- o nome nem
+        # sempre diz, e -60 dBFS fica abaixo do piso da sala no outro lado.
+        # AUDIOFSK_CHIADO=0 desliga.
+        if os.environ.get('AUDIOFSK_CHIADO', '1') == '0':
+            return
+        rng = np.random.default_rng()
+
+        def cb(out, frames, t, st):
+            out[:] = (rng.standard_normal(out.shape) * 1e-3).astype(np.float32)
+        try:
+            ch = sd.query_devices(self.out_dev, 'output')['max_output_channels']
+            self.chiado = sd.OutputStream(samplerate=FS, channels=max(1, min(2, ch)),
+                                          device=self.out_dev, latency='high', callback=cb)
+            self.chiado.start()
+        except Exception as e:
+            print(f"[saudacao] chiado de fundo não abriu ({e}); sigo sem", flush=True)
+            self.chiado = None
 
     def toca(self, x):
         sd.play(_fan_out(np.clip(x, -1, 1).astype(np.float32), self.out_dev),
@@ -98,6 +133,9 @@ class AudioReal:
 
     def fecha(self):
         sd.stop()
+        if self.chiado is not None:
+            self.chiado.stop()
+            self.chiado.close()
         if self.stream is not None:
             self.stream.stop()
             self.stream.close()
@@ -326,9 +364,21 @@ def main():
     ap.add_argument('--enviar-arquivo', default=None)
     ap.add_argument('--receber-em', default=None, help="grava aqui o que chegar")
     ap.add_argument('--duracao', type=float, default=600.0, help="segundos, no máximo")
+    ap.add_argument('--conversa', action='store_true',
+                    help="canal fica aberto: o texto mandado pelo painel (`envia <texto>`) vai "
+                         "quando digitado, sem FIM nem saída por silêncio; acaba só pelo painel. "
+                         "Linha recebida que começa com '$ ' é executada aqui (20 s no máximo) e "
+                         "a saída, cortada em 200 bytes, volta pelo canal. Sem autenticação: "
+                         "quem tocar o protocolo perto do microfone executa")
     ap.add_argument('--modo-dados', choices=enlace.MODOS_DADOS, default='auto',
                     help="modulação dos dados: auto (escada de hoje) ou uma técnica fixa; "
                          "as duas pontas precisam do mesmo")
+    ap.add_argument('--protocolo', type=int, choices=(1, 2), default=2,
+                    help="2 (padrão): enlace2.py, etapas em sequência com sinais sonoros "
+                         "(SOBE/FICA/DESCE/REPETE); 1: enlace.py, o de antes. As duas pontas "
+                         "precisam do mesmo")
+    ap.add_argument('--sem-volume', action='store_true',
+                    help="não mexe no volume do sistema (a escada da caixa vira só ganho digital igual)")
     ap.add_argument('--latencia', type=float, default=None,
                     help="latência da saída em s (padrão: a que o PortAudio declara)")
     ap.add_argument('--out', default='sessoes-enlace')
@@ -383,6 +433,10 @@ def main():
 def sessao(args, audio):
     """Uma estação ligada a `audio` até acabar; devolve o código de saída."""
     dados = args.enviar.encode()
+    if args.conversa and dados:
+        # Na conversa o texto inicial é uma linha como as digitadas: sem o
+        # fim de linha, um "$ ..." mandado assim chegava e nunca era executado.
+        dados += b'\n'
     if args.enviar_arquivo:
         dados += open(args.enviar_arquivo, 'rb').read()
 
@@ -396,11 +450,50 @@ def sessao(args, audio):
         diario.append(s)
         print(s, flush=True)
 
-    est = enlace.Estacao(args.papel, semente=args.semente, log=log,
-                         modo_dados=args.modo_dados)
+    proto = enlace2 if getattr(args, 'protocolo', 2) == 2 else enlace
+    est = proto.Estacao(args.papel, semente=args.semente, log=log,
+                        modo_dados=args.modo_dados)
     est.enviar(dados)
+    est.conversa = args.conversa
+    lidas = 0                       # bytes recebidos já examinados atrás de comandos
+    respostas = queue.Queue()       # saída dos comandos, de volta ao laço principal
+
+    def executa(cmd):
+        try:
+            r = subprocess.run(cmd, shell=True, capture_output=True, timeout=20,
+                               cwd=str(Path.home()))
+            saida = (r.stdout + r.stderr).decode('utf-8', 'replace').strip()
+            saida = f"[{r.returncode}] {saida}" if r.returncode else saida
+        except subprocess.TimeoutExpired:
+            saida = "[tempo esgotado: 20 s]"
+        saida = " | ".join(saida.splitlines()) or "[sem saída]"
+        b = saida.encode('utf-8')
+        if len(b) > 200:
+            saida = b[:200].decode('utf-8', 'ignore') + " …[cortado]"
+        respostas.put(saida)
+    enviados_txt = args.enviar.splitlines()
+    gravados = 0
 
     lat = audio.lat
+    # O volume do sistema: a caixa no passo que a estação pede em cada
+    # trecho (`caixa_marcas`) e o microfone nos `pedidos_mic`. No simulado
+    # não há fader: o passo vira fator digital (`enlace.CAIXA_SIM`).
+    vol = agenda = None
+    if not audio.simulado and not getattr(args, 'sem_volume', False):
+        try:
+            vol = volume.Volume()
+            if len(vol.caixa_pos) != proto.N_POS:
+                raise RuntimeError(f"a tabela da caixa tem {len(vol.caixa_pos)} passos, "
+                                   f"o enlace usa {proto.N_POS}")
+            vol.guarda_original(log)
+            agenda = volume.Agenda(vol)
+            agenda.start()
+            agenda.poe(time.time(), 'spk', proto.CAIXA_INICIAL)
+        except Exception as e:
+            log(f"[volume] sem controle do volume do sistema ({e}); a escada da caixa "
+                "vai sair toda no mesmo volume")
+            vol = agenda = None
+    log(f"[saudacao] protocolo {getattr(args, 'protocolo', 2)} ({proto.__name__}, versão {proto.VERSAO})")
     log(f"[saudacao] papel {args.papel}, entrada {audio.nome_entrada!r}, "
         f"saída {audio.nome_saida!r}, latência {lat / FS:.3f}s, "
         f"{len(dados)} bytes a enviar")
@@ -417,26 +510,39 @@ def sessao(args, audio):
     motivo = 'duração esgotada'
     anotado = False        # o motivo do fim já está no diário
     passo_ms = 0.0
+    avisou_atraso = 0.0
 
     def estado(fase):
         lag = (time.time() - t_stream - pausa_s
                - (time.time() - pausa_t if pausa_t else 0) - est.agora / FS)
-        return dict(papel=args.papel, simulado=audio.simulado, fase=fase, estado_estacao=getattr(est, 'estado', None),
+        return dict(papel=args.papel, simulado=audio.simulado, protocolo=getattr(args, 'protocolo', 2), fase=fase, estado_estacao=getattr(est, 'estado', None),
+                    etapa=getattr(est, 'etapa', None), esperando=getattr(est, 'esperando', None),
                     saudado=est.saudado, aberto=est.aberto,
                     confirmado=getattr(est, 'confirmado', False),
                     contrato_tx=est.contrato_tx.descreve() if est.contrato_tx else None,
                     contrato_rx=est.contrato_rx.descreve() if est.contrato_rx else None,
+                    velocidade=(est.degraus[est._degrau()] if getattr(est, 'aberto', False) else None),
+                    tocando=list(getattr(est, 'tocando', [])),
+                    atividade=est.atividade() if hasattr(est, 'atividade') else None,
                     a_enviar=len(est.fila), pendente_tx=est.pendente_tx is not None,
                     enviados_total=len(dados), recebidos=len(est.recebido),
                     estacao_s=round(est.agora / FS, 2), atraso_s=round(lag, 2),
                     fila_s=round(q.qsize() * BLOCO / FS, 2), passo_ms=round(passo_ms, 1),
+                    atrasado=q.qsize() * BLOCO / FS > ATRASO_AVISO,
                     ultima_marca_ha_s=round((est.agora - est.ouvido_em) / FS, 1),
                     rms_entrada=round(float(np.sqrt(np.mean(ouvido[-1] ** 2))), 4)
                     if ouvido else None,
                     pausado=pausado, concluido=concluido, finalizando=finalizar,
                     entrada_perdida_s=round(lacunas.perdidas / FS, 2),
                     buracos_entrada=lacunas.buracos, transbordos=lacunas.transbordos,
-                    ultimas=diario[-5:])
+                    ultimas=diario[-5:],
+                    volume=(None if agenda is None else
+                            dict(caixa=agenda.atual['spk'], mic=agenda.atual['mic'],
+                                 mic_pos=round(vol.mic_base, 2) if vol.mic_base else None,
+                                 caixa_pos=None if agenda.atual['spk'] is None
+                                 else vol.caixa_pos[agenda.atual['spk']])),
+                    conversa=args.conversa, texto_enviado=enviados_txt[-50:],
+                    texto_recebido=bytes(est.recebido[-4000:]).decode('utf-8', 'replace'))
 
     lacunas = Lacunas()
 
@@ -459,22 +565,28 @@ def sessao(args, audio):
                 est.ouvir(x)
             n += len(x)
 
-    if not audio.simulado:
-        aviso.inicio("MICROFONE E ALTO-FALANTE", f"saudação acústica ({args.papel})")
     t_stream = time.time()
+    escutando = False
     try:
         if audio.simulado:
             audio.abre(cb, pendentes=q.qsize)
         else:
             audio.abre(cb)
         while True:
-            if time.time() - t0 >= args.duracao:
+            if not args.conversa and time.time() - t0 >= args.duracao:
                 break
             if audio.encerrado():
                 motivo = 'simulação encerrada'
                 break
             while not pn.comandos.empty():
                 c = pn.comandos.get()
+                if isinstance(c, tuple) and c[0] == 'envia':
+                    t = c[1].encode('utf-8') + b'\n'
+                    est.enviar(t)
+                    enviados_txt.append(c[1])
+                    dados += t
+                    log(f"[saudacao] digitado para enviar ({len(t)} bytes): {c[1]}")
+                    continue
                 log(f"[saudacao] comando do painel: {c}")
                 if c == 'para':
                     motivo = 'parada pelo painel'
@@ -484,6 +596,8 @@ def sessao(args, audio):
                 elif c == 'pausa' and not pausado:
                     pausado, pausa_t = True, time.time()
                     audio.cala()
+                    if agenda is not None:
+                        agenda.limpa('spk')
                     pn.corta(lat)
                 elif c == 'retoma' and pausado:
                     pausado, pausa_s, pausa_t = False, pausa_s + time.time() - pausa_t, None
@@ -516,19 +630,105 @@ def sessao(args, audio):
                 alimenta()
                 continue
             est.ouvir(x)
+            if not escutando:
+                escutando = True
+                log(f"[saudacao] escutando: {time.time() - T0:.1f}s desde o início do processo")
             alimenta()
             tp = time.time()
             burst = est.passo()
             passo_ms = 1000 * (time.time() - tp)
+            # Processamento mais lento que o tempo real: a entrada se acumula
+            # na fila e a estação passa a responder a sons velhos. Em
+            # 2026-10-29 (21:20) o B chegou a 24 s de atraso sem nada no
+            # diário dizer isso; agora diz, alto, no máximo a cada 10 s.
+            fila = q.qsize() * BLOCO / FS
+            if fila > ATRASO_AVISO and time.time() - avisou_atraso > 10:
+                avisou_atraso = time.time()
+                log(f"[saudacao] ATENÇÃO: atrasado {fila:.1f} s em relação ao tempo real "
+                    f"(fila de entrada; passo {passo_ms:.0f} ms) -- a estação responde a sons velhos")
             if burst is not None:
                 # Quanto de entrada chegou enquanto `passo` decidia: o áudio
                 # vai soar depois disso, mais a latência da saída.
                 atraso = sum(len(c) for c in list(q.queue)) + lat
                 est.desloca_saida(atraso)
+                marcas = getattr(burst, 'caixa_marcas', None) or ()
+                if audio.simulado:
+                    burst = enlace.aplica_caixa(burst, enlace.CAIXA_SIM)
+                t_toca = time.time()
                 audio.toca(burst)
                 pn.saida(burst, atraso + est.lat_extra)
-            if (not concluido and est.aberto and est.confirmado and not est.fila
-                    and est.pendente_tx is None):
+                if agenda is not None:
+                    # O volume do sistema age onde o som é misturado, rente à
+                    # saída: a amostra k sai em t + latência + k. A latência a
+                    # mais que a declarada é a que a estação mediu no eco. Um
+                    # turno novo corta o anterior (`sd.play`), e as trocas
+                    # dele que ainda não vieram, também.
+                    agenda.limpa('spk')
+                    base = t_toca + (lat + est.lat_extra) / FS
+                    for a, k in marcas:
+                        agenda.poe(base + a / FS, 'spk', k)
+            if est.pedidos_caixa:
+                # Acertar o som: a caixa vai ao passo pedido já, no silêncio
+                # antes da próxima chamada ou resposta, e não no começo dela.
+                for _, k in est.pedidos_caixa:
+                    if agenda is not None:
+                        agenda.poe(time.time(), 'spk', k)
+                est.pedidos_caixa.clear()
+            if getattr(est, 'pedidos_mic_passo', None):
+                # Ganho do microfone antes do contrato: um passo de
+                # `volume.MIC_POS` por pedido, para cima ou para baixo, já. A
+                # base muda aqui, na hora, para que dois pedidos seguidos andem
+                # dois passos e a estação saiba logo se chegou ao teto/piso.
+                for _, d, pico in est.pedidos_mic_passo:
+                    nxt = vol.proximo_mic(d) if vol is not None else None
+                    if nxt is None:
+                        if d > 0:
+                            est.mic_no_teto = True
+                            log(f"[volume] microfone já no teto da escada (pico ouvido {pico:.2f}); "
+                                "quem sobe é a caixa do outro lado")
+                        else:
+                            est.mic_no_piso = True
+                            log(f"[volume] microfone já no piso da escada (pico ouvido {pico:.2f})")
+                        continue
+                    log(f"[volume] microfone {vol.mic_base:.0%} → {nxt:.0%} (pico ouvido {pico:.2f})")
+                    vol.mic_base = nxt
+                    est.mic_no_teto = est.mic_no_piso = False
+                    agenda.poe(time.time(), 'micpos', nxt)
+                est.pedidos_mic_passo.clear()
+            if est.pedidos_mic:
+                # Pedido para o instante `t` do relógio da estação: o que o
+                # microfone captar agora ela só ouve depois da fila de entrada
+                # e da latência dela, então a troca sai essa antecedência antes.
+                antes = sum(len(c) for c in list(q.queue)) + getattr(audio, 'lat_in', int(0.1 * FS))
+                for t_m, k in [p for p in est.pedidos_mic if p[0] <= est.agora + antes]:
+                    est.pedidos_mic.remove((t_m, k))
+                    if agenda is not None:
+                        agenda.poe(time.time(), 'mic', k)
+            if agenda is not None:
+                while agenda.avisos:
+                    log(agenda.avisos.pop(0))
+            if args.conversa and len(est.recebido) > lidas:
+                # Só linhas inteiras: o resto ainda está chegando.
+                fim = est.recebido.rfind(b'\n', lidas)
+                if fim >= 0:
+                    for ln in bytes(est.recebido[lidas:fim]).split(b'\n'):
+                        t = ln.decode('utf-8', 'replace')
+                        if t.startswith('$ '):
+                            log(f"[saudacao] comando recebido pelo ar, executando: {t[2:]}")
+                            threading.Thread(target=executa, args=(t[2:],), daemon=True).start()
+                    lidas = fim + 1
+            while not respostas.empty():
+                r = respostas.get()
+                t = ("> " + r).encode('utf-8') + b'\n'
+                est.enviar(t)
+                enviados_txt.append("> " + r)
+                dados += t
+                log(f"[saudacao] saída do comando, devolvendo ({len(t)} bytes): {r}")
+            if args.receber_em and len(est.recebido) != gravados:
+                gravados = len(est.recebido)
+                open(args.receber_em, 'wb').write(bytes(est.recebido))
+            if (not concluido and not args.conversa and est.aberto and est.confirmado
+                    and not est.fila and est.pendente_tx is None):
                 concluido = True
                 log(f"[saudacao] tudo enviado e confirmado em {time.time() - t0:.1f}s; "
                     f"recebidos {len(est.recebido)} bytes")
@@ -548,8 +748,13 @@ def sessao(args, audio):
             log(f"[saudacao] a entrada perdeu {lacunas.perdidas / FS:.2f}s em {lacunas.buracos} "
                 f"buraco(s) ({lacunas.transbordos} transbordo(s) avisados); repostos como silêncio")
         audio.fecha()
-        if not audio.simulado:
-            aviso.fim("saudação acústica")
+        if agenda is not None:
+            agenda.fecha()
+            while agenda.avisos:
+                log(agenda.avisos.pop(0))
+        if vol is not None:
+            vol.restaura(log)
+            vol.fecha()
         gravado = np.concatenate(ouvido) if ouvido else np.zeros(0)
         meta = dict(mode='enlace', label=f'enlace-{args.papel}', papel=args.papel,
                     modo_dados=args.modo_dados,

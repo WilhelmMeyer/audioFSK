@@ -71,6 +71,23 @@ MARCAS = {
     # silêncio e quadros de longe): pico falso por segundo p99 0,15, p99,9
     # 0,16, contra até 0,21 do molde de 80 ms -- o que deixa o limiar descer.
     'quadro_longo': (700.0, 3400.0, 0.40),
+    # "Não melhorou", no refino do som (2026-10-29): uma por lado, porque os
+    # dois a tocam e nenhuma estação age sobre a do próprio tipo. Inclinação
+    # de 4500 e 3000 Hz/s, longe das outras (15000 da chamada e da resposta,
+    # 6750 da de quadro longa): correlação cruzada medida com todas as
+    # outras <= 0,15, abaixo de qualquer limiar.
+    'nao_ou': (2800.0, 1000.0, 0.40),      # o ouvinte diz ao chamador
+    'nao_ch': (1000.0, 2800.0, 0.60),      # o chamador diz ao ouvinte
+    # "Melhorou", no refino, também com marca própria (2026-10-29, 20:32).
+    # Era a resposta (do ouvinte) e a chamada (do chamador), e uma resposta
+    # da escada rápida ainda no ar depois da confirmação -- ou a dupla "a
+    # vez do ouvinte" lida pela metade -- valia "melhorou": o chamador subiu
+    # para 70% com o ouvinte dizendo que não melhorou. 8700 Hz/s, entre a
+    # chamada (15000) e a de quadro longa (6750); correlação cruzada com
+    # todas as outras <= 0,10, exceto 0,18 com a de quadro curta e a de
+    # sondagem, que não tocam durante o refino.
+    'sim_ou': (3300.0, 700.0, 0.30),       # o ouvinte diz ao chamador
+    'sim_ch': (700.0, 3300.0, 0.30),       # o chamador diz ao ouvinte
 }
 MOLDES = {k: chirp(FS, *v) for k, v in MARCAS.items()}
 LQ = len(MOLDES['quadro'])            # 3840
@@ -102,10 +119,26 @@ GAP = int(0.10 * FS)                  # entre segmentos de um mesmo turno
 # erros não custam o mesmo: uma chamada falsa custa uma troca (o CRC do OLA
 # recusa), uma chamada perdida custa a sessão -- por isso a chamada fica
 # rente ao falso. Uma marca de quadro falsa vira um segmento ilegível.
+# Uma chamada acima disto é chamada, não um quadro casando com o molde: os
+# falsos medidos ficam em 0,18-0,20, as chamadas de perto em 0,37-0,70.
+CHAMADA_CLARA = 0.30
 LIMIARES = {'chamada': 0.17, 'resposta': 0.17, 'quadro': 0.21, 'sonda': 0.26,
-            'quadro_longo': 0.18}
+            'quadro_longo': 0.18, 'nao_ou': 0.17, 'nao_ch': 0.17,
+            # 0,18 nos dois "melhorou": nas gravações de 20:32 os moldes deles
+            # deram até 0,15 sobre chamadas e respostas de verdade, e 0,16-0,17
+            # dentro de um OLA de longe (que não toca durante o refino).
+            'sim_ou': 0.18, 'sim_ch': 0.18}
 QUADROS = ('quadro', 'quadro_longo')
 LIMIAR = min(LIMIARES.values())
+# Abaixo do limiar, marcas de quadro guardadas para a busca dirigida: no ar
+# (2026-10-29, a distância, B tocando pelo alto-falante interno), o OLA_OK de
+# B chegou a A com rms 0,045 -- som de sobra -- e a marca longa dele
+# correlacionou só 0,17, abaixo dos 0,18. Lido a partir dela, o quadro passou
+# no CRC; sem ela, A desistiu do OLA 3,5 s depois de a resposta terminar. Uma
+# marca fraca só vale quando a estação espera uma resposta e o prazo venceu
+# sem nenhuma, e só se o quadro lido dela passar no CRC: um falso custa uma
+# leitura, nunca um segmento.
+LIMIAR_DIRIGIDO = 0.12
 _BANDA = butter(4, (500.0, 3700.0), btype='bandpass', fs=FS, output='sos')
 
 # --- Quadros ----------------------------------------------------------------
@@ -121,6 +154,15 @@ IDLE_SYM = 6
 # comparável com aquelas medidas, e um encurtado não seria.
 CAMADAS_5X2 = {'votada': 'mfsk', 'multicanal': 'mfsk-par'}
 IDLE_5X2 = 4
+
+
+class Parte(np.ndarray):
+    """Um segmento de áudio com o rótulo do que ele é, para o diário, e
+    onde trocar o volume da caixa: `caixa_marcas` [(amostra, passo)], passo
+    None de volta ao do turno. Quem toca (`saudacao.py`) é quem mexe no
+    volume; a estação só diz onde."""
+    rotulo = None
+    caixa_marcas = None
 
 
 @dataclass(frozen=True)
@@ -324,6 +366,14 @@ OLA, OLA_OK, CONTRATO, SONDA_G, DADOS, ACK, FIM = 1, 2, 3, 4, 5, 6, 7
 NOMES = {OLA: 'OLA', OLA_OK: 'OLA_OK', CONTRATO: 'CONTRATO', SONDA_G: 'SONDA_G',
          DADOS: 'DADOS', ACK: 'ACK', FIM: 'FIM'}
 CTRL_N = 12
+# Versão do que vai pelo ar, no terceiro byte do OLA e do OLA_OK. Mudou o
+# formato (aqui, 2026-10-29: escada de volume da caixa duas vezes, com o
+# microfone), muda a versão. Sem ela, duas pontas com códigos diferentes --
+# e a B é atualizada à mão, por cópia -- liam as sondagens uma da outra no
+# lugar errado, e isso parecia um canal ruim. Quem roda a versão de antes
+# manda 0 nesse byte (era preenchimento). 4: a bateria de velocidade no fim
+# da sondagem e a escolha da caixa pela margem (2026-10-29).
+VERSAO = 8
 SONDA_N = 16
 DADOS_N = 40
 DADOS_CARGA = DADOS_N - 5 - 4          # seq, ack, pede, len
@@ -392,66 +442,266 @@ ABORDAGENS = (
               LENTO_BAUD, LENTO_GUARDA, LENTO_PRE, marca='quadro_longo'),
     Descritor(tuple(MARY_TONES), 4, 2, CTRL_N, 0.50, '16-FSK muito lento rep2 g0.50 marca longa',
               10, LENTO_GUARDA, LENTO_PRE, marca='quadro_longo'),
+    # Índices 7 e 8 (2026-10-29): os degraus intermediários de símbolo também
+    # no controle, com a guarda e a marca dos degraus de dados de mesmo baud
+    # (`BAUD_GUARDA`, definido mais abaixo: 0,24 a 50 e 0,27 a 33).
+    Descritor(tuple(MARY_TONES), 4, 2, CTRL_N, 0.50, '16-FSK 50 baud rep2 g0.50 marca longa',
+              50, 0.24, LENTO_PRE, marca='quadro_longo'),
+    Descritor(tuple(MARY_TONES), 4, 2, CTRL_N, 0.50, '16-FSK 33 baud rep2 g0.50 marca longa',
+              33, 0.27, LENTO_PRE, marca='quadro_longo'),
 )
-# Esforço: 0 é o de sempre, que a 2 m funciona e não deve mudar (lá o ganho
-# menor vence, porque o alto-falante comprime); 1 é o de longe. Sobe quando a
-# chamada ou a resposta chegam fracas, ou quando todas as abordagens de
-# perto passaram sem resposta, e não desce mais na mesma execução.
-ORDEM_ABORDAGENS = ((0, 1, 2, 3, 4), (5, 6))
-GANHOS_CHAMADA = ((0.30, 0.15, 0.50), (0.50,))
+# A escada do OLA (2026-10-29, VERSAO 5), uma só, por velocidade de símbolo:
+# 100 -> 50 -> 33 -> 20 -> 10 baud. Antes eram duas listas, "perto" (um
+# rodízio de técnicas a 100 e 20 baud misturados) e "longe" (20 e 10), e cada
+# ponta decidia sozinha de qual estava -- no ar, 20:10, o chamador se achou
+# perto (resposta a 0,17 mas 24 dB acima do piso) e o ouvinte longe (chamadas
+# a 0,17-0,18), e um nunca leu o outro. Agora quem decide é o chamador, e o
+# OLA leva a decisão. A 100 baud vai o 2-FSK 1700/2350: foi o OLA lido de
+# primeira em todas as sessões de hoje que passaram da saudação (19:28, 19:42),
+# e o 16-FSK rep2 a 100 nunca foi tentado como OLA no ar. Começa a 100 se a
+# resposta chegou forte (correlação >= LIMIAR_LONGE, ou alta e bem acima do
+# piso -- `_alta`), senão a 20 baud. A cada degrau: falhou, a caixa sobe um
+# passo e o mesmo degrau se repete; falhou de novo, desce um degrau.
+OLA_ESCADA = (0, 7, 8, 5, 6)
+OLA_LONGE_DESDE = 3          # índice em OLA_ESCADA a partir do qual é "longe" (<= 20 baud)
+# Esforço: 0 é perto, 1 é longe (marca longa, sondagem a 20 baud). Até a
+# VERSAO 4 cada ponta o subia sozinha pela chamada; agora é o degrau em que o
+# OLA saiu (`OLA_ESCADA`), decidido pelo chamador e levado no OLA.
+# Digital fixo na chamada: quem varre o nível agora é a caixa (`CHAMADA_PASSOS`).
+# Até 2026-10-29 o digital rodava 0,30/0,15/0,50 com a caixa onde estivesse.
+GANHOS_CHAMADA = ((0.30,), (0.50,))
+RMS_ALTA, SNR_ALTA = 0.03, 20.0   # ver `Estacao._alta`
 LIMIAR_LONGE = 0.42          # chamada/resposta abaixo disto: longe (2 m dá 0,45-0,50; alguns metros 0,30-0,36)
 SONDA_GANHO_LONGE = 0.50
 
 # --- Sondagem e contrato -----------------------------------------------------
 
 GRADE = tuple(562.5 + 162.5 * k for k in range(25))     # 562,5 .. 4462,5 Hz
-# Quatro, porque o contrato guarda o índice em 2 bits. Até 2026-10-22 iam a
-# 0,45; de longe é o degrau alto que pode ser o único lido.
-GANHOS = (0.12, 0.25, 0.45, 0.80)
+# A escada da sondagem é de VOLUME DA CAIXA (o do sistema), não de ganho
+# digital. Até 2026-10-29 era 0,12/0,25/0,45/0,80 no ganho digital, com o
+# volume do sistema onde o usuário tivesse deixado -- e o volume do sistema é
+# o que satura: o alto-falante do Linux a 1,0 (o máximo) chegava ao notebook
+# com 10-12% de bits errados encostado, a chamada correlacionava 0,25-0,30
+# (abaixo de LIMIAR_LONGE), e o protocolo pedia ganho 0,8, mais alto ainda.
+# Ganho digital nenhum tira a caixa do limitador; o fader do sistema tira
+# (CLAUDE.md, 17-SPK-LEVEL-A2B). Agora o ganho digital é fixo e cada degrau
+# k pede à própria máquina a caixa no passo travado + CAIXA_REL[k] -- a
+# trava é o volume em que o outro lado a ouviu na chamada, então a escada
+# anda em volta do volume que já se sabe servir. O contrato leva o k nos
+# mesmos 2 bits, e cada ponta o lê relativo à própria trava.
+#
+# 0,45 digital: a sonda rápida e o 16-FSK do H06 rodaram nele no ar, e é o
+# meio da escada antiga -- com a caixa no passo neutro, o som de antes.
+GANHO_FIXO = 0.45
+# Posições do controle de volume da caixa, as mesmas nas duas máquinas
+# (`volume.CAIXA` tem de ter o mesmo comprimento). Os índices daqui são
+# ABSOLUTOS; o resto do protocolo fala em passos relativos a `trava`.
+CAIXA_POS = (0.15, 0.20, 0.30, 0.40, 0.55, 0.70, 1.00)   # 1,00: ver volume.CAIXA
+N_POS = len(CAIXA_POS)
+# Acertar o som vem antes de qualquer bit (pedido de 2026-10-29: "não adianta
+# enviar um único bit se o som nos dois lados ainda não acertou"; começar a
+# 30% e já supor que o outro ouve foi o que ele reclamou). Quem chama sobe a
+# caixa por estes passos até ser respondido; quem ouve só responde a uma
+# chamada que chegou BEM (`CHAMADA_BOA_RMS`), e a resposta sobe pelos mesmos
+# passos a cada chamada que atende. Cada lado TRAVA a caixa no passo em que
+# foi ouvido: o chamador ao ouvir a resposta (o ouvinte só responde a chamada
+# boa), o ouvinte ao ler o OLA (o chamador só manda OLA a resposta boa).
+# Começa em 20%, abaixo dos 30% que soaram baixo mas acima de nada: lado a
+# lado 20% já basta, e de longe a escada sobe sozinha até 70%.
+CHAMADA_PASSOS = (1, 2, 3, 4, 5, 6)
+CAIXA_INICIAL = CHAMADA_PASSOS[0]
+# Bem ouvida: rms da varredura acima disto. Medido nas sessões gravadas: de
+# perto 0,05-0,27, de longe 0,004-0,009 (`_alta`). 0,02 fica entre os dois,
+# com folga de 2,5x para cada lado. Sem teto: saturada ainda é ouvida, e
+# quem satura no passo mais baixo não tem para onde descer (avisa no diário).
+CHAMADA_BOA_RMS = 0.02
+# Correlação acima da qual uma marca conta como OUVIDA, qualquer que seja o rms.
+# O rms acima foi medido lado a lado; a distância, em 2026-10-29 (20:40), as
+# respostas do B chegavam bem audíveis ao ouvido a rms 0,010-0,013 (o
+# microfone digital do Linux é pouco sensível) e correlação 0,23-0,24, e os
+# falsos ficam em 0,18-0,20. Com isso o rms só decide subir microfone ou
+# caixa, nunca se respondo ou confirmo.
+OUVIDO_CORR = 0.21
+MIC_PICO_MAX = 0.5           # acima deste pico o microfone não sobe ao acertar o som
+# Ganho do microfone, de cada receptor e só dele (2026-10-29): a cada chamada,
+# resposta e quadro ouvidos antes do contrato, leva o pico recebido para a
+# janela MIC_ALVO -- abaixo, um passo acima; acima, ou saturando, um abaixo.
+# Microfone mais alto NÃO melhora a relação sinal/ruído (sobe o ruído da sala
+# junto); só aproveita melhor o conversor e afasta a saturação. Quem melhora
+# o SNR é a caixa do outro lado, e por isso a caixa é o botão de cada sentido
+# (A->B é a caixa de A; B->A a de B) e o microfone só o nível.
+MIC_ALVO = (0.15, 0.50)
+# A caixa, corrigida pelo relato do outro lado (OLA / OLA_OK levam como cada
+# ponta ouviu a outra): o alvo é o outro lado receber pico ~0,3. Acima de
+# CAIXA_PICO_ALTO, ou saturando, desce um passo por 6 dB acima; abaixo de
+# CAIXA_PICO_BAIXO sobe um. A chamada só diz que fui ouvido, não em que passo
+# o outro lado passou a me ouvir -- com a resposta fraca demais para ser
+# detectada eu continuava subindo além do preciso; os bits fecham a malha.
+CAIXA_PICO_BAIXO, CAIXA_PICO_ALTO = 0.10, 0.50
+
+
+def q_db(x):
+    """Nível 0-1 para um byte: -dBFS em meios dB (0 = 0 dBFS, 254 = -127);
+    255 = não sei."""
+    if x is None or not np.isfinite(x) or x <= 0:
+        return 255
+    return int(min(254, max(0, round(-40 * np.log10(min(1.0, x))))))
+
+
+def dq_db(b):
+    return None if b >= 255 else 10 ** (-b / 40)
+PICO_SATURA = 0.98
+# A escada da sondagem e o campo de 2 bits do contrato: passo k = trava + k - 1,
+# limitado à tabela. Uma abaixo, a travada, e duas acima -- acima porque a
+# trava é o primeiro passo em que o outro ouviu, o limite de baixo, e a
+# margem para cima é a sondagem que mede, não um chute na hora de travar.
+# Um pouco abaixo e um pouco acima do passo já refinado pelo som (pedido de
+# 2026-10-29): o refino já subiu enquanto melhorava, então +2 não se mede mais.
+N_CAIXA = 3
+CAIXA_REL = (-1, 0, 1)
+CAIXA_NEUTRA = 1             # o relativo 0: o passo travado
+# Para o simulador, que não tem fader: a posição vira fator digital, linear
+# em relação aos 30% (o volume em que o simulador era calibrado).
+CAIXA_SIM = tuple(p / 0.30 for p in CAIXA_POS)
+GANHOS = tuple(GANHO_FIXO * CAIXA_SIM[CAIXA_INICIAL + r] for r in CAIXA_REL)   # para o diário
 SONDA_TOM = 0.05
 SONDA_PASSO = 0.06
 SONDA_SIL = 0.30
 SONDA_REPS = 3
 SONDA_GANHO_TOM = 0.30
 SOMBRAS_MAX = 6
+# Entre os degraus da escada, silêncio largo o bastante para o volume trocar
+# dentro dele: a troca vai no meio, contada pela latência de saída que a
+# estação mediu no próprio eco, e o erro dessa conta (a latência do
+# Bluetooth variou 0,5-0,7 s no ar) cabe em ±0,3 s.
+GAP_CAIXA = int(0.6 * FS)
+# E o microfone de quem ESCUTA: a escada vai duas vezes, a segunda com o
+# microfone a 0,6 do de partida (MIC_PASSOS em `volume.py`). Quem
+# ouve troca o próprio microfone no meio deste silêncio, contado da marca de
+# abertura que ele achou -- a varredura anda até ~0,9 s atrás do ar e a
+# entrada tem a fila dela, daí 1,6 s. Não vai no fio: só o comprimento da
+# sondagem muda, e quem toca nem sabe do microfone do outro.
+GAP_MIC = int(1.6 * FS)
+N_MIC = 2
 # Tons 16-FSK das sondas de ganho: os de sempre, por ora. O contrato escolhe
 # os tons depois, e a confirmação no contrato é o que mede a escolha.
-SONDA_G_DESC = tuple(Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, g, f'sonda g{g}')
-                     for g in GANHOS)
+# Perto: 4 passos de caixa x 2 de microfone.
+SONDA_G_DESC = tuple(Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, GANHO_FIXO,
+                               f'sonda caixa {k}{" mic -8 dB" if m else ""}')
+                     for m in range(N_MIC) for k in range(N_CAIXA))
+SONDA_G_CAIXA = tuple(k for m in range(N_MIC) for k in range(N_CAIXA))
+SONDA_G_MIC = tuple(m for m in range(N_MIC) for k in range(N_CAIXA))
 # De longe a escada de ganho vai no 16-FSK lento, na mesma forma do degrau
 # LENTO (20 baud, guarda 0,3, marca longa): a 100 baud ela nunca era lida de
 # longe (2026-10-22), e o contrato saía com ganho e degrau no chute. Assim o
 # receptor mede o lento de fato -- a velocidade passa a ser negociada como o
-# ganho. Só os três ganhos de cima; o primeiro fica sem sonda (0,5).
-SONDA_G_LONGE = tuple(None if i == 0 else
-                      Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, g, f'sonda lenta g{g}',
+# ganho. Só os três passos de cima; o primeiro fica sem sonda (0,5). Sem a
+# volta do microfone: são ~8 s por sonda lenta, e de longe o que falta é
+# sinal, que baixar o microfone não dá.
+SONDA_G_LONGE = tuple(None if k == 0 else
+                      Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, GANHO_FIXO, f'sonda lenta caixa {k}',
                                 LENTO_BAUD, LENTO_GUARDA, LENTO_PRE, marca='quadro_longo')
-                      for i, g in enumerate(GANHOS))
-# E uma a 100 baud depois delas, fora da escada de ganho (`res[len(GANHOS)]`):
-# "longe" é decidido pela chamada e vale para a sessão, mas os dois sentidos
-# não precisam estar igualmente longe. Sem esta sonda o receptor nunca via se
-# o sentido dele segura 100 baud, e contratava o lento num sentido que media
-# 0-1% de bits errados (simulador, cenário 'assimetrico', 2026-10-23).
-SONDA_RAPIDA_GANHO = 2                      # índice em GANHOS: 0,45
-SONDA_G_LONGE += (Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, GANHOS[SONDA_RAPIDA_GANHO],
-                            f'sonda rápida g{GANHOS[SONDA_RAPIDA_GANHO]}'),)
+                      for k in range(N_CAIXA))
+SONDA_G_LONGE_CAIXA = tuple(range(N_CAIXA))
+# Depois da escada de volume, a bateria de velocidade (VELOCIDADES, abaixo
+# dos degraus): um bloco conhecido em cada troca de tom, do mais lento ao
+# mais rápido, todos na caixa travada e no microfone de partida. Ela decide o
+# degrau do contrato; a sonda rápida de longe (100 baud, 2026-10-23) virou o
+# último bloco dela, perto e longe iguais.
 
 
 def sonda_g(longe):
-    return SONDA_G_LONGE if longe else SONDA_G_DESC
+    return (SONDA_G_LONGE if longe else SONDA_G_DESC) + SONDA_V_DESC
+
+
+def sonda_caixas(longe):
+    """Passo de caixa de cada sonda (índice paralelo a `sonda_g`)."""
+    return (SONDA_G_LONGE_CAIXA if longe else SONDA_G_CAIXA) + (CAIXA_NEUTRA,) * len(SONDA_V_DESC)
+
+
+def sonda_mics(longe):
+    """Passo de microfone de quem escuta, em cada sonda."""
+    return ((0,) * len(SONDA_G_LONGE) if longe else SONDA_G_MIC) + (0,) * len(SONDA_V_DESC)
+
+
+def n_escada(longe):
+    """Quantas das sondas são a escada de volume; o resto é velocidade."""
+    return len(SONDA_G_LONGE if longe else SONDA_G_DESC)
+
+
+def sonda_layout(longe=False):
+    """(início de cada sonda da escada contado da marca de abertura, ou None
+    onde não há sonda; o silêncio antes de cada uma; duração total)."""
+    mics = sonda_mics(longe)
+    pos = 2 * LQ + 2 * HUSH + _sonda_tons_nominal()
+    inicios, vaos, ant = [], [], None
+    for j, d in enumerate(sonda_g(longe)):
+        if d is None:
+            inicios.append(None)
+            vaos.append(0)
+            continue
+        v = GAP_MIC if ant is not None and mics[j] != ant else GAP_CAIXA
+        ant = mics[j]
+        pos += v
+        inicios.append(pos)
+        vaos.append(v)
+        pos += d.amostras
+    return inicios, vaos, pos + GAP
+
+
+def troca_mic(longe=False):
+    """Onde, contado da marca de abertura, quem escuta troca o microfone:
+    [(instante, passo)], no meio do silêncio antes da primeira sonda de cada
+    passo novo. Vazio de longe."""
+    inicios, vaos, _ = sonda_layout(longe)
+    mics = sonda_mics(longe)
+    return [(inicios[j] - vaos[j] // 2, mics[j]) for j in range(1, len(mics))
+            if inicios[j] is not None and mics[j] != mics[j - 1]]
+
 
 # Degraus de taxa, do mais rápido ao mais lento. Limiares de erro de bit
 # (antes do FEC) a partir de CLAUDE.md: taxa 1/3 suave inteira até ~13%,
 # repetida duas vezes até ~25%. Aqui com folga, porque três sondas por
 # sentido são poucas e o contrato pode ser renegociado para baixo, nunca o
 # contrário sem nova sondagem.
-DEGRAUS = ('16-FSK rep1', '16-FSK rep2', '16-FSK rep4', '2-FSK rep1', '16-FSK lento',
-           '16-FSK muito lento')
-LENTO = 4
+DEGRAUS = ('16-FSK rep1', '16-FSK rep2', '16-FSK rep4', '2-FSK rep1', '16-FSK 50 baud',
+           '16-FSK 33 baud', '16-FSK lento', '16-FSK muito lento')
+# Entre os 100 baud e o lento (20), dois degraus de símbolo intermediários
+# (2026-10-29): a queda era de 100 direto para 20, cinco vezes mais longo, e
+# no ar o lento custou 14 s por quadro de dados. Agora 100 -> 50 -> 33 -> 20
+# -> 10. A guarda cresce com o símbolo como o tempo dela, não a fração: as
+# duas medidas são 0,15 a 100 baud (1,5 ms) e 0,30 a 20 baud (15 ms), e a
+# reta entre as duas no tempo dá 4,9 ms a 50 baud (0,24) e 8,3 ms a 33
+# (0,27) -- o que se pula é a cauda do tom anterior, que dura em ms. Marca
+# longa e preâmbulo curto, como o lento: a 33 baud um quadro de dados passa
+# de 8 s. Nenhum dos dois foi medido no ar. Os 8 degraus cabem nos 3 bits do
+# contrato, mas os índices 4 e 5 mudaram de sentido: VERSAO 2.
+R50, R33 = 4, 5
+BAUD_GUARDA = {R50: (50, 0.24), R33: (33, 0.27)}
+LENTO = 6
 # O de longe (2026-10-22, alguns metros): no Linux->Windows o lento a rep2
 # não passou nem em quadro de controle, e o muito lento (10 baud) passou.
-MUITO_LENTO = 5
+MUITO_LENTO = 7
 LIMIARES_BER = (0.07, 0.15, 0.25, 0.35, 0.40)
+# A bateria de velocidade: (baud, guarda, preâmbulo, marca, degrau que ela
+# mede), do mais lento ao mais rápido, cada bloco rep1 de SONDA_N bytes --
+# a mesma forma dos dados naquele degrau, então o bloco lido inteiro é o
+# degrau medido, não extrapolado. Os 100 baud medem rep1/rep2/rep4 pelo erro
+# de bit (`degrau_de`); o 2-FSK e o muito lento não têm bloco (o 2-FSK é
+# mais lento que o 50 baud num quadro de 40 B, e o muito lento é o que sobra
+# quando nada passa).
+VELOCIDADES = ((LENTO_BAUD, LENTO_GUARDA, LENTO_PRE, 'quadro_longo', LENTO),
+               (33, 0.27, LENTO_PRE, 'quadro_longo', R33),
+               (50, 0.24, LENTO_PRE, 'quadro_longo', R50),
+               (BAUD, 0.15, PRE_SYM, 'quadro', 0))
+SONDA_V_DESC = tuple(Descritor(tuple(MARY_TONES), 4, 1, SONDA_N, GANHO_FIXO, f'sonda {b} baud',
+                               b, g, pre, marca=m)
+                     for b, g, pre, m, _ in VELOCIDADES)
+# Escolha: o degrau aceito que passa mais rápido um quadro de dados; um mais
+# lento só o substitui se custar menos de 20% a mais de tempo e tiver 3 dB a
+# mais de margem -- a folga vale mais que um ganho de velocidade pequeno.
+VEL_GANHO_MIN = 1.20
+VEL_MARGEM_MELHOR = 3.0
 # Só nestes estados uma marca de sonda pode ser de verdade. Fora deles ela é
 # um falso no meio de outra coisa, e lida como sondagem tirava de cena tudo o
 # que viesse nos ~40 s seguintes (a duração de uma sondagem de longe): em
@@ -473,7 +723,11 @@ LIMIAR_LENTO = 0.10          # erro de bit na sonda lenta abaixo disto: o lento 
 MODOS_DADOS = ('auto', '16fsk', '2fsk', 'votada', 'multicanal')
 DEGRAUS_MODO = {
     'auto': DEGRAUS,
-    '16fsk': ('16-FSK rep1', '16-FSK rep2', '16-FSK rep4'),
+    # O lento e o muito lento também: sem eles, um contrato que pedia lento
+    # era cortado para o rep4 a 100 baud, e ninguém lia nada (no ar,
+    # 2026-10-29: 28 trechos ilegíveis por turno).
+    '16fsk': ('16-FSK rep1', '16-FSK rep2', '16-FSK rep4', '16-FSK 50 baud', '16-FSK 33 baud',
+              '16-FSK lento', '16-FSK muito lento'),
     '2fsk': ('2-FSK rep1', '2-FSK rep2'),
     # 40 bytes a rep1 já são 11 s de 5x2 votada; rep2 passa de 20 s.
     'votada': ('5x2 votada rep1', '5x2 votada rep2'),
@@ -518,21 +772,46 @@ def _sonda_tons_nominal():
 def modula_sonda(sessao, ganho_tons=SONDA_GANHO_TOM, longe=False):
     """`ganho_tons` só muda o nível dos tons, não o que se mede com eles: a
     margem de cada tom é contra o piso e contra os outros tons, todos no
-    mesmo ganho. As sondas de ganho, depois, ficam nos ganhos da escada."""
+    mesmo ganho. As sondas da escada, depois, vão todas em GANHO_FIXO, cada
+    uma num passo de caixa (`caixa_marcas` do Parte: onde trocar o volume)."""
     m = MOLDES['sonda']
     z = np.zeros(HUSH)
-    partes = [m, z, _tons_sonda(sessao, ganho_tons), z, m, np.zeros(GAP)]
-    for i, d in enumerate(sonda_g(longe)):
+    inicios, vaos, total = sonda_layout(longe)
+    partes = [m, z, _tons_sonda(sessao, ganho_tons), z, m]
+    marcas = []
+    for i, (d, k) in enumerate(zip(sonda_g(longe), sonda_caixas(longe))):
         if d is None:
             continue
-        partes += [modula_quadro(d, empacota(SONDA_G, sessao, carga_sonda_g(sessao, i), SONDA_N)),
-                   np.zeros(GAP)]
-    return np.concatenate(partes)
+        partes += [np.zeros(vaos[i]),
+                   modula_quadro(d, empacota(SONDA_G, sessao, carga_sonda_g(sessao, i), SONDA_N))]
+        marcas.append((inicios[i] - vaos[i] // 2, k))
+    partes.append(np.zeros(GAP))
+    x = np.concatenate(partes).view(Parte)
+    assert len(x) == total
+    # Depois da última sonda, de volta ao passo do turno; um pouco além do
+    # fim, para não cortar o rabo da última no meio da troca.
+    marcas.append((total + int(0.3 * FS), None))
+    x.caixa_marcas = marcas
+    return x
 
 
 def sonda_amostras(longe=False):
-    return (2 * LQ + 2 * HUSH + _sonda_tons_nominal() + GAP
-            + sum(d.amostras + GAP for d in sonda_g(longe) if d is not None))
+    return sonda_layout(longe)[2]
+
+
+def aplica_caixa(x, fatores, padrao=CAIXA_INICIAL):
+    """O que o volume da caixa faria com `x`, para quem não tem caixa (o
+    simulador): cada trecho multiplicado pelo fator do passo pedido em
+    `x.caixa_marcas`. Marcas além do fim não mudam nada aqui."""
+    marcas = getattr(x, 'caixa_marcas', None)
+    if not marcas:
+        return x
+    y = np.array(x, dtype=np.float64)
+    pts = sorted((max(0, a), padrao if k is None else k) for a, k in marcas)
+    for j, (a, k) in enumerate(pts):
+        b = pts[j + 1][0] if j + 1 < len(pts) else len(y)
+        y[a:b] *= fatores[k]
+    return y
 
 
 def mede_tons(audio, p1, p2, sessao):
@@ -620,7 +899,7 @@ def escolhe_par(margem):
 class Contrato:
     tons: tuple          # 16 índices na grade
     par: tuple           # 2 índices na grade
-    ganho: int           # índice em GANHOS
+    ganho: int           # passo da caixa de quem transmite (0..N_CAIXA-1); o digital é GANHO_FIXO
     degrau: int          # índice em DEGRAUS
 
     def empacota(self):
@@ -638,11 +917,13 @@ class Contrato:
 
     def descritor(self, degrau=None, nbytes=DADOS_N, modo='auto'):
         d = self.degrau if degrau is None else degrau
-        g = GANHOS[self.ganho]
+        g = GANHO_FIXO
         if modo != 'auto':
             # Degrau é índice em DEGRAUS_MODO[modo]: só a repetição muda. O
             # ganho é o do contrato em todos; os tons são os do contrato no
             # 16-FSK e no 2-FSK e os MFSK_PAIRS fixos no 5x2.
+            if modo == '16fsk' and d >= 3:
+                return self.descritor(R50 + d - 3, nbytes)
             rep = _REPS_MODO[modo][d]
             nome = f'contrato {DEGRAUS_MODO[modo][d]} {nbytes}B'
             if modo == '16fsk':
@@ -656,6 +937,11 @@ class Contrato:
         if d == 3:
             return Descritor(tuple(GRADE[k] for k in self.par), 1, 1, nbytes, g,
                              f'contrato 2-FSK {nbytes}B')
+        if d in BAUD_GUARDA:
+            baud, guarda = BAUD_GUARDA[d]
+            return Descritor(tuple(GRADE[k] for k in self.tons), 4, 1, nbytes, g,
+                             f'contrato {DEGRAUS[d]} {nbytes}B',
+                             baud, guarda, LENTO_PRE, marca='quadro_longo')
         if d == MUITO_LENTO:
             return Descritor(tuple(GRADE[k] for k in self.tons), 4, 2, nbytes, g,
                              f'contrato 16-FSK muito lento {nbytes}B',
@@ -674,40 +960,175 @@ class Contrato:
         falta = [GRADE[k] for k in range(min(self.tons), max(self.tons) + 1) if k not in self.tons]
         return (f"{f[0]:.0f}-{f[-1]:.0f} Hz, sombras {[round(x) for x in falta]}, "
                 f"par {GRADE[self.par[0]]:.0f}/{GRADE[self.par[1]]:.0f}, "
-                f"ganho {GANHOS[self.ganho]}, {DEGRAUS[self.degrau]}")
+                f"caixa {self.ganho}, ganho {GANHO_FIXO}, {DEGRAUS[self.degrau]}")
 
 
-def decide(margem, sondas_g):
-    """O contrato de um sentido, a partir do que o receptor mediu.
+PICO_SATURA = 0.98           # pico de entrada a partir do qual o conversor do microfone cortou
 
-    `sondas_g`: (ber, inteiro) por degrau de ganho, ber 0,5 quando a sonda nem
-    foi achada. Ganho: o menor dentro de um ponto do melhor -- um ganho menor
-    que acerta tanto quanto o maior é a cadeia saindo da compressão, e a folga
-    sobra para o dia em que a sala mudar."""
+
+def margem_llr(llr, ref):
+    """Margem de um bloco conhecido, em dB: o 10º percentil do
+    log-likelihood de cada bit com o sinal do bit certo -- a folga dos bits
+    mais fracos, que são os que derrubam um bloco. O llr do 16-FSK é
+    max-log, a razão de energia entre o melhor tom com o bit em 1 e o melhor
+    com ele em 0 (`MaryDemodulator.demodulate_soft`), em log natural; 10/ln 10
+    o põe em dB. Ao contrário do erro de bit, não satura em 0%. A mediana
+    foi tentada e quase não se mexe: na gravação de 2026-10-29 19:42 (B->A,
+    lado a lado, 8 sondas a 0% de erro) ela foi de 12,7 a 13,4 dB em quatro
+    passos de caixa, e o 10º percentil de 7,1 a 8,9 dB. Negativa quando mais
+    de 10% dos bits saíram errados."""
+    sinal = np.where(np.asarray(ref) > 0, 1.0, -1.0)
+    return float(np.percentile(np.asarray(llr) * sinal, 10)) * 10 / np.log(10)
+
+
+# Subir a caixa um passo só vale se a margem subir pelo menos isto; abaixo,
+# é o joelho -- a cadeia parou de responder ao volume, ou começou a
+# comprimir -- e a escolha para ali.
+MARGEM_SOBE_MIN = 1.0
+# Microfone: o de 0,6 só vence o de partida com isto a mais de margem.
+MARGEM_MIC_MIN = 1.0
+
+
+def sobe_caixa(celulas):
+    """Escolha da caixa por subida: `celulas` [(passo, ber, inteiro, margem
+    ou None, pico ou None)] de um mesmo microfone, em ordem de passo. Começa
+    no passo mais baixo que decodifica (erro de bit abaixo de
+    LIMIARES_BER[2], sem corte do conversor) e sobe enquanto o próximo passo
+    também decodifica e ganha MARGEM_SOBE_MIN dB; fica com o de maior margem
+    até onde parou. Devolve (índice em `celulas` ou None, motivo)."""
+    def bom(c):
+        return (c[3] is not None and c[1] < LIMIARES_BER[2]
+                and (c[4] is None or c[4] < PICO_SATURA))
+    ini = next((i for i, c in enumerate(celulas) if bom(c)), None)
+    if ini is None:
+        return None, "nenhum passo decodificou sem corte"
+    i = ini
+    while True:
+        if i + 1 >= len(celulas):
+            motivo = "subiu até o último passo da escada, a margem ainda crescendo"
+            break
+        c, n = celulas[i], celulas[i + 1]
+        if not bom(n):
+            motivo = (f"parei no passo {c[0]}: o {n[0]} "
+                      f"{'cortou no conversor' if n[4] is not None and n[4] >= PICO_SATURA else 'não decodificou'}")
+            break
+        if n[3] < c[3] + MARGEM_SOBE_MIN:
+            d = n[3] - c[3]
+            motivo = (f"parei no passo {c[0]}: no {n[0]} a margem "
+                      f"{'caiu' if d < 0 else 'subiu só'} {abs(d):.1f} dB")
+            break
+        i += 1
+    melhor = max(range(ini, i + 1), key=lambda j: (celulas[j][3], -j))
+    return melhor, motivo
+
+
+def escolhe_celula(sondas_g, caixas, mics, picos=None):
+    """(índice na escada, passo de caixa, passo de microfone) da sonda que
+    vence. Vale o acerto de bits; dentro de um ponto do melhor, o menor
+    passo de caixa -- uma caixa mais baixa que acerta tanto quanto a mais
+    alta é a cadeia saindo da compressão, e a folga sobra para o dia em que
+    a sala mudar --, e no empate o microfone de partida. Uma sonda que chegou
+    com o conversor cortando (pico >= PICO_SATURA) só vence se todas
+    cortaram: acertar hoje no corte é acertar por sorte."""
     acerto = [1 - b for b, _ in sondas_g]
-    top = max(acerto)
-    gi = min(i for i, a in enumerate(acerto) if a >= top - 0.01)
+    validas = [j for j in range(len(acerto))
+               if picos is None or picos[j] is None or picos[j] < PICO_SATURA]
+    if not validas:
+        validas = list(range(len(acerto)))
+    top = max(acerto[j] for j in validas)
     if top < 1 - LIMIARES_BER[-1]:
         # Nenhuma sonda lida (todas a 0,5 quando nem a marca foi achada): o
-        # "menor ganho que acerta tanto quanto o melhor" seria o mais baixo,
+        # "menor passo que acerta tanto quanto o melhor" seria o mais baixo,
         # o oposto do que um canal assim pede. De longe é o caso comum.
-        gi = len(GANHOS) - 1
-    ber, inteiro = sondas_g[gi]
+        j = max(range(len(acerto)), key=lambda j: (caixas[j], -mics[j]))
+        return j, caixas[j], 0
+    j = min((j for j in validas if acerto[j] >= top - 0.01),
+            key=lambda j: (caixas[j], mics[j]))
+    return j, caixas[j], mics[j]
+
+
+def degrau_de(ber, inteiro):
     if ber < LIMIARES_BER[0] and inteiro:
-        degrau = 0
-    elif ber < LIMIARES_BER[1]:
-        degrau = 1
-    elif ber < LIMIARES_BER[2]:
-        degrau = 2
-    elif ber < LIMIARES_BER[3]:
-        degrau = 3
-    elif ber < LIMIARES_BER[4]:
+        return 0
+    if ber < LIMIARES_BER[1]:
+        return 1
+    if ber < LIMIARES_BER[2]:
+        return 2
+    if ber < LIMIARES_BER[3]:
+        return 3
+    if ber < LIMIARES_BER[4]:
         # Nem o 16-FSK a 100 baud foi lido com menos de 35% de erro: o canal
         # não segura símbolo de 10 ms. Começa no lento.
-        degrau = LENTO
-    else:
-        degrau = MUITO_LENTO
-    return Contrato(tuple(escolhe_16(margem)), escolhe_par(margem), gi, degrau)
+        return LENTO
+    return MUITO_LENTO
+
+
+def _seg_dados(d):
+    """Quanto um quadro de dados leva no ar no degrau `d` (a taxa útil, ao
+    contrário: menos é mais rápido). Tons não mudam a duração."""
+    return Contrato(tuple(range(16)), (0, 1), 0, d).descritor(d, DADOS_N).segundos
+
+
+def escolhe_velocidade(vres):
+    """O degrau pela bateria de velocidade. `vres`: (ber, inteiro, margem
+    ou None) por bloco, na ordem de VELOCIDADES. Aceito: nos 100 baud, o
+    degrau que o erro de bit permite até o rep4 (`degrau_de`, o rep1 só
+    inteiro); nos mais lentos, o bloco inteiro com erro abaixo de
+    LIMIARES_BER[1] -- é rep1 como os dados naquele degrau. Vence o que
+    passa mais rápido um quadro de dados; um mais lento o troca se custar
+    menos de VEL_GANHO_MIN e tiver VEL_MARGEM_MELHOR dB a mais.
+    Devolve (degrau ou None se nada passou, texto para o diário)."""
+    # Subindo do mais lento (pedido de 2026-10-29: "começar baixo e subir,
+    # nunca começar alto"): o primeiro degrau que falha encerra a subida, e o
+    # contrato fica no último que passou -- um 100 baud lido depois de um 50
+    # que falhou não conta.
+    aceitos, partes, parou = [], [], False
+    for (b, _g, _p, _m, deg), (ber, inteiro, marg) in zip(VELOCIDADES, vres):
+        if parou:
+            partes.append(f"{b} baud não conta (a subida parou antes)")
+            continue
+        mtxt = '' if marg is None else f", margem {marg:.1f} dB"
+        if marg is None:
+            partes.append(f"{b} baud não lido -- não ouvi; a subida para aqui")
+            parou = True
+            continue
+        if deg == 0:
+            d = degrau_de(ber, inteiro)
+            ok = d <= 2
+        else:
+            d, ok = deg, inteiro and ber < LIMIARES_BER[1]
+        partes.append(f"{b} baud {'ok' if ok else 'falhou'} ({ber * 100:.0f}%"
+                      f"{', inteiro' if inteiro else ''}{mtxt})")
+        if ok:
+            aceitos.append((_seg_dados(d), marg, d, b))
+        else:
+            parou = True
+    if not aceitos:
+        return None, f"velocidade: {'; '.join(partes)}; nenhum passou"
+    t, m, d, b = min(aceitos)
+    porque = f"o mais rápido aceito ({t:.1f} s por quadro de {DADOS_N} B)"
+    troca = [a for a in aceitos if a[0] <= t * VEL_GANHO_MIN and a[1] >= m + VEL_MARGEM_MELHOR
+             and a[2] != d]
+    if troca:
+        t2, m2, d2, b2 = max(troca, key=lambda a: a[1])
+        porque = (f"{DEGRAUS[d2]} custa só {(t2 / t - 1) * 100:.0f}% a mais que {DEGRAUS[d]} "
+                  f"e tem {m2 - m:.1f} dB a mais de margem")
+        d = d2
+    return d, f"velocidade: {'; '.join(partes)}; escolho {DEGRAUS[d]}: {porque}"
+
+
+def decide(margem, sondas_g, caixas=None, mics=None, picos=None):
+    """O contrato de um sentido, a partir do que o receptor mediu, e o passo
+    de microfone que ele escolheu para si.
+
+    `sondas_g`: (ber, inteiro) por sonda da escada, ber 0,5 quando a sonda
+    nem foi achada; `caixas`/`mics`, o passo de cada uma."""
+    caixas = tuple(range(len(sondas_g))) if caixas is None else caixas
+    mics = (0,) * len(sondas_g) if mics is None else mics
+    j, k, mic = escolhe_celula(sondas_g, caixas, mics, picos)
+    ber, inteiro = sondas_g[j]
+    return Contrato(tuple(escolhe_16(margem)), escolhe_par(margem), k,
+                    degrau_de(ber, inteiro)), mic, j
 
 
 # --- Ouvido: varredura contínua do que chega ---------------------------------
@@ -733,6 +1154,7 @@ class Ouvido:
         self.cegos = []
         self.varrido = 0
         self.marcas = []          # (pos, tipo, score), pos = início da marca
+        self.fracas = []          # idem, de quadro, entre LIMIAR_DIRIGIDO e o limiar
         self.lmax = max(len(m) for m in MOLDES.values())
 
     def cego(self, a, b):
@@ -787,6 +1209,11 @@ class Ouvido:
                 en = np.sqrt(np.maximum(e[q + lt] - e[q], 0.0)) * np.linalg.norm(m)
                 s = np.where(ruim | (en <= 0), 0.0, c / np.maximum(en, 1e-12))
                 h = lt // 2
+                if tipo in QUADROS:
+                    for i in np.flatnonzero((s >= LIMIAR_DIRIGIDO) & (s < LIMIARES[tipo])):
+                        pos = a + i
+                        if r0 <= pos < r1 and s[i] >= s[max(0, i - h):i + h + 1].max():
+                            self.fracas.append((pos, tipo, float(s[i])))
                 for i in np.flatnonzero(s >= LIMIARES[tipo]):
                     pos = a + i
                     if not r0 <= pos < r1:
@@ -821,6 +1248,7 @@ class Ouvido:
                     self.marcas.remove(m)
                 novas.append((pos, tipo, sc))
             self.varrido = r1
+        self.fracas = [m for m in self.fracas if m[0] >= self.base]
         novas.sort()
         self.marcas += novas
         return novas
@@ -849,6 +1277,45 @@ def atraso_vez(n, esforco):
     ouvinte. Cresce com o turno porque a leitura cresce com ele (em
     2026-10-22, de longe, um turno de 75 s foi respondido ~6 s depois)."""
     return RESP_VEZ + n // 8 + 4 * FS * esforco
+
+
+# Quanto o ouvinte espera o OLA depois de responder a uma chamada: a escada
+# inteira do chamador, cada degrau duas vezes (a segunda com a caixa mais
+# alta), cada vez o OLA, o OLA_OK, a vez e as latências. ~4 min.
+# Acertar o som em duas escadas, só com varreduras (2026-10-29).
+# O chamador sobe devagar: cada passo k da caixa é uma JANELA -- uma chamada
+# e o resto da janela ouvindo. Quem ouve a chamada bem responde numa escada
+# RÁPIDA dentro dela: uma resposta curta a cada `_passo_resposta`, da caixa
+# mais baixa para cima. O chamador, ao ouvir uma resposta, confirma na hora
+# (duas varreduras de chamada) e trava em k -- ouvido em k e não em k-1,
+# porque quem ouve responde sempre. O ouvinte, pela hora em que a
+# confirmação chega, sabe qual resposta foi ouvida e trava nela. Antes a
+# resposta subia um passo por chamada (~8 s cada), e o chamador travava na
+# primeira que detectasse sem saber em que passo dele o outro passara a
+# ouvi-lo. Todos os tempos saem das latências medidas no próprio eco e de:
+VARRE_ATRASO = int(0.9 * FS)   # a varredura de marcas anda até ~0,9 s atrás do presente
+LAT_SOM_OUTRO = int(0.8 * FS)  # latência de saída do outro lado: Bluetooth medido 0,43-0,48 s
+                               # (2026-10-29), Windows 0,31 + 0,12 declarado
+RESP_LEAD = int(0.3 * FS)      # silêncio antes de cada resposta: a caixa troca de passo nele
+CONFIRMA_GAP = int(0.1 * FS)
+MARGEM_SOM = int(0.5 * FS)
+# Refino pelo som, depois de travar: quem toca sobe um passo e chama (ou
+# responde) de novo; quem ouve compara com a anterior e diz "melhorou" (a
+# varredura normal) ou "não melhorou" (`nao_ou` / `nao_ch`). Primeiro a caixa
+# do chamador, depois a do ouvinte. Melhorou = correlação normalizada acima da
+# anterior por mais que REF_CORR; empatada (dentro de REF_CORR), a relação
+# sinal/ruído sobre o piso acima por REF_SNR. REF_CORR: no ar (19:50, B) oito
+# chamadas seguidas no mesmo volume deram 0,46-0,49 -- 0,03 é o que a sala
+# varia sozinha. REF_SNR: 2 dB, metade de um passo de caixa (~4 dB).
+REF_CORR = 0.03
+REF_SNR = 2.0
+ASSENTA = int(0.8 * FS)        # no refino, quanto ouvir depois da 1ª resposta antes de decidir
+DUPLA_ATE = int(0.75 * FS)     # depois de uma chamada, quanto esperar a 2ª varredura de uma dupla
+
+OLA_ESPERA_TOTAL = sum(
+    2 * (2 * ABORDAGENS[i].amostras + atraso_vez(ABORDAGENS[i].amostras, int(j >= OLA_LONGE_DESDE))
+         + TOL_VEZ + 2 * LAT_OUTRO + 3 * FS)
+    for j, i in enumerate(OLA_ESCADA))
 GUARDA = int(0.5 * FS)         # cegueira depois de tocar
 ESPERA = int(3.0 * FS)         # quanto esperar o começo de uma resposta
 # Quanto esperar outro segmento num turno. Tem de cobrir o atraso da
@@ -872,6 +1339,7 @@ _DEPURA = bool(_os.environ.get('ENLACE_DEPURA'))
 # um quadro de dados -- hoje cai antes, em "chamada dentro de outro som", e o
 # silêncio exigido continua valendo; basta a chamada passar do limiar dela.
 LIMIAR_RECOMECO = LIMIARES['chamada']
+CONVERSA_CONSULTA = 15 * FS    # conversa: chamador sem nada a mandar consulta o ouvinte a cada tanto
 SILENCIO_MORTO = 90 * FS       # canal aberto sem nada legível: dado por morto (o muito lento leva 52 s por quadro de dados)
 
 
@@ -906,6 +1374,8 @@ class Estacao:
         self.ctrl = None
         self.sessao = 0
         self.agenda = []           # [(instante, amostras)]
+        self.tocando = []          # rótulos do último turno agendado, para o painel
+        self._no_ar = None         # (início, amostras, rótulo) do que saiu por último
         self.pendente = None       # segmento em leitura: (pos, tipo, prazo)
         self.turno = []            # eventos do turno que está chegando
         self.turno_fim = None      # instante em que o turno se dá por encerrado
@@ -913,6 +1383,7 @@ class Estacao:
         self._terminal = False     # o último segmento lido fecha o turno
         self.outro_tem_mais = False  # o outro lado mandou DADOS: pode haver mais
         self.sondar_em = None      # chamador ocioso: próxima consulta ao outro lado
+        self.conversa = False      # canal fica aberto: sem FIM, consulta o ouvinte de tempos em tempos
         self.turno_ultimo = 0      # fim do último segmento lido
         self._cursor = 0           # marcas antes disto já foram tratadas
         self._eco_janela = (0, 0)  # quando tocou a minha última varredura de saudação
@@ -920,7 +1391,7 @@ class Estacao:
         self.espera_ate = None     # prazo para o começo de uma resposta
         self.tentativas = 0
         self.ab = 0                # abordagem de controle em uso
-        self.esforco = 0           # índice em ORDEM_ABORDAGENS / GANHOS_CHAMADA
+        self.esforco = 0           # 1 = longe: o OLA saiu a 20 baud ou menos (decide o chamador)
         self._chamou_fim = None    # fim da minha última chamada; resposta antes disso é falsa
         self.k_chamada = 0
         self.livre_em = 0          # fim do que estou tocando
@@ -937,6 +1408,21 @@ class Estacao:
         self.fim_tentativas = 0    # FIMs mandados sem resposta
         self._piso = None
         self._nivel_em = 0
+        self.mic = 0               # passo de microfone em uso (0: o de partida)
+        self.pedidos_mic = []      # [(instante, passo)]: o runtime troca o microfone quando chegar
+        self.pedidos_mic_passo = []  # [(instante, +1/-1, pico)]: o runtime move o microfone um passo
+        self.mic_no_teto = False   # o runtime avisa que o microfone não sobe mais
+        self.mic_no_piso = False   # ... nem desce
+        self._ouvi_chamada = None  # (pico, rms) da última chamada que respondi
+        self._ouvi_resp = None     # (pico, rms) da resposta que me fez mandar OLA
+        self._nivel_quadro = None  # (pico, rms) do último quadro lido
+        self._disse_indep = False
+        self._resp_na_janela = 0   # respostas ouvidas na janela de chamada em curso (chamador)
+        self._resp_tocadas = []    # [(instante em que soou, passo)] da minha escada rápida (ouvinte)
+        self._resp_fim = 0
+        self._plano_mic = None     # marca de abertura da sondagem em que o microfone varre
+        self.versao_outro = None
+        self.pedidos_caixa = []    # [(instante, passo absoluto)]: o runtime põe a caixa já
         self.reinicia()
         self.anota("tempos no ar: " + "; ".join(
             f"{d.nome} {d.segundos:.1f}s" for d in ABORDAGENS)
@@ -958,7 +1444,12 @@ class Estacao:
     def enviar(self, dados):
         self.fila += bytes(dados)
 
-    def reinicia(self):
+    def reinicia(self, mantem_som=False):
+        """Volta à saudação. `mantem_som`: a escada do OLA inteira falhou, ou
+        o ouvinte cansou de esperar o OLA -- a caixa e o microfone ficam onde
+        estão (o som já foi subido para isso), e a chamada recomeça dali."""
+        k_atual = self.caixa() if mantem_som else None
+        resp_passo = getattr(self, '_resp_passo', None) if mantem_som else None
         self.estado = 'chamando' if self.papel == 'chamador' else 'escutando'
         self.proxima_chamada = self.agora + int(self.rng.uniform(0.2, 1.0) * FS)
         self.saudado = self.aberto = False
@@ -969,6 +1460,67 @@ class Estacao:
         self.sem_progresso = 0
         self.encerrada = False
         self.fim_tentativas = 0
+        # Acertar o som recomeça do passo mais baixo: `trava` é o passo
+        # absoluto em que o outro lado me ouviu, None enquanto não se sabe.
+        self.trava = None
+        self.k_som = 0             # índice em CHAMADA_PASSOS: a minha chamada, ou a minha resposta
+        self._resp_passo = resp_passo  # o passo em que toquei a minha última resposta
+        self._resp_baixas = 0      # respostas que ouvi (o chamador), boas ou baixas
+        self.k_ola = 0             # índice em OLA_ESCADA
+        self._ola_subiu = False    # neste degrau do OLA a caixa já subiu uma vez
+        self._ola_lido = None      # (sessão, abordagem) do último OLA a que respondi
+        self._disse_indep = False
+        self._ouvi_resp = None
+        self._resp_na_janela = 0
+        self._resp_tocadas = []
+        self._dupla = None         # (pos, sc) de uma chamada que pode ser a 1ª de uma dupla
+        self._ref = None           # o refino em curso
+        self._q_ant = None         # (correlação, SNR, rms) da última varredura com que comparo
+        if mantem_som:
+            self.k_som = next((i for i, p in enumerate(CHAMADA_PASSOS) if p >= k_atual),
+                              len(CHAMADA_PASSOS) - 1)
+            self._pede_caixa(CHAMADA_PASSOS[self.k_som])
+            return
+        self._pede_caixa(CHAMADA_PASSOS[0])
+        if getattr(self, 'mic', 0):
+            self.mic = 0
+            self.pedidos_mic.append((self.agora, 0))
+
+    def caixa(self):
+        """O passo absoluto da minha caixa fora da escada: o do contrato que
+        recebi para o que envio, relativo à trava; antes dele, a trava; antes
+        da trava, o passo da escada de acertar o som em que estou."""
+        if self.contrato_tx is not None:
+            return self._abs(self.contrato_tx.ganho)
+        if self.trava is not None:
+            return self.trava
+        return CHAMADA_PASSOS[min(self.k_som, len(CHAMADA_PASSOS) - 1)]
+
+    def _abs(self, k):
+        """Passo relativo da escada da sondagem/contrato (0..N_CAIXA-1) para
+        o absoluto: em volta da trava, limitado à tabela."""
+        base = self.trava if self.trava is not None else CAIXA_INICIAL
+        return int(min(N_POS - 1, max(0, base + CAIXA_REL[k])))
+
+    def _pede_caixa(self, k):
+        """Põe a caixa no passo absoluto `k` já, antes do próximo som: a
+        troca no início do próprio som chegava até 0,1 s atrasada no ar, e a
+        varredura da chamada tem 0,2 s."""
+        self.pedidos_caixa.append((self.agora, k))
+
+    def _trava(self, k, porque):
+        if self.trava == k:
+            return
+        self.trava = k
+        self._pede_caixa(k)
+        self.anota(f"[volume] som acertado: caixa no passo {k} ({CAIXA_POS[k]:.0%} nominal); {porque}")
+
+    def _nivel(self, pos, tipo):
+        """(rms, pico) da varredura `tipo` que começa em `pos`."""
+        L = len(MOLDES[tipo])
+        r = self._rms_valido(pos, pos + L)
+        x = self.ouvido.trecho(pos, pos + L)
+        return r, (float(np.max(np.abs(x))) if len(x) else 0.0)
 
     def _toca(self, partes, depois=0, espera=True, guarda_turno=True, apos=None, eco=None):
         """Agenda um turno: segmentos separados por GAP, `depois` amostras
@@ -976,9 +1528,15 @@ class Estacao:
         if self.encerrada:
             return
         s = []
+        padrao = self.caixa()
+        marcas, o = [(0, padrao)], 0
         for p in partes:
+            for a, k in getattr(p, 'caixa_marcas', None) or ():
+                marcas.append((o + a, padrao if k is None else self._abs(k)))
+            o += len(p) + GAP
             s += [p, np.zeros(GAP)]
-        x = np.concatenate(s[:-1])
+        x = np.concatenate(s[:-1]).view(Parte)
+        x.caixa_marcas = marcas
         quando = max(self.agora, (self.turno_ultimo if apos is None else apos) + depois)
         # Um turno novo substitui o que ainda espera a vez, nunca se soma a
         # ele: a decisão mais recente é a que vale, e dois turnos na fila
@@ -986,6 +1544,8 @@ class Estacao:
         # 3 do H06, A mandou o mesmo pedaço duas vezes seguidas). O que já
         # está tocando saiu da agenda em `passo` e não é tocado aqui.
         self.agenda = [(quando, x, eco)]
+        self.tocando = [getattr(p, 'rotulo', None) or f"{len(p) / FS:.1f}s" for p in partes]
+        self.anota(f"toco em {quando / FS:.1f}s: " + " + ".join(self.tocando))
         if guarda_turno:
             self.ultimo_turno = partes
         # A resposta só começa depois que o outro lado varreu e decodificou o
@@ -1012,13 +1572,36 @@ class Estacao:
         """O ouvinte fala só na vez dele: a partir de RESP_VEZ (mais a leitura)
         depois do fim do turno do chamador, e nunca mais tarde que TOL_VEZ
         disso. Atrasado, cala -- o chamador repete o turno, e a vez volta."""
-        if not self._terminal:
+        if not self._terminal and not (self.aberto and self.confirmado):
             # O fim do turno do chamador só se sabe ao certo pelo último
             # segmento dele, lido: um ilegível no fim deixa o instante em
             # aberto, e uma vez contada de um fim errado cairia em cima da
             # repetição dele. Calo; ele repete, e desce o degrau se preciso.
             self.anota("turno do chamador não lido até o fim; calo e espero a repetição")
             return False
+        if not self._terminal:
+            # Com o canal aberto, calar custava a vez inteira do chamador em
+            # silêncio dos dois lados (no ar, 2026-10-29: ~50 s no 16-FSK
+            # lento) até o prazo dele vencer. O turno só chega aqui com o som
+            # já de volta ao piso (`passo` espera `_ocupado`), então o
+            # chamador parou de tocar: respondo logo, e o ACK com o último seq
+            # que li é o "não li, repete" -- ele reenvia o pendente na hora.
+            # Mas o silêncio não prova que ele parou: o 16-FSK lento chega
+            # picotado, com buracos onde os tons caem nas covas da sala, e no
+            # ar (2026-10-29) o "não li" saiu no meio da repetição dele -- os
+            # dois falando juntos. O fim seguro é o do quadro mais longo que
+            # ele pode estar tocando, contado da abertura do turno; e o "não
+            # li" é só o ACK, curto, nunca os meus DADOS (14 s por cima).
+            n = self.contrato_rx.descritor(self._degrau(), DADOS_N, self.modo_dados).amostras
+            fim = max(self.turno_ultimo, self._turno_ini + n)
+            quando = max(self.agora + int(0.3 * FS), fim + atraso_vez(n, self.esforco))
+            d = self.contrato_tx.descritor(self._degrau(), CTRL_N, self.modo_dados)
+            ack = self._quadro(d, ACK, bytes([self.ultimo_rx, self._degrau()]))
+            self.anota(f"turno do chamador não lido até o fim; respondo 'não li' "
+                       f"(ACK do seq {self.ultimo_rx}) em {(quando - self.agora) / FS:.0f} s, "
+                       "depois do fim mais tardio possível do turno dele")
+            self._toca([ack], apos=quando, espera=espera)
+            return True
         # O tamanho que conta para a leitura é o do último segmento lido, não
         # desde a primeira marca do turno: uma marca falsa (eco) antes dele
         # inflava a conta, a vez saía depois do prazo do chamador e ele
@@ -1034,25 +1617,61 @@ class Estacao:
         return True
 
     def _quadro(self, desc, tipo, carga, mais=False):
-        return modula_quadro(desc, empacota(tipo, self.sessao, carga, desc.nbytes, mais))
+        x = modula_quadro(desc, empacota(tipo, self.sessao, carga, desc.nbytes, mais)).view(Parte)
+        x.rotulo = (f"{NOMES.get(tipo, tipo)}{f' seq {carga[0]}' if tipo == DADOS else ''} em "
+                    f"{desc.nome or 'controle'}, {desc.baud} baud, ganho {desc.ganho}, "
+                    f"{len(x) / FS:.1f}s")
+        return x
 
     def _ganho_chamada(self):
         g = GANHOS_CHAMADA[self.esforco]
         self.k_chamada += 1
         return g[(self.k_chamada - 1) % len(g)]
 
-    def _sobe_esforco(self, porque):
-        if self.esforco + 1 < len(ORDEM_ABORDAGENS):
-            self.esforco += 1
-            self.anota(f"{porque}; esforço de longe: abordagens "
-                       f"{', '.join(ABORDAGENS[i].nome for i in ORDEM_ABORDAGENS[self.esforco])}, "
-                       f"chamada e tons da sondagem em {GANHOS_CHAMADA[self.esforco][0]}")
-            return True
-        return False
+    def _poe_esforco(self, e, porque):
+        """Longe (1) ou perto (0). Quem decide é o chamador, pelo degrau do
+        OLA, e o OLA leva a decisão; o ouvinte a adota ao lê-lo. Decidido em
+        cada ponta por conta própria, as duas discordavam (no ar, 20:10)."""
+        if e != self.esforco:
+            self.esforco = e
+            self.anota(f"{porque}: " + ("longe -- marca longa, sondagem a 20 baud" if e
+                                        else "perto"))
+
+    def _ab_da_escada(self, porque):
+        """Põe a abordagem do OLA no degrau `k_ola` da escada, e o esforço
+        com ela: a 20 baud ou menos é longe."""
+        self.ab = OLA_ESCADA[self.k_ola]
+        self._poe_esforco(int(self.k_ola >= OLA_LONGE_DESDE), porque)
+
+    def _quero(self):
+        """A marca de quadro que o estado espera, ou None se qualquer uma.
+        O ouvinte antes de ler o OLA não sabe em que degrau ele vem: qualquer
+        uma (no ar, 20:10, o ouvinte "de longe" preferia a marca longa e não
+        leu nenhum dos OLAs a 100 baud do chamador "de perto")."""
+        if self.estado == 'ola':
+            return ABORDAGENS[self.ab].marca
+        if self.papel == 'ouvinte' and not self.saudado:
+            return None
+        if self.aberto and self.contrato_rx is not None:
+            return self.contrato_rx.descritor(self._degrau(), DADOS_N, self.modo_dados).marca
+        if self.ctrl is not None:
+            return self.ctrl.marca
+        return 'quadro_longo' if self.esforco else 'quadro'
 
     def _sonda(self):
-        return modula_sonda(self.sessao, SONDA_GANHO_LONGE if self.esforco else SONDA_GANHO_TOM,
-                            longe=bool(self.esforco))
+        x = modula_sonda(self.sessao, SONDA_GANHO_LONGE if self.esforco else SONDA_GANHO_TOM,
+                         longe=bool(self.esforco))
+        x.rotulo = (f"SONDA (tons em degraus, escada de volume da caixa"
+                    f"{' a 20 baud' if self.esforco else ' duas vezes, a 2ª com o microfone de lá 8 dB abaixo'}, depois a velocidade a 20, 33, 50 e 100 baud), "
+                    f"{len(x) / FS:.1f}s")
+        return x
+
+    def _degrau(self):
+        """O degrau em que falo e o que peço: um só para os dois sentidos, o
+        mais lento dos dois. Cada sentido mede o seu canal (tons, par, ganho
+        continuam por sentido), mas a velocidade é do enlace: as duas pontas
+        falam igual, e quem desce puxa a outra junto."""
+        return max(self.degrau_tx, self.degrau_rx)
 
     # --- laço
 
@@ -1130,12 +1749,18 @@ class Estacao:
             _, x, eco = self.agenda.pop(0)
             a = self.agora
             self.livre_em = a + len(x) + self.lat_extra
+            self._no_ar = (a, len(x), f"varredura de {eco}" if eco else " + ".join(self.tocando))
             if eco:
                 # A varredura de saudação não é apagada da entrada: nenhuma
                 # estação age sobre a do próprio tipo, e ouvir o próprio eco
                 # é como se mede quanto o som demora de fato a sair.
                 self.ouvido.cego(a, a)
-                self._eco = (eco, a)
+                lead = getattr(x, 'lead', 0)
+                self._eco = (eco, a + lead)
+                if eco == 'resposta' and self.estado == 'respondendo':
+                    k = x.caixa_marcas[0][1]
+                    self._resp_tocadas.append((a + lead, k))
+                    self._no_ar = (a, len(x), f"resposta no passo {k} ({CAIXA_POS[k]:.0%})")
                 # A varredura não é apagada, e alta no próprio microfone ela
                 # dá marca de quadro falsa (teste 11, 2026-10-22: o ouvinte
                 # passava 10 s lendo um quadro que não existia e perdia o OLA).
@@ -1156,6 +1781,47 @@ class Estacao:
             return x
         return None
 
+    def atividade(self):
+        """O que a estação está fazendo agora, em uma frase, para o painel:
+        tocando o quê e quanto falta, esperando a vez, lendo um quadro que
+        chega, ou esperando resposta e até quando. Antes da saudação, com o
+        passo da caixa: o som ainda está sendo acertado."""
+        a = self._atividade()
+        if not self.saudado and self.estado in ('refina_ch', 'refina_ou'):
+            k = self.caixa()
+            quem = ("a do chamador" if self.estado == 'refina_ch' else "a do ouvinte")
+            return f"refinando o som ({quem}): minha caixa em {CAIXA_POS[k]:.0%} -- {a}"
+        if not self.saudado and self.estado == 'respondendo':
+            k = self._resp_tocadas[-1][1] if self._resp_tocadas else 0
+            return f"respondendo: passo {k} ({CAIXA_POS[k]:.0%}) -- {a}"
+        if not self.saudado and self.estado in ('chamando', 'escutando', 'aguarda_ola'):
+            k = self.caixa()
+            quem = "janela" if self.papel == 'chamador' else "caixa no passo"
+            return (f"acertando o som: {quem} {k} ({CAIXA_POS[k]:.0%})"
+                    f"{', travada' if self.trava is not None else ''} -- {a}")
+        return a
+
+    def _atividade(self):
+        t = self.agora
+        if self._no_ar is not None:
+            a, n, rot = self._no_ar
+            if t < a + n + self.lat_extra:
+                return f"tocando {rot} ({max(0, t - a) / FS:.1f} de {n / FS:.1f} s)"
+        if self.agenda:
+            q = self.agenda[0][0]
+            return (f"na fila para tocar {' + '.join(self.tocando)}: "
+                    f"espera a vez, {max(0, q - t) / FS:.0f} s")
+        if self.pendente is not None:
+            return (f"lendo um quadro que chega (marca ouvida há "
+                    f"{max(0, t - self.pendente['pos']) / FS:.0f} s)")
+        if self.turno:
+            return f"o outro lado está falando: {len(self.turno)} segmento(s) neste turno"
+        if self.espera_ate is not None:
+            rep = f", {self.tentativas}ª repetição" if getattr(self, 'tentativas', 0) else ""
+            return (f"esperando a resposta: se nada chegar em "
+                    f"{max(0, self.espera_ate - t) / FS:.0f} s, repete{rep}")
+        return "escutando"
+
     # --- recepção
 
     def _marca(self, pos, tipo, sc):
@@ -1174,21 +1840,57 @@ class Estacao:
                 self.lat_extra = novo
                 self._eco = None
                 return
-        if (self.papel == 'chamador') == (tipo == 'chamada') and tipo in ('chamada', 'resposta'):
+        if tipo in (('chamada', 'nao_ch', 'sim_ch') if self.papel == 'chamador'
+                    else ('resposta', 'nao_ou', 'sim_ou')):
             return                      # a do meu tipo, de um eco que já não espero
+        if tipo == 'sonda':
+            self._planeja_mic(pos)
         self.ouvido_em = pos
-        if tipo == 'chamada' and self.papel == 'ouvinte' and self._piso:
-            r = self._rms_valido(pos - FS // 2, pos)
-            if r is not None and r > 1.5 * self._piso:
+        # Antes de qualquer saudação ('escutando'), do outro lado só vêm
+        # chamadas: não há quadro dele em que uma varredura possa casar por
+        # engano. Lá uma chamada bem correlacionada vale pelo que é (a janela
+        # de rms decide se ela é forte o bastante). No ar (2026-10-29, 19:50)
+        # o rms antes de oito chamadas seguidas, a 0,46-0,47, estava em
+        # 0,028 contra um piso de 0,006-0,010 -- o microfone tinha acabado
+        # de subir para 45% e o piso, de 120 s, era o do volume de antes --,
+        # e o chamador ficou ~50 s a 70% sem resposta.
+        # Fora do canal e antes do OLA nada do chamador além de varreduras
+        # chega aqui, então a regra não vale em nenhum desses estados, com
+        # qualquer correlação: em 2026-10-29 (20:40) duas chamadas a 0,23-0,24
+        # caíram nela em 'escutando', depois de uma escada sem confirmação, e
+        # o acerto do som travou. Só em 'aguarda_ola' (o OLA do chamador já
+        # pode estar no ar) ela exige uma chamada clara.
+        so_chamadas = (not self.aberto
+                       and (self.estado in ('escutando', 'respondendo', 'refina_ch', 'refina_ou')
+                            or (self.estado == 'aguarda_ola' and sc >= CHAMADA_CLARA)))
+        if tipo == 'chamada' and self.papel == 'ouvinte' and self._piso and not so_chamadas:
+            r = self._rms_mediano(pos - FS // 2, pos)
+            if r is not None and r > 2 * self._piso:
                 # Uma chamada de verdade começa no silêncio: o chamador só chama
                 # depois de esperar. Achada no meio de outro som, é a varredura
                 # casando com um pedaço do quadro do chamador, e responder a ela
                 # seria falar por cima dele ('assimetrico', semente 2: 0,20
                 # dentro de um quadro de dados, duas vezes).
-                if _DEPURA:
-                    self.anota(f"  chamada dentro de outro som ignorada ({sc:.2f})")
+                # Mediana de janelas de 20 ms, não a média do meio segundo: no
+                # ar (2026-10-29, 19:42) dois estalos de 50 ms antes das
+                # chamadas a 40% e 55% puseram a média a 2,5-3,4x o piso, e
+                # as duas foram jogadas fora -- o chamador subiu até 70% à
+                # toa. Um quadro ocupa o trecho todo; um estalo, não. E 2x o
+                # piso, não 1,5x: a mediana daquele silêncio já dava 1,3-1,6x
+                # o piso de 10%, e um quadro do chamador chega a 5-30x.
+                self.anota(f"  chamada dentro de outro som ignorada ({sc:.2f}; "
+                           f"antes dela rms {r:.4f}, piso {self._piso:.4f})")
                 return
         if tipo == 'chamada':
+            if self.papel == 'ouvinte' and self.estado in ('refina_ch', 'refina_ou'):
+                self._chamada_no_refino(pos, sc)
+                return
+            if self.papel == 'ouvinte' and self.estado == 'respondendo':
+                # Durante a minha escada rápida o chamador não chama de novo
+                # (a janela dele cobre a escada inteira): uma chamada aqui é a
+                # confirmação dele -- duas varreduras de chamada seguidas.
+                self._confirmado(pos, sc)
+                return
             if self.papel == 'ouvinte' and self.aberto and sc >= LIMIAR_RECOMECO and \
                     self.agora - self.progresso_em > SILENCIO_MORTO:
                 # Recomeça, mas não responde a esta: se for mesmo o chamador
@@ -1205,25 +1907,37 @@ class Estacao:
                 return
             if (self.papel == 'ouvinte' and not self.aberto and self._chamada_em is not None
                     and pos - self._chamada_em < 2 * len(MOLDES['chamada']) + RESP + ESPERA):
-                # O chamador só chama de novo depois de esperar a minha
-                # resposta inteira; antes disso não é chamada, é o eco da
-                # minha própria resposta. Em 2026-10-22 (teste 8) uma dessas,
-                # a 0,17, foi respondida, e a segunda resposta caiu em cima
-                # do OLA.
+                # Logo depois de uma chamada (ou da confirmação, que são duas)
+                # não vem outra: é eco, ou a segunda varredura da confirmação.
+                # Em 2026-10-22 (teste 8) uma dessas, a 0,17, foi respondida,
+                # e a segunda resposta caiu em cima do OLA.
                 if _DEPURA:
                     self.anota(f"  chamada cedo demais ignorada ({sc:.2f})")
                 return
             if self.papel == 'ouvinte' and not self.aberto:
+                r, pico = self._nivel(pos, tipo)
+                if r is not None and r < CHAMADA_BOA_RMS and sc < OUVIDO_CORR:
+                    # Ouvida, mas baixa: responder agora travaria o chamador
+                    # num volume em que cada bit sai no limite. Calo; ele não
+                    # ouve resposta e passa à janela seguinte, um passo acima.
+                    self._chamada_em = pos
+                    sobe = self._ajusta_mic(pico, 'chamada') > 0
+                    self.anota(f"chamada ouvida baixa (rms {r:.3f} < {CHAMADA_BOA_RMS}, "
+                               f"correlação {sc:.2f}, pico {pico:.2f}): não respondo; "
+                               + ("subo o meu microfone e " if sobe else "")
+                               + "o chamador sobe a caixa")
+                    return
                 self._chamada_em = pos
-                self.anota(f"chamada ouvida (correlação {sc:.2f})")
-                if sc < LIMIAR_LONGE and self.esforco == 0:
-                    self._sobe_esforco(f"chamada fraca ({sc:.2f} < {LIMIAR_LONGE})")
-                g = self._ganho_chamada()
-                self.turno_ultimo = pos + len(MOLDES['chamada'])
-                self._toca([MOLDES['resposta'] * g], depois=RESP, espera=False,
-                           guarda_turno=False, eco='resposta')
-                self.estado = 'aguarda_ola'
-                self.espera_ate = self.agora + 20 * FS
+                self._ouvi_chamada = (pico, r)
+                self._q_ant = self._qualidade(pos, tipo, sc)
+                self._ajusta_mic(pico, 'chamada')
+                rr = '?' if r is None else f'{r:.3f}'
+                self.anota(f"chamada ouvida bem (correlação {sc:.2f}, rms {rr}, pico {pico:.2f})"
+                           + (" -- chegou saturada" if pico >= PICO_SATURA else "")
+                           + "; respondo em escada rápida, da caixa mais baixa para cima")
+                # Perto ou longe não se decide aqui: decide o chamador, pela
+                # resposta que ouvir, e o OLA traz a decisão.
+                self._escada_resposta(pos)
         elif tipo == 'resposta':
             if self.estado == 'chamando' and self.papel == 'chamador':
                 if self._chamou_fim is None or pos < self._chamou_fim:
@@ -1235,17 +1949,496 @@ class Estacao:
                     if _DEPURA:
                         self.anota(f"  resposta fora de hora ignorada ({sc:.2f} em {pos / FS:.2f}s)")
                     return
-                if sc < LIMIAR_LONGE and self.esforco == 0:
-                    self._sobe_esforco(f"resposta fraca ({sc:.2f} < {LIMIAR_LONGE})")
-                self.ab = ORDEM_ABORDAGENS[self.esforco][0]
-                self.anota(f"resposta ouvida (correlação {sc:.2f}); enviando OLA "
-                           f"em {ABORDAGENS[self.ab].nome}")
-                self.sessao = int(self.rng.integers(1, 256))
-                self.turno_ultimo = pos + len(MOLDES['resposta'])
-                self.estado = 'ola'
-                self.tentativas = 0
-                self._envia_ola()
+                r, pico = self._nivel(pos, tipo)
+                self._ajusta_mic(pico, 'resposta')
+                self._resp_na_janela += 1
+                k = self.caixa()
+                if (r is not None and r < CHAMADA_BOA_RMS and sc < OUVIDO_CORR
+                        and self._resp_na_janela < 2 and not self._resposta_no_topo(pos)):
+                    # Baixa: a escada dele ainda sobe dentro desta janela; a
+                    # próxima resposta vem um passo acima. Não confirmo esta.
+                    # Só a primeira: em 2026-10-29 (20:40) o B, no alto-falante
+                    # interno, chegava com só duas respostas detectadas por
+                    # janela (rms 0,010-0,013, correlação 0,23-0,24, acima dos
+                    # falsos de 0,18-0,20), e esperar a 6ª travou o acerto. A
+                    # 2ª detectada, ou uma que pelo tempo é o topo da escada
+                    # dele, é o mais forte que ele tem: confirmo. Ele trava no
+                    # passo que soou por último antes da confirmação, que é
+                    # justamente essa (`_confirmado`).
+                    self.anota(f"janela {k} ({CAIXA_POS[k]:.0%}): resposta baixa (rms {r:.3f}, "
+                               f"correlação {sc:.2f}, pico {pico:.2f}); espero a próxima da escada dele")
+                    return
+                # Ouvida: confirmo já, e travo neste passo -- ele me ouviu
+                # aqui e não no passo de baixo (quem ouve responde sempre).
+                self._toca([self._confirmacao()], espera=False, guarda_turno=False, eco='chamada')
+                self._trava(k, f"janela {k} ({CAIXA_POS[k]:.0%}): o ouvinte respondeu; confirmo")
+                self.anota(f"minha caixa fica em {CAIXA_POS[k]:.0%}: é o que o outro lado precisa "
+                           "para me ouvir; a dele é a dele")
+                self._ouvi_resp = (pico, r)
+                self._q_ant = self._qualidade(pos, tipo, sc)
+                rr = '?' if r is None else f'{r:.3f}'
+                self.anota(f"resposta ouvida (correlação {sc:.2f}, limiar {LIMIARES['resposta']}, "
+                           f"rms {rr}, pico {pico:.2f}); agora refino a minha caixa pelo som")
+                # A escada dele pode ter mais uma resposta já no ar quando a
+                # confirmação chega: a primeira chamada do refino sai depois
+                # de um passo dela.
+                self.estado = 'refina_ch'
+                self._ref = dict(k_best=k, k_try=None, espera=None,
+                                 quando=self.agora + len(self._confirmacao())
+                                 + self._passo_resposta(LAT_SOM_OUTRO))
+            elif self.estado == 'refina_ou' and self.papel == 'chamador':
+                self._resposta_no_refino(pos, tipo, sc)
+        elif tipo in ('sim_ou', 'nao_ou'):
+            # Uma resposta da escada rápida (`resposta`) já não conta aqui:
+            # "melhorou" tem marca própria. As duas são guardadas e a mais
+            # forte decide depois de `ASSENTA` (`_decide_votos`).
+            if (self.estado == 'refina_ch' and self.papel == 'chamador'
+                    and self._ref['espera'] is not None and pos >= (self._chamou_fim or 0)):
+                self._ref.setdefault('votos', []).append((pos, tipo, sc))
+        elif tipo in ('sim_ch', 'nao_ch'):
+            if self.estado == 'refina_ou' and self.papel == 'ouvinte' and self._ref['espera'] is not None:
+                self._ref.setdefault('votos', []).append((pos, tipo, sc))
         # quadro e sonda viram segmentos, lidos quando o áudio deles chegar
+
+    def _resposta_no_topo(self, pos):
+        """Pelo tempo desde o fim da minha chamada, a resposta em `pos` é a
+        do último passo da escada rápida dele? A escada começa ~0,1 s depois
+        de ele varrer a chamada; cada passo leva `_passo_resposta`."""
+        if self._chamou_fim is None:
+            return False
+        d = self._passo_resposta(LAT_SOM_OUTRO)
+        t0 = (self._chamou_fim + self.lat_extra + VARRE_ATRASO + int(0.1 * FS)
+              + RESP_LEAD + LAT_SOM_OUTRO)
+        return (pos - t0) / d >= N_POS - 1.5
+
+    def _passo_resposta(self, lat_minha=None):
+        """Intervalo entre duas respostas da escada rápida. Do instante em que
+        a resposta j sai da minha caixa ao começo da confirmação chegando aqui
+        vão no máximo: a varredura (0,2 s), o atraso da varredura de marcas do
+        chamador, a latência de saída dele -- e metade da incerteza da minha,
+        se ainda não a medi. O intervalo é maior que isso, com folga, para que
+        a confirmação sempre chegue antes de a resposta j+1 soar: assim a
+        última resposta que soou antes dela é a que foi ouvida, sem
+        ambiguidade. ~2,4 s com os valores de hoje."""
+        incerta = LAT_SOM_OUTRO if (lat_minha is None and self.lat_extra == 0) else 0
+        return (len(MOLDES['resposta']) + VARRE_ATRASO + LAT_SOM_OUTRO + incerta // 2
+                + MARGEM_SOM)
+
+    def _janela(self):
+        """Uma janela do chamador, do início da chamada: a minha latência, a
+        chamada, o atraso da varredura dele, o silêncio e a latência antes da
+        primeira resposta, a escada rápida inteira dele, e a última resposta
+        chegando e sendo varrida aqui. ~16 s com os valores de hoje."""
+        d = self._passo_resposta(LAT_SOM_OUTRO)
+        return (self.lat_extra + len(MOLDES['chamada']) + VARRE_ATRASO + RESP_LEAD
+                + LAT_SOM_OUTRO + (N_POS - 1) * d + len(MOLDES['resposta'])
+                + VARRE_ATRASO + MARGEM_SOM)
+
+    def _confirmacao(self):
+        """Duas varreduras de chamada a 0,1 s: o ouvinte em escada rápida não
+        espera chamada nova antes do fim da janela, e a segunda marca a
+        separa de um eco."""
+        g = GANHOS_CHAMADA[self.esforco][0]
+        x = np.concatenate([MOLDES['chamada'] * g, np.zeros(CONFIRMA_GAP),
+                            MOLDES['chamada'] * g]).view(Parte)
+        x.rotulo = "confirmação (duas chamadas)"
+        return x
+
+    def _escada_resposta(self, pos):
+        """Ouvi uma chamada bem em `pos`: respondo em todos os passos da
+        caixa, do mais baixo para cima, um a cada `_passo_resposta`. Cada
+        resposta leva o próprio passo (`caixa_marcas`), trocado no silêncio
+        que a antecede; a escada para quando a confirmação chega."""
+        d = self._passo_resposta()
+        g = self._ganho_chamada()
+        t0 = max(self.agora, pos + len(MOLDES['chamada'])) + int(0.1 * FS)
+        self.agenda = []
+        for j in range(N_POS):
+            x = np.concatenate([np.zeros(RESP_LEAD), MOLDES['resposta'] * g]).view(Parte)
+            x.caixa_marcas = [(0, j)]
+            x.lead = RESP_LEAD
+            x.rotulo = f"resposta no passo {j} ({CAIXA_POS[j]:.0%})"
+            self.agenda.append((t0 + j * d, x, 'resposta'))
+        self.tocando = [f"escada de respostas, {N_POS} passos a cada {d / FS:.1f}s"]
+        self.anota(f"toco em {t0 / FS:.1f}s: " + self.tocando[0])
+        self._resp_tocadas = []
+        self._resp_fim = t0 + (N_POS - 1) * d + RESP_LEAD + self.lat_extra + d
+        self.estado = 'respondendo'
+        self.espera_ate = None
+
+    def _confirmado(self, pos, sc):
+        """A confirmação do chamador chegou em `pos`: a última resposta que
+        soou antes dela (sair da caixa + a varredura) é a que ele ouviu."""
+        L = len(MOLDES['resposta'])
+        ouvidas = [k for a, k in self._resp_tocadas if a + self.lat_extra + L <= pos]
+        if not ouvidas:
+            self.anota(f"  chamada durante a escada antes de qualquer resposta soar ({sc:.2f}); ignoro")
+            return
+        k = ouvidas[-1]
+        self.agenda = []                   # a escada para aqui
+        self._chamada_em = pos             # a 2ª varredura da confirmação não é chamada nova
+        self._resp_passo = k
+        self._trava(k, f"confirmação ouvida depois do passo {k} ({CAIXA_POS[k]:.0%}): travo aí")
+        # Agora o chamador refina a caixa dele: chama um passo acima, e eu
+        # digo se melhorou em relação à chamada que abriu a minha escada.
+        self.estado = 'refina_ch'
+        self._dupla = None
+        # A 1ª chamada de refino dele sai um passo da minha escada depois da
+        # confirmação; sem ela, a vez é minha (ver `_prazos_refino`).
+        self.espera_ate = (self.agora + self._passo_resposta() + len(MOLDES['chamada'])
+                           + 2 * self._volta_ref())
+
+    # --- refino pelo som
+
+    def _qualidade(self, pos, tipo, sc):
+        """(correlação, SNR em dB sobre o piso, rms) da varredura `tipo` em `pos`.
+        Sem piso estimado -- ele zera a cada troca de microfone, e em 20:45 a
+        comparação do refino saiu sem o SNR da anterior --, o piso é o do
+        próprio trecho antes da varredura: mediana de janelas de 20 ms."""
+        r, _ = self._nivel(pos, tipo)
+        piso = self._piso
+        if not piso:
+            x = self.ouvido.trecho(max(0, pos - FS // 2), pos)
+            n = int(0.02 * FS)
+            if len(x) >= n:
+                w = x[:len(x) // n * n].reshape(-1, n)
+                piso = float(np.median(np.sqrt(np.mean(w ** 2, axis=1)))) or None
+        snr = (20 * np.log10(r / piso) if r and piso else None)
+        return (float(sc), snr, r)
+
+    @staticmethod
+    def _melhor(q, q0):
+        """Abaixo do alvo de quadro (rms < CHAMADA_BOA_RMS no receptor) o
+        degrau travado é só o piso do que se detecta, não o de que os quadros
+        precisam: em 20:45 o B travou em 20% ouvido a rms 0,004-0,007 e
+        nenhum OLA_OK dele foi lido. Aí só "claramente pior" para a subida;
+        no alvo ou acima, vale o "claramente melhor" de sempre."""
+        if q0 is None:
+            return True
+        dc = q[0] - q0[0]
+        ds = (q[1] - q0[1]) if q[1] is not None and q0[1] is not None else None
+        if q0[2] is not None and q0[2] < CHAMADA_BOA_RMS:
+            return not (dc < -REF_CORR or (ds is not None and ds < -REF_SNR))
+        if abs(dc) > REF_CORR:
+            return dc > 0
+        return ds is not None and ds >= REF_SNR
+
+    @staticmethod
+    def _por_que(q0):
+        return (" (abaixo do alvo: subo enquanto não piorar)"
+                if q0 is not None and q0[2] is not None and q0[2] < CHAMADA_BOA_RMS else "")
+
+    @staticmethod
+    def _desc_q(q):
+        return f"correlação {q[0]:.2f}" + ("" if q[1] is None else f", {q[1]:.0f} dB sobre o piso")
+
+    def _varredura(self, tipo, k, eco, rotulo):
+        """Uma varredura de saudação no passo de caixa `k`, com o silêncio
+        antes em que a caixa troca; vai para a agenda já."""
+        g = GANHOS_CHAMADA[self.esforco][0]
+        x = np.concatenate([np.zeros(RESP_LEAD), MOLDES[tipo] * g]).view(Parte)
+        x.caixa_marcas = [(0, k)]
+        x.lead = RESP_LEAD
+        x.rotulo = rotulo
+        self.agenda = [(self.agora, x, eco)]
+        self.tocando = [rotulo]
+        return len(x)
+
+    def _volta_ref(self):
+        """Quanto esperar a resposta a uma varredura de refino: ela sair
+        (a minha latência), o outro varrer e decidir (inclusive esperar a 2ª
+        varredura de uma dupla), a resposta sair de lá e eu varrê-la."""
+        return (self.lat_extra + VARRE_ATRASO + DUPLA_ATE + RESP_LEAD + LAT_SOM_OUTRO
+                + len(MOLDES['nao_ch']) + VARRE_ATRASO + MARGEM_SOM)
+
+    def _decide_votos(self, r):
+        """"Melhorou" e "não melhorou" ouvidos na mesma volta: fica o mais
+        forte, e na dúvida (diferença menor que REF_CORR) "não melhorou" --
+        voltar um passo custa pouco, subir à toa satura a caixa."""
+        votos = r.pop('votos')
+        sim = max((sc for _, t, sc in votos if t.startswith('sim')), default=0.0)
+        nao = max((sc for _, t, sc in votos if t.startswith('nao')), default=0.0)
+        melhor = sim > nao + REF_CORR if nao else sim > 0
+        desc = f"melhorou {sim:.2f}, não melhorou {nao:.2f}"
+        if sim and nao:
+            self.anota(f"refino: ouvi as duas respostas ({desc}); fico com "
+                       + ("melhorou" if melhor else "não melhorou"))
+        if self.papel == 'chamador':
+            self._ref_resultado(melhor, votos[0][0], 'nao_ou', nao)
+        else:
+            self._ref_ou_resultado(melhor, f"o chamador disse que {'melhorou' if melhor else 'não melhorou'} ({desc})")
+
+    def _ref_resultado(self, melhor, pos, tipo, sc):
+        """Chamador, refinando a própria caixa: o ouvinte respondeu à chamada
+        no passo k_try com "melhorou" (resposta) ou "não melhorou"."""
+        r = self._ref
+        k = r['k_try']
+        r['espera'] = None
+        if melhor:
+            r['k_best'] = k
+            self._trava(k, f"refino: a chamada a {CAIXA_POS[k]:.0%} saiu melhor para o ouvinte")
+            self.anota(f"refino da minha caixa: {CAIXA_POS[k]:.0%} melhorou para ele; subo mais")
+            r['quando'] = self.agora + int(0.3 * FS)
+            return
+        kb = r['k_best']
+        self.anota(f"refino da minha caixa: {CAIXA_POS[k]:.0%} "
+                   + ("não melhorou para ele" if tipo else "ficou sem resposta")
+                   + f"; volto a {CAIXA_POS[kb]:.0%} e travo")
+        self._fim_ref_ch()
+
+    def _fim_ref_ch(self):
+        kb = self._ref['k_best']
+        self.trava = kb
+        self._pede_caixa(kb)
+        # A vez dele: duas chamadas, como a confirmação.
+        x = self._confirmacao()
+        x.rotulo = "a vez do ouvinte refinar (duas chamadas)"
+        x.caixa_marcas = [(0, kb)]
+        self.agenda = [(self.agora + int(0.3 * FS), x, 'chamada')]
+        self.tocando = [x.rotulo]
+        self.anota(f"minha caixa fica em {CAIXA_POS[kb]:.0%}; agora o ouvinte refina a dele")
+        self.estado = 'refina_ou'
+        # Cobre também o ouvinte que não ouviu a dupla e só começa pelo
+        # silêncio (`espera_ate` dele, ~2 voltas depois da última resposta).
+        self._ref = dict(fim=self.agora + len(x) + 5 * self._volta_ref(), ola_em=None)
+
+    def _resposta_no_refino(self, pos, tipo, sc):
+        """Chamador, com o ouvinte refinando a caixa dele: cada resposta vem
+        um passo acima; digo se melhorou em relação à anterior."""
+        r = self._ref
+        if r['ola_em'] is not None or pos < (self._chamou_fim or 0):
+            return
+        q = self._qualidade(pos, tipo, sc)
+        _, pico = self._nivel(pos, tipo)
+        self._ajusta_mic(pico, 'resposta')
+        if self._melhor(q, self._q_ant):
+            self.anota(f"refino da caixa do ouvinte: {self._desc_q(q)} contra "
+                       f"{self._desc_q(self._q_ant)} -- melhorou{self._por_que(self._q_ant)}; digo a ele")
+            self._q_ant = q
+            self._varredura('sim_ch', self.caixa(), 'sim_ch', "melhorou")
+            r['fim'] = self.agora + 2 * self._volta_ref()
+            return
+        self.anota(f"refino da caixa do ouvinte: {self._desc_q(q)} contra "
+                   f"{self._desc_q(self._q_ant)} -- não melhorou; digo a ele, e depois o OLA")
+        self._varredura('nao_ch', self.caixa(), 'nao_ch', "não melhorou")
+        r['ola_em'] = self.agora + self._volta_ref()
+
+    def _chamada_no_refino(self, pos, sc):
+        """Ouvinte: uma chamada no refino é uma de três coisas -- a do
+        chamador um passo acima (uma só), a vez de eu refinar (duas a 0,3 s),
+        ou "melhorou" quando sou eu que subo. Uma só ou dupla só se sabe
+        depois de DUPLA_ATE; decide-se em `_prazos`."""
+        if self._chamada_em is not None and 0 < pos - self._chamada_em <= DUPLA_ATE:
+            return                         # a 2ª varredura da confirmação
+        if self.estado == 'refina_ou':
+            return                         # "melhorou" agora é `sim_ch`
+        if self._dupla is not None and 0 < pos - self._dupla[0] <= DUPLA_ATE:
+            self._dupla = None
+            self.agenda = []
+            self.anota("duas chamadas: a caixa do chamador está travada; agora refino a minha")
+            self.estado = 'refina_ou'
+            self._ref = dict(k_best=self.trava, k_try=None, espera=None,
+                             quando=self.agora + int(0.3 * FS))
+            return
+        if self._dupla is not None:
+            # A pendente ficou sozinha: era simples, e esta é outra.
+            p0, s0 = self._dupla
+            self._dupla = None
+            self._chamada_simples(p0, s0)
+        self._dupla = (pos, sc)
+
+    def _chamada_simples(self, pos, sc):
+        """Ouvinte: a chamada do chamador um passo acima. Comparo com a
+        anterior e respondo "melhorou" ou não, na minha caixa travada."""
+        q = self._qualidade(pos, 'chamada', sc)
+        _, pico = self._nivel(pos, 'chamada')
+        self._ajusta_mic(pico, 'chamada')
+        if self._melhor(q, self._q_ant):
+            self.anota(f"refino da caixa do chamador: {self._desc_q(q)} contra "
+                       f"{self._desc_q(self._q_ant)} -- melhorou{self._por_que(self._q_ant)}; respondo")
+            self._q_ant = q
+            self._varredura('sim_ou', self.trava, 'sim_ou', "melhorou")
+        else:
+            self.anota(f"refino da caixa do chamador: {self._desc_q(q)} contra "
+                       f"{self._desc_q(self._q_ant)} -- não melhorou; digo a ele")
+            self._varredura('nao_ou', self.trava, 'nao_ou', "não melhorou")
+        # A próxima chamada de refino dele vem logo depois da minha resposta.
+        # Sem ela, ele parou e me deu a vez -- mesmo que eu não tenha ouvido
+        # a dupla que diz isso (em 20:32 a 2ª varredura dela caiu na regra
+        # "dentro de outro som", a 1ª virou chamada simples, e o meu refino
+        # nunca começou).
+        self.espera_ate = self.agora + len(MOLDES['nao_ou']) + 2 * self._volta_ref()
+
+    def _ref_ou_resultado(self, melhor, porque):
+        """Ouvinte, refinando a própria caixa: a resposta no passo k_try."""
+        r = self._ref
+        k = r['k_try']
+        r['espera'] = None
+        if melhor:
+            r['k_best'] = k
+            self._trava(k, f"refino: a resposta a {CAIXA_POS[k]:.0%} saiu melhor para o chamador")
+            r['quando'] = self.agora + int(0.3 * FS)
+            return
+        kb = r['k_best']
+        self.anota(f"refino da minha caixa: {CAIXA_POS[k]:.0%} -- {porque}; volto a "
+                   f"{CAIXA_POS[kb]:.0%}, travo e espero o OLA")
+        self._fim_ref_ou()
+
+    def _fim_ref_ou(self):
+        kb = self._ref['k_best']
+        self.trava = kb
+        self._pede_caixa(kb)
+        self.estado = 'aguarda_ola'
+        self.espera_ate = self.agora + OLA_ESPERA_TOTAL
+
+    def _prazos_refino(self):
+        """Os tempos do refino, nos dois papéis. True se tratou o estado."""
+        if self.estado not in ('refina_ch', 'refina_ou'):
+            return False
+        if self.agenda:
+            return True
+        r = getattr(self, '_ref', None)
+        if r is not None and r.get('votos') and self.ouvido.varrido >= r['votos'][0][0] + ASSENTA:
+            self._decide_votos(r)
+            return True
+        if self.papel == 'chamador' and self.estado == 'refina_ch':
+            if r['espera'] is None and self.agora >= r['quando']:
+                k = r['k_best'] + 1
+                if k > N_POS - 1:
+                    self.anota(f"refino da minha caixa: já no passo mais alto "
+                               f"({CAIXA_POS[r['k_best']]:.0%})")
+                    self._fim_ref_ch()
+                    return True
+                r['k_try'] = k
+                n = self._varredura('chamada', k, 'chamada', f"chamada de refino a {CAIXA_POS[k]:.0%}")
+                self.anota(f"refino da minha caixa: chamo a {CAIXA_POS[k]:.0%}; o ouvinte diz se melhorou")
+                r['espera'] = self.agora + n + self._volta_ref()
+            elif r['espera'] is not None and self.agora > r['espera'] and not r.get('votos'):
+                self._ref_resultado(False, None, None, None)
+        elif self.papel == 'chamador':
+            if r['ola_em'] is not None and self.agora >= r['ola_em'] or self.agora > r['fim']:
+                if r['ola_em'] is None:
+                    self.anota("refino da caixa do ouvinte: nada mais dele; sigo para o OLA")
+                self._comeca_ola()
+        elif self.estado == 'refina_ch':
+            if self._dupla is not None and self.ouvido.varrido >= self._dupla[0] + DUPLA_ATE:
+                pos, sc = self._dupla
+                self._dupla = None
+                self._chamada_simples(pos, sc)
+            elif self.espera_ate is not None and self.agora > self.espera_ate:
+                self.anota("refino: o chamador parou de chamar; a vez é minha, refino a minha caixa")
+                self.estado = 'refina_ou'
+                self._ref = dict(k_best=self.trava, k_try=None, espera=None,
+                                 quando=self.agora + int(0.3 * FS))
+        else:
+            if r['espera'] is None and self.agora >= r['quando']:
+                k = r['k_best'] + 1
+                if k > N_POS - 1:
+                    self.anota(f"refino da minha caixa: já no passo mais alto "
+                               f"({CAIXA_POS[r['k_best']]:.0%}); espero o OLA")
+                    self._fim_ref_ou()
+                    return True
+                r['k_try'] = k
+                n = self._varredura('resposta', k, 'resposta', f"resposta de refino a {CAIXA_POS[k]:.0%}")
+                self.anota(f"refino da minha caixa: respondo a {CAIXA_POS[k]:.0%}; o chamador diz se melhorou")
+                r['espera'] = self.agora + n + self._volta_ref()
+            elif r['espera'] is not None and self.agora > r['espera'] and not r.get('votos'):
+                self._ref_ou_resultado(False, "sem resposta do chamador")
+        return True
+
+    def _comeca_ola(self):
+        """Saudação depois do som acertado e refinado: sempre no degrau lento
+        (20 baud), o mais lento confiável -- a velocidade só se aprende
+        subindo, na sondagem. Falhando, a escada sobe a caixa e desce a 10."""
+        self.k_ola, self._ola_subiu = OLA_LONGE_DESDE, False
+        self._ab_da_escada("o OLA sai no lento")
+        self.sessao = int(self.rng.integers(1, 256))
+        self.estado = 'ola'
+        self.tentativas = 0
+        self.turno_ultimo = self.agora
+        self.anota(f"som acertado e refinado; OLA em {ABORDAGENS[self.ab].nome}")
+        self._envia_ola()
+
+    def _ajusta_mic(self, pico, oque):
+        """Ganho do meu microfone, antes do contrato: o pico ouvido de `oque`
+        fora de MIC_ALVO move o microfone um passo (`volume.MIC_POS`), e o
+        runtime faz a troca já. Devolve +1, -1 ou 0. Os dois lados mexem cada
+        um no seu: o outro não sabe que mexi, e não precisa (no ar, 2026-10-29,
+        o do B ficou em 20% enquanto o chamador ia a 70%)."""
+        if pico is None:
+            return 0
+        if pico < MIC_ALVO[0] and not self.mic_no_teto:
+            d = 1
+        elif pico > MIC_ALVO[1] and not self.mic_no_piso:
+            d = -1
+        else:
+            return 0
+        self.pedidos_mic_passo.append((self.agora, d, float(pico)))
+        # O piso foi medido no volume de antes; com o microfone em outro
+        # passo ele muda junto, e o velho fazia o silêncio parecer "outro som".
+        self._niveis, self._piso = [], None
+        return d
+
+    def _corrige_caixa(self, pico, porque):
+        """O outro lado disse com que pico me ouviu: levo a MINHA caixa para
+        ele receber ~0,3. A sondagem depois anda em volta da trava corrigida."""
+        if pico is None or self.trava is None:
+            return
+        k = self.trava
+        if pico >= CAIXA_PICO_ALTO:
+            k2 = max(0, k - 1 - int(20 * np.log10(pico / CAIXA_PICO_ALTO) // 6))
+        elif pico < CAIXA_PICO_BAIXO:
+            # Um passo por 6 dB abaixo do alvo, no mínimo 2: em 20:45 o B foi
+            # ouvido a pico 0,03 e subiu um passo por OLA repetido, devagar
+            # demais para a sessão.
+            k2 = min(N_POS - 1, k + max(2, int(np.ceil(20 * np.log10(CAIXA_PICO_BAIXO / max(pico, 1e-4)) / 6))))
+        else:
+            k2 = k
+        self.anota(f"[volume] o outro lado me ouviu com pico {pico:.2f} ({porque}): "
+                   f"caixa {CAIXA_POS[k]:.0%} → {CAIXA_POS[k2]:.0%}")
+        if k2 != k:
+            self.trava = k2
+            self._pede_caixa(k2)
+
+    def _planeja_mic(self, p1):
+        """Uma sondagem do outro lado começou em `p1`: na metade dela o meu
+        microfone desce um passo (`troca_mic`), e no fim volta ao que eu uso.
+        Tem de ser agendado na hora em que a marca é achada, não quando a
+        sondagem for lida -- a leitura só vem depois do fim dela. A marca de
+        fechamento dos tons, e qualquer outra dentro da mesma sondagem, não
+        reagendam. De longe não há volta do microfone."""
+        if self.esforco or self.estado not in ESPERA_SONDA:
+            return
+        dur = sonda_amostras(False)
+        if self._plano_mic is not None and 0 <= p1 - self._plano_mic < dur:
+            return
+        self._plano_mic = p1
+        self.pedidos_mic += [(p1 + a, k) for a, k in troca_mic(False)]
+        self.pedidos_mic.append((p1 + dur + int(0.3 * FS), self.mic))
+        if _DEPURA:
+            self.anota(f"  sondagem em {p1 / FS:.2f}s: microfone varre em "
+                       f"{[round((p1 + a) / FS, 1) for a, _ in troca_mic(False)]}s")
+
+    def _alta(self, pos, tipo, sc):
+        """A varredura correlacionou pouco mas chegou alta: é distorção, não
+        distância, e o esforço de longe (mais ganho, mais devagar) só piora.
+        Medido nas sessões gravadas: de longe (2026-10-22, alguns metros) a
+        chamada fraca chegava com rms 0,004-0,009 e 2-14 dB sobre o piso; de
+        perto, rms 0,05-0,27 e 21-43 dB. Em 2026-10-29, encostados, o
+        notebook leu a chamada do Linux (caixa a 1,0) a 0,25-0,30 e subiu o
+        esforço. Daí rms >= 0,03 e >= 20 dB: as duas, porque um piso medido
+        baixo demais (uma sessão de longe deu 25 dB com rms 0,006) não basta."""
+        L = len(MOLDES[tipo])
+        r = self._rms_valido(pos, pos + L)
+        if r is None or not self._piso:
+            return False
+        snr = 20 * np.log10(r / self._piso)
+        if r >= RMS_ALTA and snr >= SNR_ALTA:
+            self.anota(f"{tipo} fraca ({sc:.2f} < {LIMIAR_LONGE}) mas alta (rms {r:.3f}, "
+                       f"{snr:.0f} dB sobre o piso): distorção, não distância; fico de perto "
+                       "-- a escada de volume é que acha a caixa certa")
+            return True
+        return False
 
     def _candidatos(self, marca=None):
         """Descritores que podem estar no ar agora, por ordem de chance; só
@@ -1269,11 +2462,11 @@ class Estacao:
                         and m[0] >= max(self._cursor, self.turno_ultimo if not self.turno else 0)
                         and not self._eco_janela[0] <= m[0] < self._eco_janela[1]
                         and m[0] not in self._usadas]
-                quero = 'quadro_longo' if self.esforco else 'quadro'
+                quero = self._quero()
                 # Só entre as duas de quadro: a de sondagem não tem par, e
                 # apagá-la por uma de quadro falsa ao lado fazia a sondagem
                 # inteira ser lida como quadros ilegíveis ('limpo', 2026-10-23).
-                prox = [m for m in prox if m[1] == quero or m[1] not in QUADROS or not any(
+                prox = [m for m in prox if quero is None or m[1] == quero or m[1] not in QUADROS or not any(
                     o[1] == quero and abs(o[0] - m[0]) < FS // 2 for o in prox)]
                 if not prox:
                     return
@@ -1286,7 +2479,8 @@ class Estacao:
                     # sala dava 12 ilegíveis por turno e a sessão não fechou.
                     return
                 pos, tipo, _ = prox[0]
-                if tipo in QUADROS and tipo != quero and self.ouvido.varrido < pos + FS // 2:
+                if (quero is not None and tipo in QUADROS and tipo != quero
+                        and self.ouvido.varrido < pos + FS // 2):
                     return                 # a marca que o estado espera pode estar logo atrás
                 if tipo in QUADROS:
                     dur = max(d.amostras for d in self._candidatos(tipo))
@@ -1318,6 +2512,35 @@ class Estacao:
                 self._le_sonda(p['pos'])
             self._usadas.add(p['pos'])
             self.pendente = None
+
+    def _busca_dirigida(self):
+        """Prazo vencido sem nada lido: procura a resposta entre as marcas de
+        quadro abaixo do limiar (`LIMIAR_DIRIGIDO`) desde o meu turno. A que
+        der um quadro que passe no CRC vira marca de verdade, e a leitura
+        normal a pega na próxima volta. True se promoveu uma."""
+        quero = self._quero()
+        ini = max(self._cursor, self.turno_ultimo)
+        cands = sorted((m for m in self.ouvido.fracas
+                        if (quero is None or m[1] == quero) and m[0] >= ini and m[0] not in self._usadas
+                        and not self._eco_janela[0] <= m[0] < self._eco_janela[1]
+                        and m not in self.ouvido.marcas),
+                       key=lambda m: -m[2])[:4]
+        for pos, tipo, sc in cands:
+            for d in self._candidatos(tipo):
+                audio = self.ouvido.trecho(pos, pos + d.amostras + FS)
+                corpo, _ = le_quadro(audio, 0, d, None)
+                if corpo is None:
+                    continue
+                self.anota(f"busca dirigida: marca {tipo} fraca ({sc:.2f} < {LIMIARES[tipo]}) "
+                           f"em {pos / FS:.2f}s dá {NOMES.get(corpo[0], corpo[0])} em {d.nome}; "
+                           f"lendo")
+                self.ouvido.marcas.append((pos, tipo, sc))
+                self.ouvido.marcas.sort()
+                return True
+        if cands:
+            self.anota(f"busca dirigida: {len(cands)} marca(s) {quero} fraca(s) desde "
+                       f"{ini / FS:.1f}s, nenhuma dá quadro")
+        return False
 
     def _fechamento(self, p1, dur, marca='quadro'):
         """A marca de quadro que fecha um quadro aberto em p1 com duração
@@ -1403,8 +2626,13 @@ class Estacao:
             if corpo is not None:
                 if q2 is not None:
                     self._usadas.add(q2)
-                self._segmento(('quadro', corpo, d, None),
-                               (q2 + lq) if q2 is not None else p1 + d.amostras, inicio=p1)
+                fq = (q2 + lq) if q2 is not None else p1 + d.amostras
+                xq = self.ouvido.trecho(p1, fq)
+                if len(xq):
+                    self._nivel_quadro = (float(np.max(np.abs(xq))), float(np.sqrt(np.mean(xq ** 2))))
+                    if self.contrato_rx is None and self._plano_mic is None:
+                        self._ajusta_mic(self._nivel_quadro[0], f'quadro {d.nome}')
+                self._segmento(('quadro', corpo, d, None), fq, inicio=p1)
                 return True
         return False
 
@@ -1435,6 +2663,19 @@ class Estacao:
             return False
         return rec < 0.3 * ref
 
+    def _rms_mediano(self, a, b, janela=int(0.02 * FS)):
+        """Mediana do rms em janelas de 20 ms fora da cegueira em [a, b):
+        o nível de um som contínuo, que um estalo curto não levanta. None se
+        mais da metade do trecho for cega."""
+        inv = self.ouvido._invalido(a, b)
+        if inv.mean() > 0.5:
+            return None
+        x = self.ouvido.trecho(a, b)
+        v = [float(np.sqrt(np.mean(x[i:i + janela][~inv[i:i + janela]] ** 2)))
+             for i in range(0, len(x) - janela + 1, janela)
+             if (~inv[i:i + janela]).sum() > janela // 2]
+        return float(np.median(v)) if v else None
+
     def _rms_valido(self, a, b):
         """rms das amostras fora da cegueira em [a, b), ou None se mais da
         metade do trecho for cega."""
@@ -1461,16 +2702,19 @@ class Estacao:
         audio = self.ouvido.trecho(p1, p1 + sonda_amostras(longe) + FS)
         margem = mede_tons(audio, 0, None if p2 is None else p2 - p1, self.sessao)
         r = 1.0 if p2 is None else (p2 - p1) / (dur_tons - LQ)
-        # As sondas de ganho, em posições conhecidas depois da marca final.
-        res = []
-        q = int(round(dur_tons * r)) + int(GAP * r)
+        # As sondas da escada, em posições conhecidas depois da marca final.
+        res, niveis = [], []
+        inicios, vaos, _ = sonda_layout(longe)
+        q = int(round(dur_tons * r))
         for i, d in enumerate(sonda_g(longe)):
             if d is None:
                 res.append((0.5, False))
+                niveis.append(None)
                 continue
+            q += int(vaos[i] * r)
             perto = [pos - p1 for pos, tipo, _ in self.ouvido.marcas
                      if tipo == d.marca and abs(pos - p1 - q) <= int(0.03 * FS)]
-            ber, inteiro = 0.5, False
+            ber, inteiro, nivel, marg = 0.5, False, None, None
             if perto:
                 s1 = perto[0]
                 self._usadas.add(p1 + s1)
@@ -1487,9 +2731,18 @@ class Estacao:
                     k = min(len(ref), len(llr))
                     ber = float(np.mean((llr[:k] > 0) != (ref[:k] > 0))) if k else 0.5
                     inteiro = corpo == conhecido
+                    if k:
+                        marg = margem_llr(llr[:k], ref[:k])
+                # O nível do corpo (entre as marcas): pico para o corte do
+                # conversor, rms para ver se a caixa sobe o que pedimos.
+                corpo_a = np.asarray(audio[s1 + d.lm + HUSH:s1 + d.amostras - d.lm - HUSH])
+                if len(corpo_a):
+                    nivel = (float(np.max(np.abs(corpo_a))), float(np.sqrt(np.mean(corpo_a ** 2))),
+                             marg)
                 q = s1
-            q += int((d.amostras + GAP) * r)
+            q += int(d.amostras * r)
             res.append((ber, inteiro))
+            niveis.append(nivel)
         fim = p1 + sonda_amostras(longe)
         if np.median(margem) < MARGEM_FORA and not any(ok for _, ok in res):
             # Os tons enviados chegaram mais fracos que os não enviados, e
@@ -1502,7 +2755,12 @@ class Estacao:
                        f"nenhuma sonda de ganho achada); tratada como ilegível")
             self._segmento(('ilegivel', p1), fim)
             return fim
-        self._segmento(('sonda', margem, res, longe), fim, inicio=p1)
+        # O microfone varreu a partir da marca que achei na hora; se a
+        # sondagem lida abriu em outro lugar, as metades não são as que eu
+        # penso, e o microfone fica fora da escolha.
+        mic_ok = (not longe and self._plano_mic is not None
+                  and abs(self._plano_mic - p1) <= int(0.05 * FS))
+        self._segmento(('sonda', margem, res, longe, niveis, mic_ok), fim, inicio=p1)
         return fim
 
     def _segmento(self, ev, fim, inicio=None):
@@ -1546,9 +2804,13 @@ class Estacao:
         possível: esperar demais só atrasa, falar cedo colide."""
         e = self.estado
         if e == 'ola':
-            # O OLA_OK vem na abordagem de longe se o outro lado se achar
-            # longe, o que ele pode decidir sozinho.
-            return max(ABORDAGENS[j].amostras for j in ORDEM_ABORDAGENS[-1] + (self.ab,))
+            # O OLA_OK vem no degrau em que o outro lado leu o meu OLA: o mesmo.
+            return ABORDAGENS[self.ab].amostras
+        if self.papel == 'ouvinte' and not self.saudado:
+            # Um OLA pode vir em qualquer degrau da escada: o turno dura o
+            # mais longo deles. Com 0, o turno de um OLA ouvido em
+            # 'escutando' fechava na abertura (no ar, 20:10, nenhum lido).
+            return max(ABORDAGENS[i].amostras for i in OLA_ESCADA)
         if e == 'sondando':
             return self.ctrl.amostras + GAP + sonda_amostras(bool(self.esforco))
         if e == 'aguarda_sonda':
@@ -1588,17 +2850,45 @@ class Estacao:
             self.sondar_em = None
             self._toca(self._turno_dados(), apos=self.agora)
             return
+        if self._prazos_refino():
+            return
         if self.estado == 'chamando':
             if self.espera_ate is None and self.agora >= self.proxima_chamada and not self.agenda:
                 g = self._ganho_chamada()
-                self.anota(f"chamando (ganho {g})")
+                k = self.caixa()
+                self.anota(f"chamando com a caixa no passo {k} ({CAIXA_POS[k]:.0%})"
+                           + (", travada" if self.trava is not None else ""))
                 self.turno_ultimo = self.agora
                 self._toca([MOLDES['chamada'] * g], espera=True, guarda_turno=False,
                            eco='chamada')
+                # A janela inteira, não a espera de uma resposta só: dentro
+                # dela o ouvinte sobe a escada rápida dele.
+                self.espera_ate = self.agora + self._janela()
+                self._resp_na_janela = 0
             elif (self.espera_ate is not None and self.agora > self.espera_ate
                   and not self.agenda):
                 self.espera_ate = None
-                self.proxima_chamada = self.agora + int(self.rng.uniform(0.5, 2.0) * FS)
+                # Depois da janela, mais um passo da escada dele antes de
+                # chamar de novo: uma confirmação atrasada não pode cair em
+                # cima da chamada seguinte.
+                self.proxima_chamada = (self.agora + self._passo_resposta(LAT_SOM_OUTRO)
+                                        + int(self.rng.uniform(0.0, 0.5) * FS))
+                if self.trava is None:
+                    k0 = self.caixa()
+                    self.k_som = min(self.k_som + 1, len(CHAMADA_PASSOS) - 1)
+                    k = self.caixa()
+                    self.anota(f"janela {k0} ({CAIXA_POS[k0]:.0%}): sem resposta"
+                               + (f"; subo para a janela {k} ({CAIXA_POS[k]:.0%})" if k != k0
+                                  else "; já no passo mais alto"))
+                    self._pede_caixa(k)
+            return
+        if self.estado == 'respondendo':
+            if self.agora > self._resp_fim and not self.agenda:
+                k = self._resp_tocadas[-1][1] if self._resp_tocadas else None
+                self.anota("escada de respostas sem confirmação"
+                           + (f" (até o passo {k}, {CAIXA_POS[k]:.0%})" if k is not None else "")
+                           + "; espero a próxima chamada, um passo acima")
+                self.estado = 'escutando'
             return
         if (self.espera_ate is None or self.agora <= self.espera_ate or self.agenda
                 or self.pendente is not None or self.turno or self.agora < self.livre_em):
@@ -1607,25 +2897,37 @@ class Estacao:
             # Algo ainda soa: não repito por cima. O piso se adapta em ~2 min,
             # então um ruído novo e constante não trava isto para sempre.
             return
+        if self._busca_dirigida():
+            return                 # a resposta estava lá, sob o limiar; vai ser lida
         # Prazo vencido sem resposta.
         self.espera_ate = None
         if self.estado == 'ola':
+            # Sem OLA_OK: primeiro mais som no mesmo degrau, depois mais
+            # devagar com o som já subido (pedido de 2026-10-29: "depois que
+            # não consegue, aumenta o som e vai mais lento").
             self.tentativas += 1
-            ordem = ORDEM_ABORDAGENS[self.esforco]
-            if self.tentativas >= len(ordem):
-                # Repetir o mesmo rodízio no mesmo volume não leva a nada
-                # que a primeira volta não tenha levado: sobe o esforço.
-                if self._sobe_esforco("OLA sem resposta em todas as abordagens"):
-                    self.tentativas = 0
-                    self.ab = ORDEM_ABORDAGENS[self.esforco][0]
-                    self._envia_ola()
-                    return
-                self.anota("OLA sem resposta em todas as abordagens; voltando a chamar")
-                self.reinicia()
+            d = ABORDAGENS[self.ab]
+            k = self.caixa()
+            if not self._ola_subiu and k < N_POS - 1:
+                self._ola_subiu = True
+                self.trava = k + 1
+                self._pede_caixa(k + 1)
+                self.anota(f"OLA sem resposta a {d.baud} baud; subo a caixa para "
+                           f"{CAIXA_POS[k + 1]:.0%} e repito")
+                self._envia_ola()
                 return
-            self.ab = ordem[self.tentativas % len(ordem)]
-            self.anota(f"sem OLA_OK; tentando {ABORDAGENS[self.ab].nome}")
-            self._envia_ola()
+            if self.k_ola + 1 < len(OLA_ESCADA):
+                self.k_ola += 1
+                self._ola_subiu = False
+                self._ab_da_escada(f"OLA a {d.baud} baud sem resposta")
+                self.anota(f"OLA sem resposta a {d.baud} baud; desço para "
+                           f"{ABORDAGENS[self.ab].baud} baud ({ABORDAGENS[self.ab].nome}), "
+                           f"caixa em {CAIXA_POS[self.caixa()]:.0%}")
+                self._envia_ola()
+                return
+            self.anota(f"OLA sem resposta em todos os degraus; voltando a chamar com a caixa "
+                       f"em {CAIXA_POS[k]:.0%} e o microfone onde está")
+            self.reinicia(mantem_som=True)
         elif self.fim_tentativas and self.aberto and self.papel == 'chamador':
             if self.fim_tentativas >= FIM_TENTATIVAS:
                 # Tudo já tinha sido entregue e confirmado antes do FIM; o
@@ -1651,7 +2953,7 @@ class Estacao:
             self.espera_ate = self.agora + 2 * max(d.amostras for d in self._candidatos()) + ESPERA
         elif self.estado in ('aguarda_ola', 'aguarda_sonda', 'aguarda_contrato'):
             self.anota(f"nada mais em '{self.estado}'; voltando a escutar")
-            self.reinicia()
+            self.reinicia(mantem_som=self.estado == 'aguarda_ola')
 
     def _sem_resposta(self):
         """O turno ficou sem resposta lida: conta, desce o degrau se for
@@ -1699,7 +3001,7 @@ class Estacao:
             # Repetido, ele vai no formato do contrato que o outro lado mediu
             # para este sentido e já procura (`_candidatos`, CTRL_N), que é o
             # que provou passar.
-            d = self.contrato_tx.descritor(self.degrau_tx, CTRL_N, self.modo_dados)
+            d = self.contrato_tx.descritor(self._degrau(), CTRL_N, self.modo_dados)
             return ([self._quadro(d, CONTRATO, self.contrato_rx.empacota() + self._byte_modo(),
                                   mais=True)]
                     + self._turno_dados(forcar=True, so_partes=True))
@@ -1709,7 +3011,20 @@ class Estacao:
 
     def _envia_ola(self):
         d = ABORDAGENS[self.ab]
-        self._toca([self._quadro(d, OLA, bytes([self.ab, self.esforco]))], depois=RESP)
+        pr, rr = self._ouvi_resp or (None, None)
+        self._toca([self._quadro(d, OLA, bytes([self.ab, self.esforco, VERSAO,
+                                                  q_db(pr), q_db(rr)]))], depois=RESP)
+
+    def _versao_ok(self, v):
+        """Recusa a sessão com quem roda outro formato: não responde, e diz
+        no diário por quê, a cada vez -- um silêncio sem explicação seria
+        lido como canal ruim."""
+        if v == VERSAO:
+            return True
+        self.versao_outro = v
+        self.anota(f"AVISO: versão do protocolo diferente: {v} lá, {VERSAO} aqui; "
+                   "recuso a sessão -- atualizar as duas pontas para o mesmo código")
+        return False
 
     def _turno(self, eventos):
         if self.encerrada:
@@ -1727,6 +3042,8 @@ class Estacao:
         # menos com o canal aberto -- aí só se o OLA vier de outra sessão.
         for (tipo, mais, sess, carga), d in quadros:
             if tipo == OLA and self.papel == 'ouvinte' and (not self.aberto or sess != self.sessao):
+                if not self._versao_ok(carga[2]):
+                    return
                 if self.aberto:
                     self.reinicia()
                 self.sessao = sess
@@ -1736,28 +3053,61 @@ class Estacao:
                 # distância vale para os dois sentidos, e uma ponta que
                 # respondesse de perto a quem fala de longe não seria ouvida.
                 i = carga[0] if carga[0] < len(ABORDAGENS) else ABORDAGENS.index(d)
-                if self.esforco == 0 and (i in ORDEM_ABORDAGENS[1] or carga[1]):
-                    self._sobe_esforco("o OLA veio de quem está longe")
-                if self.esforco and i not in ORDEM_ABORDAGENS[1]:
-                    i = ORDEM_ABORDAGENS[1][0]
+                # Perto/longe é do chamador, e vem no OLA; respondo no degrau
+                # em que li.
+                self._poe_esforco(int(bool(carga[1])), f"o OLA veio a {ABORDAGENS[i].baud} baud "
+                                  f"e o chamador decidiu")
+                repetido = self._ola_lido == (sess, i)
+                if repetido and self.trava is not None:
+                    # O mesmo OLA de novo: o meu OLA_OK não foi ouvido. Ele
+                    # sobe a caixa dele; eu subo a minha.
+                    # Direto ao topo: o OLA_OK não passou nem com a correção
+                    # pelo relato de nível (20:45: um passo por repetição).
+                    k = N_POS - 1
+                    if k != self.trava:
+                        self.trava = k
+                        self._pede_caixa(k)
+                        self.anota(f"o mesmo OLA de novo: o meu OLA_OK não foi ouvido; "
+                                   f"subo a caixa direto ao topo, {CAIXA_POS[k]:.0%}")
+                self._ola_lido = (sess, i)
                 self.ctrl = ABORDAGENS[i]
                 self.saudado = True
+                if self._resp_passo is not None and self.trava is None:
+                    # O chamador só manda OLA a uma resposta que ouviu bem:
+                    # a última que toquei é a que serviu.
+                    self._trava(self._resp_passo, "o OLA veio depois da minha resposta neste volume")
+                # E o OLA diz com que pico ele ouviu a minha resposta -- uma
+                # vez por sessão: a repetição traz o mesmo relato.
+                if not repetido:
+                    self._corrige_caixa(dq_db(carga[3]), "a minha resposta, pelo OLA")
                 self.estado = 'aguarda_sonda'
                 self.anota(f"OLA lido em {d.nome}; saudação concluída, respondendo OLA_OK "
                            f"em {self.ctrl.nome}")
-                self._minha_vez([self._quadro(self.ctrl, OLA_OK, bytes([i, self.esforco]))])
+                pc, rc = self._ouvi_chamada or (None, None)
+                po, ro = self._nivel_quadro or (None, None)
+                self._minha_vez([self._quadro(self.ctrl, OLA_OK, bytes(
+                    [i, self.esforco, VERSAO, q_db(pc), q_db(rc), q_db(po), q_db(ro)]))])
                 return
         quadros = [(q, d) for q, d in quadros if q[2] == self.sessao]
         tipos = {q[0]: (q, d) for q, d in quadros}
 
         if self.estado == 'ola':
             if OLA_OK in tipos:
-                i, esf = tipos[OLA_OK][0][3][:2]
-                if esf and self.esforco == 0:
-                    self._sobe_esforco("o OLA_OK veio de quem está longe")
+                i, esf, v = tipos[OLA_OK][0][3][:3]
+                if not self._versao_ok(v):
+                    return
+                if esf != self.esforco:
+                    self._poe_esforco(int(bool(esf)), "o OLA_OK trouxe outra distância")
                 # A abordagem em que o outro lado respondeu, que é a de longe
                 # se qualquer um dos dois estiver longe.
                 self.ctrl = ABORDAGENS[i] if i < len(ABORDAGENS) else tipos[OLA_OK][1]
+                rel = tipos[OLA_OK][0][3]
+                # Como o ouvinte me ouviu: o OLA, que saiu na caixa de agora;
+                # a chamada só se o OLA não tiver nível.
+                po, pc = dq_db(rel[5]), dq_db(rel[3])
+                self._corrige_caixa(po if po is not None else pc,
+                                    "o meu OLA, pelo OLA_OK" if po is not None
+                                    else "a minha chamada, pelo OLA_OK")
                 self.saudado = True
                 self.tentativas = 0
                 self.anota(f"OLA_OK lido em {self.ctrl.nome}; saudação concluída, sondando")
@@ -1807,42 +3157,74 @@ class Estacao:
             self._dados(quadros, ruins)
 
     def _contrato_de(self, sonda, sentido):
-        _, margem, res, longe = sonda
-        rapida = res[len(GANHOS)] if len(res) > len(GANHOS) else None
-        res = res[:len(GANHOS)]
-        c = decide(margem, res)
-        if longe:
-            # A escada veio no próprio lento: o que ela mediu é o degrau
-            # LENTO, não uma extrapolação dos 100 baud. Inteiro ou quase
-            # (a taxa 1/3 suave segura ~13%), fica no lento; senão, muito lento.
-            ber, inteiro = res[c.ganho]
-            c = Contrato(c.tons, c.par, c.ganho,
-                         LENTO if inteiro or ber < LIMIAR_LENTO else MUITO_LENTO)
-            if rapida is not None and rapida[1] and rapida[0] < LIMIARES_BER[0]:
-                # A sonda a 100 baud deste sentido chegou inteira e limpa:
-                # ele não está tão longe quanto a sessão. Rep2, não rep1 --
-                # uma sonda só é pouca prova --, e a escada desce sozinha.
-                c = Contrato(c.tons, c.par, SONDA_RAPIDA_GANHO, 1)
-        elif self.esforco and c.degrau < LENTO:
-            # De longe, os degraus a 100 baud e o 2-FSK falharam no ar mesmo
-            # com a sondagem a 32% (2026-10-22): começa no lento, e a escada
-            # desce ao muito lento se preciso.
-            c = Contrato(c.tons, c.par, c.ganho, LENTO)
-        bers = ", ".join(f"g{GANHOS[i]}:{b * 100:.0f}%{'*' if ok else ''}"
-                         for i, (b, ok) in enumerate(res))
-        if rapida is not None:
-            bers += f"; 100 baud g{GANHOS[SONDA_RAPIDA_GANHO]}:{rapida[0] * 100:.0f}%" \
-                    f"{'*' if rapida[1] else ''}"
-        self.anota(f"sondagem lida: bits errados {bers}; margens "
+        _, margem, res, longe, niveis, mic_ok = sonda
+        caixas, mics = sonda_caixas(longe), sonda_mics(longe)
+        descs = sonda_g(longe)
+        ne = n_escada(longe)
+        vres = [(res[i][0], res[i][1], None if niveis[i] is None else niveis[i][2])
+                for i in range(ne, len(res))]
+        res, niveis, caixas, mics, descs = res[:ne], niveis[:ne], caixas[:ne], mics[:ne], descs[:ne]
+        if not mic_ok:
+            # Sem saber em que metade o microfone estava, as duas metades
+            # contam como o microfone de partida.
+            mics = (0,) * len(mics)
+        marg = [None if n is None else n[2] for n in niveis]
+        picos = [None if n is None else n[0] for n in niveis]
+        # A caixa, por subida na margem, para cada microfone; depois o
+        # microfone, pela margem da caixa que cada um escolheu. O erro de bit
+        # sozinho satura: em 2026-10-29 a escada leu 0% em todos os passos, e
+        # "o menor passo que acerta" travava no mais baixo sem saber se o de
+        # cima seria mais limpo.
+        escolha = {}
+        for m in sorted(set(mics)):
+            idx = sorted((j for j in range(ne) if mics[j] == m and descs[j] is not None),
+                         key=lambda j: caixas[j])
+            i, motivo = sobe_caixa([(caixas[j], res[j][0], res[j][1], marg[j], picos[j])
+                                    for j in idx])
+            escolha[m] = (None if i is None else idx[i], motivo)
+        j, mic = escolha.get(0, (None, ''))[0], 0
+        for m, (jm, _) in escolha.items():
+            if m and jm is not None and (j is None or marg[jm] >= marg[j] + MARGEM_MIC_MIN):
+                j, mic = jm, m
+        if j is None:
+            # Nada decodificou: a escolha de antes, pelo erro de bit (de
+            # longe, o passo mais alto).
+            c0, mic, j = decide(margem, res, caixas, mics, picos)
+            k, motivo_caixa = c0.ganho, "nenhum passo decodificou; pelo erro de bit"
+        else:
+            k, motivo_caixa = caixas[j], escolha[mic][1]
+        d, vtxt = escolhe_velocidade(vres) if vres else (None, '')
+        if d is None:
+            # Nenhum bloco da bateria passou: o mais robusto que há.
+            d = MUITO_LENTO
+        c = Contrato(tuple(escolhe_16(margem)), escolhe_par(margem), k, d)
+
+        def celula(i):
+            b, ok = res[i]
+            n = niveis[i]
+            nv = "" if n is None else f", pico {n[0]:.2f} rms {n[1]:.3f}"
+            mg = "não lida" if marg[i] is None else f"margem {marg[i]:.1f} dB"
+            return (f"caixa {caixas[i]}{' mic-8' if mics[i] else ''}: {mg}{nv}, "
+                    f"erro {b * 100:.0f}%{'*' if ok else ''}")
+        bers = "; ".join(celula(i) for i in range(len(res)) if descs[i] is not None)
+        self.anota(f"sondagem lida: {bers}; margens dos tons "
                    f"{np.round(margem).astype(int).tolist()} dB")
+        self.anota(f"caixa do outro lado: passo {k} -- {motivo_caixa}")
+        if vtxt:
+            self.anota(vtxt)
         self.anota(f"contrato para o que me {sentido}: {c.descreve()}")
+        if not longe and mic_ok and mic != self.mic:
+            self.mic = mic
+            self.pedidos_mic.append((self.agora, mic))
+            self.anota(f"microfone: passo {mic} ({'8 dB abaixo do de partida' if mic else 'o de partida'}), "
+                       "o que leu melhor a escada")
+        elif not longe and not mic_ok:
+            self.anota("microfone fora da escolha: a sondagem lida não abriu na marca em que ele varreu")
         if c.ganho == 0:
-            # A borda da escada, não um ótimo cercado. Num link real com o
-            # volume do sistema alto é a assinatura de compressão de CLAUDE.md
-            # (o ganho menor sempre vence), e o remédio é o fader analógico,
-            # que esta escada não alcança.
-            self.anota("AVISO: venceu o menor ganho da escada; se o volume do "
-                       "outro lado estiver alto, baixá-lo e saudar de novo")
+            # A borda da escada, não um ótimo cercado: o outro lado pode
+            # precisar de menos ainda, e isso a tabela dele não alcança.
+            self.anota("AVISO: venceu o passo mais baixo da caixa do outro lado; "
+                       "a escada dele (AUDIOFSK_CAIXA) pode precisar descer")
         return c
 
     # --- modo de dados
@@ -1877,7 +3259,11 @@ class Estacao:
         if self.modo_dados == 'auto':
             return contrato.degrau
         if self.modo_dados == '16fsk':
-            return min(contrato.degrau, self.ultimo_degrau)
+            # Mesmos nomes da escada 'auto', sem o 2-FSK (degrau 3): este
+            # cai no rep4, e do 50 baud para baixo ficam os mesmos.
+            if contrato.degrau >= R50:
+                return 3 + contrato.degrau - R50
+            return min(contrato.degrau, 2)
         return 0
 
     # --- canal aberto: pare-e-espere
@@ -1897,8 +3283,10 @@ class Estacao:
             self.fila[0:0] = self.pendente_tx[1]
         self.pendente_tx = None
         self.ultimo_rx = 255
-        self.degrau_tx = self._degrau_inicial(self.contrato_tx)
-        self.degrau_rx = self._degrau_inicial(self.contrato_rx)
+        self.degrau_tx = self.degrau_rx = max(self._degrau_inicial(self.contrato_tx),
+                                              self._degrau_inicial(self.contrato_rx))
+        self.anota(f"velocidade do enlace, a mesma nos dois sentidos: {self.degraus[self.degrau_tx]} "
+                   f"(o mais lento entre o que pedi e o que me pediram)")
         self.falhas_rx = 0
         self.sem_progresso = 0
         self.tentativas = 0
@@ -1913,16 +3301,16 @@ class Estacao:
             self.seq_tx = (self.seq_tx + 1) % 255
         if self.pendente_tx is not None:
             seq, pedaco = self.pendente_tx
-            d = self.contrato_tx.descritor(self.degrau_tx, DADOS_N, self.modo_dados)
-            carga = bytes([seq, self.ultimo_rx, self.degrau_rx, len(pedaco)]) + pedaco
+            d = self.contrato_tx.descritor(self._degrau(), DADOS_N, self.modo_dados)
+            carga = bytes([seq, self.ultimo_rx, self._degrau(), len(pedaco)]) + pedaco
             q = self._quadro(d, DADOS, carga)
         else:
-            d = self.contrato_tx.descritor(self.degrau_tx, CTRL_N, self.modo_dados)
-            q = self._quadro(d, ACK, bytes([self.ultimo_rx, self.degrau_rx]))
+            d = self.contrato_tx.descritor(self._degrau(), CTRL_N, self.modo_dados)
+            q = self._quadro(d, ACK, bytes([self.ultimo_rx, self._degrau()]))
         return [q]
 
     def _turno_fim(self):
-        d = self.contrato_tx.descritor(self.degrau_tx, CTRL_N, self.modo_dados)
+        d = self.contrato_tx.descritor(self._degrau(), CTRL_N, self.modo_dados)
         return [self._quadro(d, FIM, bytes([self.ultimo_rx]))]
 
     def _dados(self, quadros, ruins):
@@ -2040,6 +3428,14 @@ class Estacao:
             # DADOS sozinhos o ouvinte ficou 140 s preso em 'aguarda_contrato').
             self._toca(self._turno_dados() if self.confirmado else self._retransmite(),
                        depois=RESP)
+        elif progresso and self.conversa:
+            # Conversa: nada a mandar dos dois lados, mas o canal fica aberto.
+            # Só o chamador abre trocas, então ele consulta o ouvinte de
+            # tempos em tempos -- é na resposta à consulta que o ouvinte manda
+            # o que foi digitado lá.
+            self.sondar_em = self.agora + CONVERSA_CONSULTA
+            self.anota(f"nada a mandar dos dois lados; canal aberto, consulto o outro lado "
+                       f"em {CONVERSA_CONSULTA // FS} s")
         elif progresso:
             # O ouvinte respondeu só com ACK: não tem mais nada, e o que ele
             # mandou antes eu já confirmei (senão ele repetiria os DADOS). Do

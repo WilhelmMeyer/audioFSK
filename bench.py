@@ -27,7 +27,7 @@ import fec
 import recording
 from modem import (FSKDemodulator, FSKModulator, MFSKDemodulator,
                    MFSKModulator, MFSK_PAIRS, MaryDemodulator, MaryModulator,
-                   MARY_TONES)
+                   MARY_TONES, gray_gravado)
 from scoring import score
 
 BLOCK = 2048
@@ -93,13 +93,17 @@ def layer_baseline(mode, meta):
     waveform.
     """
     baud = meta.get('baud') or (1200 if mode == 'fsk' else 100)
-    key = (mode, baud, meta.get('fs', 48000))
+    # A tabela Gray muda quais tons a rajada sintetica toca, entao entra na
+    # chave e no modulador: a gravacao antiga e comparada com a rajada antiga.
+    gray = gray_gravado(meta)
+    key = (mode, baud, meta.get('fs', 48000), gray if mode == 'mary' else None)
     if key not in _BASELINES:
         fs = meta.get('fs', 48000)
         factory = {'fsk': FSKModulator, 'mfsk': MFSKModulator,
                    'mfsk-par': MFSKModulator, 'mary': MaryModulator}[mode]
-        _BASELINES[key] = distortion.baseline(factory(fs=fs, baud=baud),
-                                              layer_tones(mode), fs=fs)
+        mod = (factory(fs=fs, baud=baud, gray=gray) if mode == 'mary'
+               else factory(fs=fs, baud=baud))
+        _BASELINES[key] = distortion.baseline(mod, layer_tones(mode), fs=fs)
     return _BASELINES[key]
 
 
@@ -180,6 +184,7 @@ def run_fec(meta, samples, nbytes, repeat, extra=None):
                             gap=meta.get('gap', 0.0),
                             band=meta.get('band', 0.0),
                             chord=bool(meta.get('chord')),
+                            gray=gray_gravado(meta),
                             **(extra or {}))
         llr = np.concatenate([d.demodulate_soft(samples[i:i + BLOCK])
                               for i in range(0, len(samples), BLOCK)])

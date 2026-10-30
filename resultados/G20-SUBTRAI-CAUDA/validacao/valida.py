@@ -19,12 +19,12 @@ def run(st):
     sc = lambda r: [float(x) for x in S.score(*r[:3], want, tv, fb, pay)]
     R = {}
     if not ifk:
-        d = MaryDemodulator(steer=False, skip=skip, period=per)
+        d = MaryDemodulator(steer=False, skip=skip, period=per, gray='valor')
         real = np.array([i for i, _c, _n in d._symbols(s)][:m])
         R['_check'] = float(np.mean(real == S.receive(E, False)[0][:len(real)]))
         R['a'] = sc(S.receive(E, False))
     else:
-        d = MaryDemodulator(steer=False, skip=skip, period=per, ifk=True)
+        d = MaryDemodulator(steer=False, skip=skip, period=per, ifk=True, gray='valor')
         real = np.array([i for i, _c, _n in d._symbols(s)][:m])
         R['_check'] = float(np.mean(real == S.receive(E, True, exclude=True)[0][:len(real)]))
         R['b'] = sc(S.receive(E, True, exclude=True))

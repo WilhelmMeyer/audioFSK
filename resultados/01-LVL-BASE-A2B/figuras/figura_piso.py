@@ -194,7 +194,7 @@ def main():
     # dizem onde o modem tem de ser ouvido, que e a metade da leitura de
     # margem que a figura sozinha nao daria.
     #
-    demod = MaryDemodulator(fs=recording.FS, baud=100)
+    demod = MaryDemodulator(fs=recording.FS, baud=100, gray='valor')
     nwin = demod.samples_per_tone - demod.guard
     resolucao = recording.FS / nwin
     base = lo + 0.06 * (hi - lo)

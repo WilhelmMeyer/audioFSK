@@ -40,7 +40,7 @@ def energias(s, start, per, m):
 def analisa(stem):
     s, pay, meta = recording.load(os.path.join(CAP, stem + '.json')); s = np.asarray(s, float)
     ifk = bool(meta.get('ifk'))
-    want = np.array(spectro.tx_tone_indices(pay, 1, ifk=ifk))
+    want = np.array(spectro.tx_tone_indices(pay, 1, ifk=ifk, gray='valor'))
     coarse, _ = spectro.find_start(s, FS, SPS, MARY_TONES, [int(x) for x in want])
     start, hits, n = spectro.align_mary(s, meta, [int(x) for x in want], coarse, SPS)
     best = None
@@ -50,7 +50,8 @@ def analisa(stem):
             a = np.mean(E[120:].argmax(1) == want[120:m])
             if best is None or a > best[0]: best = (a, per, d0)
     _, per, d0 = best
-    d = MaryDemodulator(steer=False, skip=int(start + d0), period=per, ifk=ifk)
+    d = MaryDemodulator(steer=False, skip=int(start + d0), period=per, ifk=ifk,
+                        gray='valor')
     dec = np.array([o[0] for o in d._symbols(s)][:len(want)])
     m = len(dec); w = want[:m]
     B = np.arange(120, m)

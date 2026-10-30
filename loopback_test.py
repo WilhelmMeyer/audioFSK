@@ -255,6 +255,20 @@ def test_mary():
         out = run(demod, audio * gain, block=2048)
         check(f"ganho x{gain}", msg in out)
 
+    # Gray: tons vizinhos (o que o canal confunde) tem de carregar valores a um
+    # bit de distancia -- valor = gray(tom). Ate 2026-10-29 a tabela era a
+    # inversa, e os pares 3/4, 7/8 e 11/12 ficavam a dois bits.
+    ungray = MaryDemodulator(fs=FS, baud=100).ungray
+    dist = [bin(ungray[t] ^ ungray[t + 1]).count('1') for t in range(15)]
+    check("tons vizinhos a um bit (Gray)", dist == [1] * 15, f"{dist}")
+    # A tabela antiga continua lendo o que foi gravado com ela.
+    old_mod = MaryModulator(fs=FS, baud=100, gray='valor')
+    old_audio = np.concatenate([old_mod.modulate(msg), old_mod.idle(6)])
+    out = run(MaryDemodulator(fs=FS, baud=100, gray='valor'), old_audio, block=2048)
+    check("tabela antiga (gray='valor') ida e volta", msg in out)
+    out = run(MaryDemodulator(fs=FS, baud=100), old_audio, block=2048)
+    check("tabela nova nao le transmissor antigo", msg not in out)
+
 
 def mary_fec_air(msg, repeat=2):
     """Exactly what console.py's fecsend puts on the air, in M-ary.

@@ -7,7 +7,9 @@ conferida contra o MaryDemodulator real (decisoes identicas).
 import sys, json, numpy as np
 import os; sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')))
 import recording, spectro, fec
-from modem import MARY_TONES, MARY_REPEAT_TONE, MaryDemodulator, _UNGRAY, _GRAY
+# Gravacoes anteriores a 2026-10-29: tabela Gray antiga (tom = gray(valor)).
+from modem import MARY_TONES, MARY_REPEAT_TONE, MaryDemodulator
+from modem import _UNGRAY_ANTIGO as _UNGRAY, _GRAY_ANTIGO as _GRAY
 
 FS, SPS = 48000, 480
 G = int(0.15 * SPS); NN = np.arange(G, SPS)
@@ -34,7 +36,7 @@ def frame_values(payload):
 def align(st):
     s, pay, meta = recording.load(st + '.json'); s = np.asarray(s, float)
     ifk = bool(meta.get('ifk'))
-    want = np.array(spectro.tx_tone_indices(pay, 1, ifk=ifk))
+    want = np.array(spectro.tx_tone_indices(pay, 1, ifk=ifk, gray='valor'))
     coarse, _ = spectro.find_start(s, FS, SPS, MARY_TONES, [int(x) for x in want])
     start, hits, n = spectro.align_mary(s, meta, [int(x) for x in want], coarse, SPS)
     best = None
@@ -169,12 +171,12 @@ def run(st):
     rows = {}
     # (a) receptor atual -- conferido contra o MaryDemodulator real
     if not ifk:
-        d = MaryDemodulator(steer=False, skip=skip, period=per)
+        d = MaryDemodulator(steer=False, skip=skip, period=per, gray='valor')
         real = np.array([i for i, _c, _n in d._symbols(s)][:m])
         rows['_check_a'] = float(np.mean(real[:m] == receive(E, False)[0][:len(real)]))
         rows['a atual'] = score(*receive(E, False)[:3], want, tvals, fbits, pay)
     else:
-        d = MaryDemodulator(steer=False, skip=skip, period=per, ifk=True)
+        d = MaryDemodulator(steer=False, skip=skip, period=per, ifk=True, gray='valor')
         real = np.array([i for i, _c, _n in d._symbols(s)][:m])
         rows['_check_b'] = float(np.mean(real == receive(E, True, exclude=True)[0][:len(real)]))
         rows['b IFK atual'] = score(*receive(E, True, exclude=True)[:3], want, tvals, fbits, pay)

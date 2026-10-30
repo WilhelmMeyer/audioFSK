@@ -7,7 +7,8 @@ porta serial):
 
 Para cada gravacao do corpus (cadeia linear, mode mary, sem IFK):
   1. sequencia de tons transmitida = spectro.tx_tone_indices(payload, fecrep),
-     indice de TOM no ar (_GRAY[valor]), nunca o valor;
+     indice de TOM no ar (_GRAY_ANTIGO[valor]: gravacoes anteriores a
+     2026-10-29), nunca o valor;
   2. inicio grosso por spectro.find_start + spectro.align_mary;
   3. grade (periodo x deslocamento) pontuada por argmax bruto no corpo, a
      MESMA grade para todas as gravacoes (uma regua so) -- o relogio nominal
@@ -84,7 +85,7 @@ def analisa(item):
     s, pay, meta = recording.load(os.path.join(RAIZ, rel))
     s = np.asarray(s, dtype=np.float64)
     rep = meta.get('fec_repeat', 1) or 1
-    want = np.array(spectro.tx_tone_indices(pay, rep), dtype=int)
+    want = np.array(spectro.tx_tone_indices(pay, rep, gray='valor'), dtype=int)
     coarse, _ = spectro.find_start(s, meta['fs'], SPS, MARY_TONES, list(want))
     start, _hits, _n = spectro.align_mary(s, meta, list(want), coarse, SPS)
     probe = np.exp(-2j * np.pi * np.outer(np.array(MARY_TONES, float), NN) / meta['fs'])
@@ -101,7 +102,7 @@ def analisa(item):
     _a, per, d0 = best
     print(f"  {rel} pronto", flush=True)
     d = MaryDemodulator(steer=False, skip=int(start + d0), period=per,
-                        fs=meta['fs'], baud=meta['baud'])
+                        fs=meta['fs'], baud=meta['baud'], gray='valor')
     dec = []
     for i in range(0, len(s), 2048):
         dec += [o[0] for o in d._symbols(s[i:i + 2048])]

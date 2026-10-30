@@ -162,6 +162,10 @@ def roda(cenario, verbose=False, semente=0):
                 est.ouvir(bloco)
             ja_encerrada = getattr(est, 'encerrada', False)
             x = est.passo()
+            if x is not None:
+                # O volume da caixa que a estação pediu, como fator: o
+                # simulador não tem fader (CAIXA_SIM reproduz a escada antiga).
+                x = E.aplica_caixa(x, E.CAIXA_SIM)
             if x is not None and ja_encerrada:
                 # Depois de se despedir, uma estação só toca o que já estava
                 # na fila (a resposta do ouvinte ao FIM), e uma vez.

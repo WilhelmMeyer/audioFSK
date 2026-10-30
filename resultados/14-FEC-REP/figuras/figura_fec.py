@@ -104,7 +104,7 @@ class Bloco:
 
         d = MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
                             gap=meta.get('gap', 0.0), band=meta.get('band', 0.0),
-                            chord=bool(meta.get('chord')))
+                            chord=bool(meta.get('chord')), gray='valor')
         llr = np.concatenate([d.demodulate_soft(amostras[i:i + BLOCO])
                               for i in range(0, len(amostras), BLOCO)])
 

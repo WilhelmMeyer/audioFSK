@@ -119,6 +119,8 @@ class Sessao:
                 dest = self.saida / f"{marca}-visor-envia-{nome}"
                 dest.write_bytes(base64.b64decode(p['arquivo_b64']))
                 a += ['--enviar-arquivo', str(dest)]
+            if p.get('conversa'):
+                a += ['--conversa']
             for chave, opc in (('duracao', '--duracao'), ('fim_silencio', '--fim-silencio')):
                 v = p.get(chave)
                 if v not in (None, ''):
@@ -418,6 +420,14 @@ def faz_handler(v):
                     return self._manda(dict(pid=v.sessao.inicia(p)))
                 if u.path == '/api/comando':
                     return self._manda(dict(resposta=v.comando(p.get('cmd', ''))))
+                if u.path == '/api/envia':
+                    t = ' '.join(str(p.get('texto', '')).splitlines()).strip()
+                    if not t:
+                        raise ValueError("texto vazio")
+                    try:
+                        return self._manda(dict(resposta=painel.pede('envia ' + t, PAINEL, timeout=3)))
+                    except OSError:
+                        raise RuntimeError("o painel não responde: não há sessão rodando")
             except (ValueError, RuntimeError) as e:
                 return self._erro(e)
             except Exception as e:

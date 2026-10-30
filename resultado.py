@@ -62,7 +62,7 @@ import numpy as np
 import fec
 import recording
 from modem import (MARY_BITS, MaryDemodulator, MFSKDemodulator, MFSK_PAIRS,
-                   TONE_LAYERS, chirp, sweep_soft, tone_layer)
+                   TONE_LAYERS, chirp, sweep_soft, tone_layer, gray_gravado)
 
 BLOCK = 2048          # what the live path hands the demodulator at a time
 PY = sys.executable
@@ -99,12 +99,14 @@ def demodulator(meta, **kw):
                                gap=meta.get('gap', 0.0),
                                band=meta.get('band', 0.0),
                                chord=meta.get('chord', False),
-                               ifk=bool(meta.get('ifk')), **kw)
+                               ifk=bool(meta.get('ifk')),
+                               gray=gray_gravado(meta), **kw)
     if meta['mode'] in TONE_LAYERS:
         # Any other tone layer (2-FSK): its own alphabet, never IFK or chord.
         return MaryDemodulator(fs=meta['fs'], baud=meta['baud'],
                                gap=meta.get('gap', 0.0),
                                band=meta.get('band', 0.0),
+                               gray=gray_gravado(meta),
                                **tone_layer(meta['mode']), **kw)
     return MFSKDemodulator(fs=meta['fs'], baud=meta['baud'],
                            parallel=meta.get('parallel', False),

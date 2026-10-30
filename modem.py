@@ -739,10 +739,57 @@ def _gray(i):
     return i ^ (i >> 1)
 
 
+def _gray_inv(g):
+    """The inverse of `_gray`: the i with _gray(i) == g."""
+    n = g
+    g >>= 1
+    while g:
+        n ^= g
+        g >>= 1
+    return n
+
+
 # Neighbouring tones are the ones the channel confuses, so Gray coding makes
-# that confusion cost one bit instead of up to four.
-_GRAY = [_gray(i) for i in range(1 << MARY_BITS)]
+# that confusion cost one bit instead of up to four. What guarantees it is
+# value = gray(tone): the tables below are indexed by value and give the tone,
+# so the tone of value v is gray_inv(v). Until 2026-10-29 the table was
+# gray(v) -- value on tone gray(v), the inverse mapping -- which makes
+# consecutive *values* differ by one bit and leaves three pairs of adjacent
+# *tones* (3/4, 7/8, 11/12: 1375/1538, 2025/2188, 2675/2838 Hz) two bits apart.
+#
+# A wire change: transmitter and receiver must run the same table. Against
+# each other the two tables swap the values of 12 of the 16 tones (only 0-3
+# stay put), about one bit in four wrong, and the block fails its CRC like a
+# bad channel. Recordings made before the fix carry no `gray` field in their
+# JSON and are read with the old table (`gray_gravado`).
+GRAY_TOM = 'tom'        # value = gray(tone): adjacent tones one bit apart
+GRAY_VALOR = 'valor'    # tone = gray(value): the table before 2026-10-29
+GRAY_ATUAL = GRAY_TOM   # what this code transmits; stamped into new captures
+
+
+def gray_table(bits, gray=GRAY_TOM):
+    """Tone index for each value. `gray` names the mapping, see GRAY_TOM."""
+    if gray == GRAY_TOM:
+        return [_gray_inv(i) for i in range(1 << bits)]
+    if gray == GRAY_VALOR:
+        return [_gray(i) for i in range(1 << bits)]
+    raise ValueError(f"gray={gray!r}: use {GRAY_TOM!r} ou {GRAY_VALOR!r}")
+
+
+def gray_gravado(meta):
+    """The Gray table a recording was made with, from its JSON sidecar.
+
+    Absent means the capture predates 2026-10-29 and the old table. One
+    function for every offline reader, so the rule cannot drift between them.
+    """
+    return meta.get('gray', GRAY_VALOR)
+
+
+_GRAY = gray_table(MARY_BITS)
 _UNGRAY = {g: i for i, g in enumerate(_GRAY)}
+# The table before 2026-10-29, for reading recordings made with it.
+_GRAY_ANTIGO = gray_table(MARY_BITS, GRAY_VALOR)
+_UNGRAY_ANTIGO = {g: i for i, g in enumerate(_GRAY_ANTIGO)}
 
 # IFK by repetition tone: the tone sent is never the tone of the previous
 # symbol. A seventeenth tone, one step above the last, means "same value as the
@@ -792,20 +839,18 @@ def tone_layer(mode):
     return dict(tones=tones, bits=bits)
 
 
-def gray_table(bits):
-    return [_gray(i) for i in range(1 << bits)]
-
-
-def ifk_tones(values):
+def ifk_tones(values, gray=GRAY_TOM):
     """Tone index for each value under the IFK rule, starting a fresh frame.
 
     Index 16 is the repetition tone. One function for the transmitter and for
-    every offline tool that has to know what was on the air.
+    every offline tool that has to know what was on the air; `gray` is the
+    table the recording was made with (`gray_gravado`).
     """
+    table = gray_table(MARY_BITS, gray)
     rep = 1 << MARY_BITS
     out, prev_v, prev_t = [], None, None
     for v in values:
-        t = rep if (v == prev_v and prev_t != rep) else _GRAY[v]
+        t = rep if (v == prev_v and prev_t != rep) else table[v]
         out.append(t)
         prev_v, prev_t = v, t
     return out
@@ -829,7 +874,7 @@ class MaryModulator:
     """
 
     def __init__(self, fs=48000, baud=100, tones=MARY_TONES, gap=0.0,
-                 chord=False, ifk=False, bits=MARY_BITS):
+                 chord=False, ifk=False, bits=MARY_BITS, gray=GRAY_TOM):
         if ifk and chord:
             raise ValueError("ifk e chord nao combinam: o IFK escolhe um tom")
         if bits != MARY_BITS and (ifk or chord):
@@ -837,7 +882,8 @@ class MaryModulator:
         if len(tones) != 1 << bits:
             raise ValueError(f"{len(tones)} tons para {bits} bits por simbolo")
         self.nbits = int(bits)
-        self.gray = gray_table(self.nbits)
+        # Tone of each value; `gray` only for re-synthesising an old burst.
+        self.gray = gray_table(self.nbits, gray)
         self.fs = fs
         self.baud = baud
         self.ifk = bool(ifk)
@@ -942,7 +988,7 @@ class MaryDemodulator:
                  contrast_min=0.15, floor_alpha=0.02, gap=0.0, band=0.0,
                  chord=False, steer=True, skip=0, floor_fixed=None,
                  period=None, floor_norm=False, floor_clip=None, floor_top=1,
-                 ifk=False, bits=MARY_BITS):
+                 ifk=False, bits=MARY_BITS, gray=GRAY_TOM):
         if ifk and chord:
             raise ValueError("ifk e chord nao combinam: o IFK escolhe um tom")
         if bits != MARY_BITS and (ifk or chord):
@@ -951,7 +997,10 @@ class MaryDemodulator:
             raise ValueError(f"{len(tones)} tons para {bits} bits por simbolo")
         # Bits per symbol. Not `self.bits`, which is the leftover-bit list.
         self.nbits = int(bits)
-        self.gray = gray_table(self.nbits)
+        # `gray`: the table the transmitter used. GRAY_VALOR reads recordings
+        # made before 2026-10-29 (see `gray_gravado`); the live path never
+        # passes it.
+        self.gray = gray_table(self.nbits, gray)
         self.ungray = {g: i for i, g in enumerate(self.gray)}
         # IFK by repetition tone: see `ifk_tones`. With it on, the tone this
         # demodulator *detected* in the previous symbol is left out of the

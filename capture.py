@@ -29,7 +29,7 @@ import sounddevice as sd
 import aviso
 import fec
 import recording
-from modem import MFSK_PAIRS, SYNC_CHIRP, TONE_LAYERS
+from modem import MFSK_PAIRS, SYNC_CHIRP, TONE_LAYERS, GRAY_ATUAL
 from serial_link import Control, pack, unpack
 
 FS = 48000
@@ -398,6 +398,10 @@ def main():
                                   sync_layer(args.mode, args.parallel))
                                   if args.sync_chirp else 0.0),
                               grouped=bool(args.grouped),
+                              # Tabela Gray do 16-FSK (ver modem.gray_table).
+                              # Carimbada como a deste codigo: so e verdade se o
+                              # agente tambem ja tem a correcao de 2026-10-29.
+                              gray=GRAY_ATUAL,
                               baud=baud, fs=FS, seed=seed, gain=args.gain,
                               device=str(args.device), rms=rms, peak=peak,
                               airtime_s=round(airtime, 2))

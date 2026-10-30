@@ -48,16 +48,19 @@ import numpy as np
 
 import fec
 import recording
-from modem import (MARY_TONES, MARY_BITS, MFSK_PAIRS, _GRAY, _UNGRAY,
+from modem import (MARY_TONES, MARY_BITS, MFSK_PAIRS, GRAY_TOM,
                    MFSKDemodulator, MaryDemodulator, ifk_tones,
-                   TONE_LAYERS, tone_layer)
+                   TONE_LAYERS, tone_layer, gray_table, gray_gravado)
 
 
 def _layer_kw(meta):
-    """Alphabet for a non-16-tone layer (2-FSK); empty for `mary`, which
-    keeps every call exactly as it was."""
+    """Alphabet for a non-16-tone layer (2-FSK), plus the Gray table the
+    recording was made with (`modem.gray_gravado`); for an old `mary` capture
+    that is the table every call used before 2026-10-29."""
     mode = meta.get('mode')
-    return tone_layer(mode) if mode in TONE_LAYERS and mode != 'mary' else {}
+    kw = tone_layer(mode) if mode in TONE_LAYERS and mode != 'mary' else {}
+    kw['gray'] = gray_gravado(meta)
+    return kw
 
 
 def _layer_tones(meta):
@@ -171,7 +174,7 @@ def mfsk_decided(samples, meta):
     return out
 
 
-def tx_tone_indices(payload, repeat, ifk=False, bits=MARY_BITS):
+def tx_tone_indices(payload, repeat, ifk=False, bits=MARY_BITS, gray=GRAY_TOM):
     """The tone the transmitter sounded in each symbol slot, from the payload.
 
     Reconstructed rather than guessed: the preamble is a fixed alternation and
@@ -187,11 +190,12 @@ def tx_tone_indices(payload, repeat, ifk=False, bits=MARY_BITS):
               for i in range(0, len(bits) - (nb - 1), nb)]
     # Under IFK the tone depends on the previous value as well; index 16 is
     # the repetition tone. With fewer bits per symbol (2-FSK) the Gray table
-    # is that layer's own.
+    # is that layer's own. `gray` is the table the recording was made with:
+    # pass `modem.gray_gravado(meta)` when reading a capture.
     if ifk:
-        return ifk_tones(values)
-    gray = _GRAY if nb == MARY_BITS else [v ^ (v >> 1) for v in range(1 << nb)]
-    return [gray[v] for v in values]
+        return ifk_tones(values, gray=gray)
+    table = gray_table(nb, gray)
+    return [table[v] for v in values]
 
 
 def find_start(samples, fs, sps, tones, want, guard=0.15, search=2.5):
@@ -393,7 +397,7 @@ def nibble_label(v):
     return "0123456789ABCDEF"[v & 0xF]
 
 
-def label_strip(width, decisions, want, sps, hop, win, scale=2):
+def label_strip(width, decisions, want, sps, hop, win, scale=2, gray=GRAY_TOM):
     """Two rows of characters under the picture: what was sent, what was read.
 
     One glyph per symbol, because a symbol is four bits and four bits is what
@@ -411,6 +415,7 @@ def label_strip(width, decisions, want, sps, hop, win, scale=2):
     statements about the whole block -- which is the level at which they are
     true.
     """
+    ungray = {t: v for v, t in enumerate(gray_table(MARY_BITS, gray))}
     rowh = 7 * scale + 4
     strip = np.zeros((2 * rowh + 10, width, 3), dtype=np.uint8)
     strip[:] = (14, 14, 18)
@@ -423,10 +428,10 @@ def label_strip(width, decisions, want, sps, hop, win, scale=2):
             continue
         inside = 0 <= k < len(want)
         if inside:
-            draw_text(strip, c, 3, nibble_label(_UNGRAY[want[k]]),
+            draw_text(strip, c, 3, nibble_label(ungray[want[k]]),
                       (230, 120, 120), scale)
         right = inside and want[k] == idx
-        draw_text(strip, c, 3 + rowh, nibble_label(_UNGRAY[idx]),
+        draw_text(strip, c, 3 + rowh, nibble_label(ungray[idx]),
                   (120, 230, 140) if right else (245, 120, 120), scale)
     return strip
 
@@ -775,7 +780,7 @@ def render(args, samples_all, payload, meta, t0, secs, out_path, tag):
         tone_frac = 1.0 - meta.get('gap', 0.0)
         if is_mary:
             want = tx_tone_indices(payload, meta.get('fec_repeat', 1),
-                                   bits=layer_bits)
+                                   bits=layer_bits, gray=gray_gravado(meta))
             tone_list = list(layer_tones)
             start = args.start - a
         else:
@@ -824,7 +829,8 @@ def render(args, samples_all, payload, meta, t0, secs, out_path, tag):
             ])]
             if is_mary:
                 strips_bottom.append(
-                    label_strip(args.cols, decisions, want, sps, hop, win))
+                    label_strip(args.cols, decisions, want, sps, hop, win,
+                                gray=gray_gravado(meta)))
             strips_bottom.append(caption_strip(args.cols, args.caption + [
                 (report, (200, 200, 210))]))
         else:
@@ -938,7 +944,8 @@ def main():
         sps = int(fs / meta['baud'])
         if meta.get('mode') in TONE_LAYERS:
             tones, nb = TONE_LAYERS[meta['mode']]
-            want = tx_tone_indices(payload, meta.get('fec_repeat', 1), bits=nb)
+            want = tx_tone_indices(payload, meta.get('fec_repeat', 1), bits=nb,
+                                   gray=gray_gravado(meta))
             coarse, hits = find_start(samples, fs, sps,
                                       np.array(tones, float), want)
             start, agree, ncomp = align_mary(samples, meta, want, coarse, sps)

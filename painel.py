@@ -142,8 +142,23 @@ class Painel:
             self._sf32.flush()
             self._sidx.flush()
             tmp = self._nome('.estado.json.tmp')
-            tmp.write_text(json.dumps(estado, indent=1, ensure_ascii=False))
-            os.replace(tmp, self._nome('.estado.json'))
+            # utf-8 explícito: no Windows o padrão é cp1252, e um "→" num
+            # aviso de volume derrubou a sessão do B aos 7 s (2026-10-29).
+            try:
+                tmp.write_text(json.dumps(estado, indent=1, ensure_ascii=False),
+                               encoding='utf-8')
+            except OSError:
+                return
+            # No Windows o replace falha com "Acesso negado" enquanto o visor
+            # está lendo o arquivo; em 2026-10-29 isso derrubou a sessão do B
+            # aos 54 s e o Linux ficou chamando ninguém. O estado é só vitrine:
+            # tenta de novo e, se não der, fica para a próxima publicação.
+            for _ in range(5):
+                try:
+                    os.replace(tmp, self._nome('.estado.json'))
+                    break
+                except PermissionError:
+                    time.sleep(0.02)
 
     def fecha(self):
         """Depois do WAV definitivo gravado: o `.f32` vira redundante."""
@@ -175,7 +190,13 @@ class Painel:
                 return              # fechado por `fecha`
             try:
                 c.settimeout(5)
-                pedido = c.makefile('r', encoding='utf-8').readline().split()
+                linha = c.makefile('r', encoding='utf-8').readline().rstrip('\r\n')
+                if linha.startswith('envia '):
+                    # Texto digitado: vai inteiro, com os espaços.
+                    self.comandos.put(('envia', linha[6:]))
+                    c.sendall("ok: texto na fila\n".encode('utf-8'))
+                    continue
+                pedido = linha.split()
                 c.sendall((self._responde(pedido) + "\n").encode('utf-8'))
             except Exception as e:
                 try:

@@ -41,7 +41,7 @@ import aviso
 import fec
 import recording
 from modem import (FSKModulator, MFSKModulator, MFSK_PAIRS, MaryModulator,
-                   MARY_BITS, chirp, SYNC_CHIRP)
+                   MARY_BITS, chirp, SYNC_CHIRP, GRAY_ATUAL)
 
 FS = 48000
 BLOCK = 2048
@@ -347,7 +347,10 @@ def main():
 
     common = dict(fs=FS, self_capture=True, link=args.link,
                   in_device=str(args.in_device), out_device=str(args.out_device),
-                  gain=args.gain)
+                  gain=args.gain,
+                  # Tabela Gray do 16-FSK (ver modem.gray_table); ausente =
+                  # gravacao anterior a 2026-10-29, tabela antiga.
+                  gray=GRAY_ATUAL)
 
     if args.chirp:
         f0, f1, secs = (float(x) for x in args.chirp.split())

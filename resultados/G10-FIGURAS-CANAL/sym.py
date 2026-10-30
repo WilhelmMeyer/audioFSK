@@ -7,7 +7,8 @@ def run(stem):
     samples, payload, meta = recording.load(stem + '.json')
     samples = np.asarray(samples, float)
     fs, sps = meta['fs'], 480
-    want = np.array(spectro.tx_tone_indices(payload, meta.get('fec_repeat', 1) or 1))
+    want = np.array(spectro.tx_tone_indices(payload, meta.get('fec_repeat', 1) or 1,
+                                         gray='valor'))
     coarse, _ = spectro.find_start(samples, fs, sps, MARY_TONES, list(want))
     start, hits, n = spectro.align_mary(samples, meta, list(want), coarse, sps)
     g = int(0.15 * sps); nn = np.arange(g, sps)
