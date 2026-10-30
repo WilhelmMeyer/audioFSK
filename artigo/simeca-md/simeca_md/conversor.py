@@ -92,13 +92,35 @@ def aplica_tamanho(xml, meia_pt):
         rf'<m:r>\1<w:rPr><w:sz w:val="{meia_pt}"/><w:szCs w:val="{meia_pt}"/></w:rPr>',
         xml, flags=re.S,
     )
-    return xml
+    return fonte_matematica(xml)
+
+
+FONTE_MAT = '<w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math"/>'
+
+
+def fonte_matematica(xml):
+    """Fixa a Cambria Math em cada m:r, como o Word grava.
+
+    Sem rFonts o Word herda a fonte do paragrafo, que nao tem as letras
+    matematicas em italico (U+1D400 em diante): as letras somem e ficam so o
+    sinal de igual e a barra de fracao.
+    """
+    xml = re.sub(
+        r"(<m:r>(?:<m:rPr>.*?</m:rPr>)?<w:rPr>)(?!<w:rFonts)",
+        rf"\1{FONTE_MAT}",
+        xml, flags=re.S,
+    )
+    return re.sub(
+        r"(<m:r>(?:<m:rPr>.*?</m:rPr>)?)(?=<m:t)",
+        rf"\1<w:rPr>{FONTE_MAT}</w:rPr>",
+        xml, flags=re.S,
+    )
 
 
 def omath(est, latex):
     if latex not in est.math:
         raise RuntimeError(f"LaTeX nao esta no cache de equacoes: {latex!r}")
-    return est.math[latex]
+    return fonte_matematica(est.math[latex])
 
 
 def inline(est, texto):
