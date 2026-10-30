@@ -34,9 +34,9 @@ FORMAS = [
 
 # (rótulo, gravações, blocos malha, blocos varreduras)
 SINC = [
-    ('Duas máquinas,\ncaixa Bluetooth', 4, 4, 4),        # 12-13-SYNC
-    ('Duas máquinas,\n10 cm', 8, 6, 7),                  # H03-2FSK-FEC, as 8 com varreduras
-    ('Uma máquina,\ncaixa Bluetooth', 24, 15, 23),       # studies/20260903-111105-ganho-mary
+    ('16-FSK,\nduas máquinas', 4, 4, 4),        # 12-13-SYNC
+    ('2-FSK,\nduas máquinas', 8, 6, 7),                  # H03-2FSK-FEC, as 8 com varreduras
+    ('16-FSK,\numa máquina', 24, 15, 23),       # studies/20260903-111105-ganho-mary
 ]
 
 

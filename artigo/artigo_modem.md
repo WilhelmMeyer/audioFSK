@@ -183,7 +183,17 @@ Mesmo com o nível ajustado, parte dos bits chega trocada, e a camada de enlace 
 
 Esse esquema é um código convolucional de taxa um terço, três bits emitidos por bit de entrada, e comprimento de restrição sete, os sete bits que entram em cada cálculo. Os três grupos usados são os dos polinômios geradores 171, 133 e 165 em octal (PROAKIS; SALEHI, 2008).
 
+A Figura 9 mostra o codificador e o lugar do bloco no quadro transmitido, que se completa com o preâmbulo, a palavra de referência da seção 4.2 e as varreduras da seção 3.3.
+
+![](figuras/quadro-codificado.png "0.95")
+Figura 9 - Quadro de 48 bytes em 16-FSK, em escala de tempo, e o codificador. Cada bit emitido é o ou-exclusivo dos bits ligados à sua linha, segundo os polinômios 171, 133 e 165 em octal.
+
 Na recepção, o decodificador procura a mensagem cuja codificação mais se parece com o que chegou, pelo algoritmo de Viterbi (VITERBI, 1967). Como cada bit da mensagem participa de vários bits transmitidos, uma mensagem errada discorda do recebido em muitas posições, e a certa, só nas poucas que chegaram trocadas. Cada discordância pesa conforme a confiança com que o bit chegou, o que se chama decisão suave, e um bit trocado que chegou com baixa confiança quase não pesa.
+
+A Figura 10 mostra essa correção em um bloco recebido no sistema implementado. Dos 1170 bits codificados, 112 chegaram trocados, 9,6%, e a mensagem decodificada saiu sem nenhum erro. Os bits trocados chegaram com confiança média de 0,87, contra 2,39 nos certos, e por isso pesaram pouco na decisão.
+
+![](figuras/correcao-bloco.png "0.95")
+Figura 10 - Correção de um bloco de 48 bytes recebido em 16-FSK. Em cima, a posição dos bits codificados trocados, na ordem de transmissão; no meio, a mensagem decodificada, sem erros; embaixo, a distribuição da confiança dos bits certos e dos trocados.
 
 Antes de transmitidos, os bits codificados são entrelaçados, escritos em linhas e lidos em colunas, o que afasta no tempo bits que o código mantém próximos. Uma perturbação curta, como um ruído de rajada, atinge então bits espalhados, que o decodificador corrige um a um. O bloco pode ainda ser repetido, o que aumenta a tolerância a erros à custa de tempo de transmissão.
 
@@ -193,6 +203,11 @@ A camada física entrega uma sequência contínua de confianças, sem marca de o
 
 O bloco codificado é precedido por uma palavra de referência de 31 bits, conhecida pelas duas pontas. O receptor correlaciona essa palavra com a sequência recebida, e o pico da correlação marca o primeiro bit do bloco com exatidão de um bit.
 
+A Figura 11 mostra essa correlação em um bloco recebido no sistema implementado. O pico, 0,87, fica no início do bloco, e o maior valor fora dele, 0,68, cai dentro dos dados, por isso o receptor toma o maior pico, e não o primeiro valor acima do limiar.
+
+![](figuras/correlacao-palavra.png "0.95")
+Figura 11 - Correlação da palavra de referência ao longo do fluxo recebido, em um bloco de 16-FSK. O pico marca o início do bloco; o trecho constante é o preâmbulo.
+
 ### 4.3 Pacotes e retransmissão
 
 Para transferir um arquivo, os dados são divididos em pacotes, cada um com número de sequência, comprimento e verificação de redundância cíclica, do inglês *cyclic redundancy check* (CRC), de 16 bits. O receptor pede um pacote, confere o CRC e só então pede o seguinte, repetindo o pedido até quatro vezes enquanto a verificação falhar. É o arranjo pare-e-espere dos protocolos de enlace (TANENBAUM; WETHERALL, 2011). Ao fim, um CRC de 32 bits sobre o arquivo inteiro confirma o resultado.
@@ -201,11 +216,19 @@ A retransmissão só converge se a maioria dos pacotes chegar íntegra na primei
 
 ### 4.4 Negociação do enlace pelo ar
 
-A qualidade de cada tom não é fixa. No sistema implementado, metade dos erros de símbolo se concentrou em três dos dezesseis tons, e esses tons mudaram de uma sessão para outra. Uma configuração escolhida de antemão serve, portanto, a uma sessão e não à seguinte.
+A qualidade de cada tom não é fixa. No sistema implementado, os três piores tons concentraram de 47% a 90% dos erros de símbolo em cada sessão, e esses tons mudaram de uma sessão para outra (Figura 12). Uma configuração escolhida de antemão serve, portanto, a uma sessão e não à seguinte.
+
+![](figuras/erros-por-tom.png "0.95")
+Figura 12 - Fração dos erros de símbolo em cada tom da 16-FSK, em três sessões no mesmo sentido. Os marcadores cheios são os três piores tons de cada sessão, e a linha pontilhada, a fração de uma distribuição uniforme.
 
 Na negociação, as duas estações configuram o enlace pelo próprio som, sem canal auxiliar. A estação que chama emite um par de varreduras de frequência, e a que escuta responde. Em seguida cada uma sonda o canal no sentido em que transmite, com tons isolados em todas as frequências candidatas e blocos conhecidos em níveis crescentes.
 
 Quem decide a configuração de cada sentido é o receptor, que é quem mediu a sondagem. Ele escolhe os tons utilizáveis, o nível de transmissão e a taxa, e envia essa escolha como um contrato. Os dados seguem em pare-e-espere, e se os pacotes falharem repetidamente o transmissor recua para uma taxa menor.
+
+A Figura 13 mostra a sequência em uma sessão do sistema implementado, da chamada aos dados, com um pacote ilegível pedido de novo e retransmitido.
+
+![](figuras/negociacao.png "0.8")
+Figura 13 - Sequência de uma sessão negociada pelo ar, em escala de tempo. Cada seta vai do fim da leitura de um turno ao fim da leitura do seguinte. A seta tracejada é um pacote ilegível.
 
 ## 5 INTERFACE COM A APLICAÇÃO
 
@@ -221,44 +244,44 @@ Sobre o mesmo enlace estão em implementação uma conversa, em que o canal perm
 
 ### 6.1 Bancada
 
-Duas máquinas na mesma sala, A (Linux) e B (Windows), cada uma com alto-falante e microfone próprios, transmitindo de B para A. Um canal de controle entre elas apenas comanda o ensaio, e os bytes avaliados viajam somente pelo ar. Foram usadas duas configurações, uma com caixa de som Bluetooth (2026-09-03) e outra com alto-falante com fio a 10 cm do microfone (2026-10-08), ambas com o nível abaixo da saturação.
+Dois computadores na mesma sala, cada um com alto-falante e microfone de uso geral. Um canal de controle entre eles apenas comanda o ensaio, e os bytes avaliados viajam somente pelo ar. Foram usadas duas montagens, uma com o alto-falante a 10 cm do microfone e outra com ele afastado, ambas com o nível abaixo da saturação.
 
 ### 6.2 Formas de transmissão
 
-A Figura 9 mostra as formas de transmissão na bancada a 10 cm, com blocos de 48 bytes e ganho 0,5.
+A Figura 14 mostra as formas de transmissão na bancada a 10 cm, com blocos de 48 bytes e ganho 0,5.
 
 ![](figuras/resultado-formas.png "0.95")
-Figura 9 - Bits certos em cada gravação, por forma de transmissão, a 10 cm. Círculo cheio, bloco entregue íntegro; vazio, bloco perdido. À direita, blocos íntegros e taxa útil calculada pela duração do quadro.
+Figura 14 - Bits certos em cada gravação, por forma de transmissão, a 10 cm. Círculo cheio, bloco entregue íntegro; vazio, bloco perdido. À direita, blocos íntegros e taxa útil calculada pela duração do quadro.
 
 A 2-FSK de Bell 202, sem correção de erros, não entrega nenhum bloco. Com correção de erros, todas as formas entregam a maior parte dos blocos. A 5×2-FSK multicanal tem a maior taxa, 13,8 B/s, com o menor acerto de bits, e a 16-FSK só entrega todos os blocos com as varreduras de sincronismo.
 
-Na configuração com caixa Bluetooth, a 16-FSK entregou 4 blocos de 4 a 11,3 B/s, com 5,9% a 9,5% dos bits codificados trocados, todos corrigidos.
+Com o alto-falante afastado, a 16-FSK entregou 4 blocos de 4 a 11,3 B/s, com 5,9% a 9,5% dos bits codificados trocados, todos corrigidos.
 
 <!-- Fontes: F01-2FSK-10CM, H03-2FSK-FEC (2-FSK com correção, 4 gravações), F02, F03, F00-NIVEL-10CM, F04-16FSK-10CM (2026-10-08); 14-FEC-REP (2026-09-03; rep 2 e 4 também 4/4, a 6,7 e 3,7 B/s). Taxas calculadas pelo código (RESUMO-CAMPANHA-FINAL.md). Gravações com o mapeamento Gray anterior à correção de 2026-10-29. Script: resultados/FIG-RESULTADOS/. -->
 
 ### 6.3 Sincronismo
 
-A Figura 10 compara a malha de adiantamento e atraso com as varreduras, lidas sobre as mesmas gravações.
+A Figura 15 compara a malha de adiantamento e atraso com as varreduras, lidas sobre as mesmas gravações.
 
 ![](figuras/resultado-sincronismo.png "0.95")
-Figura 10 - Blocos íntegros com a malha e com as varreduras, nas mesmas gravações, em três conjuntos.
+Figura 15 - Blocos íntegros com a malha e com as varreduras, nas mesmas gravações, em três conjuntos.
 
-Quando a malha acompanha o sinal, as duas empatam. A diferença está nos quadros em que a malha perde o alinhamento, que as varreduras recuperam, e é maior no conjunto com uma única máquina tocando e gravando, em que as varreduras leram mais bits que a malha em 23 das 24 gravações.
+Quando a malha acompanha o sinal, as duas empatam. A diferença está nos quadros em que a malha perde o alinhamento, que as varreduras recuperam, e é maior no conjunto gravado por um só computador, que toca e grava ao mesmo tempo, em que as varreduras leram mais bits que a malha em 23 das 24 gravações.
 
 <!-- Fontes: 12-13-SYNC (4 gravações, 192 B, rep 2), H03-2FSK-FEC (as 8 com varreduras), studies/20260903-111105-ganho-mary (uma máquina, ganho 0,20 a 0,38). -->
 
 ### 6.4 Transferência de arquivo
 
-Uma imagem de 1334 bytes foi transferida de B para A com a caixa Bluetooth e chegou idêntica, conferida pelo CRC de 32 bits (Figura 11). Em pacotes de 64 bytes, os 21 pacotes chegaram sem retransmissão, a 6,8 B/s, e em pacotes de 128 bytes, os 11 chegaram com 3 retransmissões, a 7,2 B/s.
+Uma imagem de 1334 bytes foi transferida com o alto-falante afastado e chegou idêntica, conferida pelo CRC de 32 bits (Figura 16). Em pacotes de 64 bytes, os 21 pacotes chegaram sem retransmissão, a 6,8 B/s, e em pacotes de 128 bytes, os 11 chegaram com 3 retransmissões, a 7,2 B/s.
 
 ![](figuras/arquivo-enviado-recebido.png "0.6")
-Figura 11 - Imagem de 1334 bytes enviada (a) e recebida pelo ar (b), idênticas byte a byte.
+Figura 16 - Imagem de 1334 bytes enviada (a) e recebida pelo ar (b), idênticas byte a byte.
 
 A taxa fica abaixo da do bloco isolado pelo preâmbulo, pelo cabeçalho e pela espera entre pacotes. A 10 cm, três transferências da mesma imagem também chegaram idênticas, de 5,0 a 7,6 B/s.
 
 ### 6.5 Enlace negociado
 
-Com as máquinas a cerca de 2 m e sem configuração prévia, cada sessão válida de 2026-10-22 entregou completos os 207 bytes de um sentido e os 44 do outro, em 302 s com a negociação automática. Os contratos dos dois sentidos excluíram tons diferentes e fixaram ganhos diferentes, o que confirma a medida por sentido. Com outro computador no papel de B, a sessão também se completou, em 405 s.
+Com as máquinas a cerca de 2 m e sem configuração prévia, cada sessão válida entregou completos os 207 bytes de um sentido e os 44 do outro, em 302 s com a negociação automática. Os contratos dos dois sentidos excluíram tons diferentes e fixaram ganhos diferentes, o que confirma a medida por sentido. Com outro computador em uma das pontas, a sessão também se completou, em 405 s.
 
 <!-- Fontes: H07-ENLACE-MODOS (2026-10-22), H06-ENLACE-AR sessão 3 (contratos: A->B exclui 4 tons, ganho 0,45, rep 2; B->A exclui 3, ganho 0,3, rep 1), sessoes-enlace-2maq/20261027-175531 (405 s). Figura do visor em modo projeção com as fases: a capturar. 6.6 chat e terminal: quando medidos. -->
 

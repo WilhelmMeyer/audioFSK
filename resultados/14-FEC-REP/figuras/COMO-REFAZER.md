@@ -116,3 +116,15 @@ inteiro, entao os 64,0% de "relogio travado" que o `HEADER.md` cita como
 confirmacao independente nao sao uma segunda regua: sao a mesma limitacao
 medida duas vezes. Qualquer gravacao que termine antes do fim do seu quadro
 pontua assim nos dois marcadores offline.
+
+## correcao-bloco.png (artigo, capítulo 4)
+
+    ./venv/bin/python resultados/14-FEC-REP/figuras/figura_correcao.py
+
+Gravação `20260903-172519-rep1-B2A`, a de mais bits trocados entre as quatro de repetição 1. Lida offline em blocos de 2048 amostras, gray por `modem.gray_gravado(meta)` (gravação anterior a 2026-10-29, tabela antiga), palavra de referência por `fec.find_sync`, Viterbi por `fec.decode`; para se o bloco não voltar à carga. Os bits enviados são refeitos por `fec.encode` a partir de `payload_hex`, em ordem de transmissão (entrelaçada). Saída na época: 112 de 1170 bits codificados trocados (9,57%), 0 de 384 bits da mensagem, |LLR| médio 0,87 nos trocados e 2,39 nos certos. O 9,57% difere dos 9,49% de `resultado.csv` porque lá a régua é o melhor deslizamento e aqui a posição achada pela palavra de referência. Grava aqui e em `artigo/figuras/correcao-bloco.png`.
+
+## correlacao-palavra.png (artigo, capítulo 4.2)
+
+    ./venv/bin/python resultados/14-FEC-REP/figuras/figura_correlacao.py
+
+Gravação `20260903-172504-rep1-B2A` (16-FSK, repetição 1, bloco íntegro), demodulada em blocos de 2048 amostras com o Gray da gravação (`modem.gray_gravado`). Correlação idêntica à de `fec.find_sync` (sinal do valor suave contra a palavra em ±1, dividido por 31); o script confere que o pico dá o mesmo início e que o bloco decodifica de volta à carga. Pico 0,871 (27/31) na posição 704, início do bloco em 735. Maior valor fora de ±30 bits do pico: 0,677 (21/31), dentro do bloco de dados, acima do limiar 0,55; o receptor fica com o maior pico, não com o primeiro acima do limiar. O trecho constante antes do pico é o preâmbulo. Cópia em `artigo/figuras/`.
