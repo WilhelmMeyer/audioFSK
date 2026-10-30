@@ -203,9 +203,11 @@ Antes de transmitidos, os bits codificados são entrelaçados, escritos em linha
 
 ### 4.2 Localização do bloco
 
-A camada física entrega uma sequência contínua de confianças, sem marca de onde o bloco começa. Na 16-FSK cada símbolo carrega quatro bits, metade de um byte, e começar a leitura um símbolo antes ou depois troca as duas metades de todos os bytes. Contar símbolos desde o início da transmissão também não basta, porque a malha de sincronismo pode ganhar ou perder um símbolo ao longo do preâmbulo.
+A camada física entrega ao receptor uma sequência longa de bits, com o preâmbulo, o bloco e o que veio antes e depois deles, sem nenhuma indicação de qual é o primeiro bit do bloco. Começar a decodificação um único bit adiantado ou atrasado basta para que o decodificador da seção 4.1 entregue uma mensagem errada.
 
-O bloco codificado é precedido por uma palavra de referência de 31 bits, conhecida pelas duas pontas. O receptor correlaciona essa palavra com a sequência recebida, e o pico da correlação marca o primeiro bit do bloco com exatidão de um bit.
+Contar os bits desde o início da transmissão não resolve. A malha de sincronismo da seção 3.3 pode ganhar ou perder um símbolo ao longo do preâmbulo, e na 16-FSK cada símbolo vale quatro bits.
+
+Para marcar o início, o transmissor coloca logo antes do bloco uma palavra de referência, uma sequência fixa de 31 bits conhecida pelas duas pontas. O receptor desliza essa palavra ao longo dos bits recebidos e, em cada posição, compara os 31 bits com os que chegaram. Fora da palavra, as coincidências ficam em torno da metade, como num sorteio, e na posição da palavra quase todos os bits coincidem. Essa operação se chama correlação, e o bloco começa no bit seguinte ao da maior coincidência.
 
 A Figura 11 mostra onde a palavra fica no quadro transmitido, entre o preâmbulo e o bloco codificado, que ocupa a maior parte do tempo no ar.
 
