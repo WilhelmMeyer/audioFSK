@@ -158,7 +158,7 @@ $$T = \frac{n_2 - n_1}{S} \tag{4}$$
 
 Nela, $n_1$ e $n_2$ são as posições das duas varreduras, em amostras, e $S$ é o número de símbolos entre elas.
 
-A Figura 8 ilustra o quadro no formato do visor apresentado na seção 5, com a frequência no eixo horizontal e o tempo no vertical. É um quadro curto, de 30 símbolos, gerado pelo modulador do sistema sem passar pelo ar, para que cada símbolo fique visível. O receptor localiza as duas varreduras, marca $n_1$ no fim da primeira e $n_2$ no início da segunda, e divide o intervalo pelos $S$ símbolos entre elas, o que dá as fronteiras de símbolo desenhadas.
+A Figura 8 ilustra o quadro no formato do visor apresentado na seção 5, com a frequência no eixo horizontal e o tempo no vertical. É um quadro curto, de 18 símbolos, gerado pelo modulador do sistema sem passar pelo ar, para que cada símbolo fique visível. O receptor localiza as duas varreduras, marca $n_1$ no fim da primeira e $n_2$ no início da segunda, e divide o intervalo pelos $S$ símbolos entre elas, o que dá as fronteiras de símbolo desenhadas.
 
 ![](figuras/sincronismo-varreduras.png "0.95")
 Figura 8 - Quadro curto de 16-FSK entre as duas varreduras de sincronismo, gerado pelo modulador do sistema, no formato do visor, com o mais recente no alto. As linhas finas são as fronteiras de símbolo obtidas por (4).
