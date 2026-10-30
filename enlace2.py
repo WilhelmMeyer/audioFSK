@@ -146,6 +146,7 @@ LAT_OUTRO = int(0.8 * FS)
 MARGEM = int(1.0 * FS)
 ASSENTA = int(0.5 * FS)
 MARCA_FRACA = 0.30            # leitura aberta por marca abaixo disto pode ser largada
+FECHO_RAZAO = 0.35             # som depois da marca / antes dela e / a marca: abaixo, é fechamento (ver _e_fechamento)
 MARCA_FORTE = 0.45            # por uma marca acima disto que chegue depois
 CHEIO_MIN = 0.2                # menor quarto da janela / energia média dela (ver _cheio)
 # Nas varreduras, menos: o alto-falante de celular quase não dá os graves, e o
@@ -806,6 +807,24 @@ class Estacao:
         rc, rd = np.sqrt(np.mean(corpo ** 2)), np.sqrt(np.mean(depois ** 2))
         return rd < 0.3 * rc
 
+    def _e_fechamento(self, L):
+        """A marca lida é a de fechamento de um quadro cuja abertura se perdeu?
+        Antes dela há corpo e depois dela o som parou; uma abertura é o contrário.
+        Em 2026-10-30 (celular, 10 baud rep2) isso prendeu o ouvinte 102 s numa
+        leitura fantasma: a abertura da repetição caía dentro dela, o fechamento
+        logo depois, e o REPETE saía por cima do quadro, para sempre. Medido em
+        55 aberturas de três sessões: depois/antes >= 0,54, depois/marca perto de 1.
+        None: o áudio ainda não chegou."""
+        p, lm = L['p'], next((d.lm for d in self._cands(L['marca'])), 0)
+        ini, fim = p + lm + int(0.3 * FS), p + lm + int(1.8 * FS)
+        if not lm or self.ouvido.varrido < fim:
+            return None
+        rms = lambda x: float(np.sqrt(np.mean(x ** 2))) if len(x) else 0.0
+        antes = rms(self.ouvido.trecho(p - int(1.7 * FS), p - int(0.3 * FS)))
+        marca = rms(self.ouvido.trecho(p, p + lm))
+        depois = rms(self.ouvido.trecho(ini, fim))
+        return depois < FECHO_RAZAO * antes and depois < FECHO_RAZAO * marca
+
     def _cands(self, marca):
         return sorted({d for d in self._cands_etapa() if d.marca == marca}, key=lambda d: d.amostras)
 
@@ -851,6 +870,18 @@ class Estacao:
             return
         cands = self._cands(L['marca'])
         p = L['p']
+        # Só nos dados: lá o emissor repete sozinho. No refino e na velocidade o
+        # veredito "ilegível" é o que faz a etapa andar, e largar sem ele a prende.
+        if 'fechamento' not in L and self.etapa in ('dados_rx', 'fim_tx'):
+            f = self._e_fechamento(L)
+            if f is not None:
+                L['fechamento'] = f
+            if f:
+                self._lendo = None
+                self.quadro_ate = p + cands[0].lm
+                self.anota(f"marca em {p / FS:.2f}s é fechamento (a abertura se perdeu): "
+                           "largo a leitura e espero a repetição")
+                return
         for d in cands:
             if d in L['tentados'] or self.ouvido.varrido < p + d.amostras + FS // 2:
                 continue
