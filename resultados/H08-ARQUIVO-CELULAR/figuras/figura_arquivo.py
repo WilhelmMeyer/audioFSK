@@ -13,7 +13,7 @@ import zlib
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from PIL import Image
+from PIL import Image, ImageChops
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(AQUI)))
@@ -29,17 +29,23 @@ PARES = (('if-logo-enviado.bmp', '../logo-rep1/20261030-160037-enlace-ouvinte-re
           '../bandeira-embaralhada/20261030-154344-enlace-ouvinte-recebido.bin',
           '(b) bandeira, 934 B'))
 
-fig, eixos = plt.subplots(1, 2, figsize=(3.4, 1.9))
-for ax, (env, rec, titulo) in zip(eixos, PARES):
+imagens = []
+for env, rec, titulo in PARES:
     enviado = open(os.path.join(ARQ, env), 'rb').read()
     recebido = open(os.path.join(ARQ, rec), 'rb').read()[:len(enviado)]
     assert recebido == enviado, f'{rec} difere do enviado'
     print(f'{titulo}: {len(enviado)} bytes, CRC-32 {zlib.crc32(enviado):08x} nos dois')
-    ax.imshow(Image.open(io.BytesIO(recebido)).convert('RGB'), interpolation='nearest')
+    img = Image.open(io.BytesIO(recebido)).convert('RGB')
+    # so para exibir: tira a margem branca, que sem contorno faria o desenho parecer menor
+    fundo = Image.new('RGB', img.size, (255, 255, 255))
+    imagens.append((img.crop(ImageChops.difference(img, fundo).getbbox()), titulo))
+
+# larguras proporcionais ao formato, para as duas ficarem com a mesma altura
+fig, eixos = plt.subplots(1, 2, figsize=(3.4, 1.6), width_ratios=[i.width / i.height for i, _ in imagens])
+for ax, (img, titulo) in zip(eixos, imagens):
+    ax.imshow(img, interpolation='nearest')
     ax.set_title(titulo, fontsize=8)
-    ax.set_xticks([]); ax.set_yticks([])
-    for lado in ax.spines.values():
-        lado.set_color('0.75')
+    ax.axis('off')
 fig.tight_layout()
 for s in SAIDAS:
     fig.savefig(s, bbox_inches='tight')

@@ -57,43 +57,46 @@ TURNOS = [
     (C, 114.90, 'retransmissão', False),
     (O, 113.41, 'confirmação', False),
 ]
-AJUSTE = {0: -2.6, 2: 0.6}   # rótulos do início, que se encostam
-FASES = [(0, 13.9, 'saudação'), (13.9, 54.1, 'sondagem\ne contratos'),
-         (54.1, 113.4, 'dados em\npare-e-espere')]
+FASES = [(0, 13.9, 'saudação'), (13.9, 54.1, 'sondagem e\ncontratos'),
+         (54.1, 113.4, 'dados em pare-e-espere')]
+# só o quadro ilegível leva rótulo; as fases nomeiam o resto, e o texto descreve cada turno
+ROTULOS = {18: 'ilegível'}
 
 
 def main():
-    fig, ax = plt.subplots(figsize=(3.4, 5.2))
-    xs = {C: 0.0, O: 1.0}
-    for x in xs.values():
-        ax.plot([x, x], [0, 118], color=TEAL, lw=1.0)
-    ax.text(0, -3, 'Estação que\nchama', ha='center', va='bottom', fontsize=8, color=TEAL)
-    ax.text(1, -3, 'Estação que\nescuta', ha='center', va='bottom', fontsize=8, color=TEAL)
+    # tempo na horizontal, para a figura caber baixa na coluna
+    fig, ax = plt.subplots(figsize=(3.4, 1.75))
+    ys = {C: 1.0, O: 0.0}
+    for y in ys.values():
+        ax.plot([0, 118], [y, y], color=TEAL, lw=1.0)
+    ax.text(-2, 1, 'chama', ha='right', va='center', fontsize=7, color=TEAL)
+    ax.text(-2, 0, 'escuta', ha='right', va='center', fontsize=7, color=TEAL)
     t = 0.90                       # a chamada sai em 0,90 s do chamador
     for i, (de, lido, rot, falhou) in enumerate(TURNOS):
         fim = lido - DESLOC if de == C else lido
         para = O if de == C else C
         cor = FALHA if falhou else TEAL
-        ax.annotate('', xy=(xs[para], fim), xytext=(xs[de], t),
-                    arrowprops=dict(arrowstyle='-|>', color=cor, lw=0.8, mutation_scale=6,
+        ax.annotate('', xy=(fim, ys[para]), xytext=(t, ys[de]),
+                    arrowprops=dict(arrowstyle='-|>', color=cor, lw=0.7, mutation_scale=5,
                                     shrinkA=0, shrinkB=0, ls='--' if falhou else '-'))
-        ym = (t + fim) / 2 + AJUSTE.get(i, 0)
-        ax.text(0.5, ym, rot, ha='center', va='center', fontsize=6.2, color=cor,
-                bbox=dict(boxstyle='square,pad=0.08', fc='white', ec='none'))
+        if i in ROTULOS:
+            ax.text((t + fim) / 2, 0.5, ROTULOS[i], ha='center', va='center', fontsize=5.8,
+                    color=cor, linespacing=1.0,
+                    bbox=dict(boxstyle='square,pad=0.06', fc='white', ec='none'))
         t = fim
     for a, b, nome in FASES:
-        ax.plot([-0.30, -0.36, -0.36, -0.30], [a + 0.8, a + 0.8, b - 0.8, b - 0.8],
+        ax.plot([a + 0.6, a + 0.6, b - 0.6, b - 0.6], [1.12, 1.18, 1.18, 1.12],
                 color=TEAL, lw=0.7)
-        ax.text(-0.40, (a + b) / 2, nome, ha='right', va='center', fontsize=7, color=TEAL)
-    ax.set_ylim(118, -12)
-    ax.set_xlim(-1.15, 1.15)
-    ax.set_xticks([])
-    ax.yaxis.tick_right()
-    ax.yaxis.set_label_position('right')
-    ax.set_ylabel('Tempo (s)')
-    for s in ('top', 'left', 'bottom'):
-        ax.spines[s].set_visible(False)
-    ax.spines['right'].set_bounds(0, 118)
+        x, ha = ((b - 1, 'right') if a == 0 else ((a + b) / 2, 'center'))
+        ax.text(x, 1.24, nome, ha=ha, va='bottom', fontsize=6.5, color=TEAL, linespacing=1.0)
+    ax.set_xlim(-14, 120)
+    ax.set_ylim(-0.12, 1.6)
+    ax.set_yticks([])
+    ax.set_xticks([0, 20, 40, 60, 80, 100])
+    ax.set_xlabel('Tempo (s)')
+    for lado in ('top', 'left', 'right'):
+        ax.spines[lado].set_visible(False)
+    ax.spines['bottom'].set_bounds(0, 118)
     fig.tight_layout()
     for s in SAIDAS:
         fig.savefig(s, bbox_inches='tight')

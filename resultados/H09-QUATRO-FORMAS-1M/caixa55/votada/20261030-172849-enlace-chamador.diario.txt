@@ -1,0 +1,23 @@
+    0.15 [chamador    0.00s] manual: 5×2-FSK votada 100 baud rep3, caixa 55%, assinatura c4, quadro de 30.8 s, com confirmação
+    0.22 [volume] de partida: caixa 33%, microfone 57%; passos da caixa 15%, 20%, 30%, 40%, 55%, 70%, 100%, microfone 57%, 34%
+    0.22 [saudacao] protocolo 2 (enlace_manual, versão 2)
+    0.22 [saudacao] papel chamador, entrada 'default', saída 'default', latência 0.009s, 320 bytes a enviar
+    0.22 [saudacao] pid 3009536, painel em 127.0.0.1:7130, gravando em sessoes-enlace-celular/20261030-172849-enlace-chamador.*
+    0.30 [saudacao] escutando: 0.3s desde o início do processo
+    0.30 [volume] caixa no passo 4: 55% (+0.07s da hora marcada)
+    2.44 [chamador    2.01s] mando quadro seq 0 (caixa 55%) em 2.0s
+   40.49 [chamador   40.23s] sem confirmação do seq 0: tentativa 2
+   40.49 [chamador   40.23s] mando quadro seq 0 (caixa 55%) em 40.2s
+   73.44 [chamador   73.17s] marca de quadro (quadro, 0.21) em 72.16s: lendo
+  104.77 [chamador  104.41s] marca fraca (0.21) em 72.16s sem quadro legível
+  104.77 [chamador  104.41s] sem confirmação do seq 0: tentativa 3
+  104.77 [chamador  104.41s] mando quadro seq 0 (caixa 55%) em 104.4s
+  157.46 [chamador  157.18s] marca de quadro (quadro, 0.25) em 156.14s: lendo
+  188.79 [chamador  188.42s] marca fraca (0.25) em 156.14s sem quadro legível
+  188.79 [chamador  188.42s] sem confirmação do seq 0: tentativa 4
+  188.79 [chamador  188.42s] mando quadro seq 0 (caixa 55%) em 188.4s
+  212.57 [saudacao] comando do painel: para
+  212.57 [saudacao] parada pelo painel
+  212.57 [saudacao] entrada: instante do ADC informado, 0 transbordo(s) avisado(s)
+  212.57 [saudacao] a entrada perdeu 0.04s em 1 buraco(s) (0 transbordo(s) avisados); repostos como silêncio
+  212.66 [volume] restaurado: caixa 33%, microfone 57%

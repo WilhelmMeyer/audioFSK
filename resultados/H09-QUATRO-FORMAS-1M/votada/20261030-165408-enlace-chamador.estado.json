@@ -1,0 +1,111 @@
+{
+ "papel": "chamador",
+ "simulado": null,
+ "protocolo": 2,
+ "fase": "terminada",
+ "estado_estacao": "dados_tx",
+ "etapa": "dados_tx",
+ "esperando": null,
+ "saudado": true,
+ "aberto": true,
+ "confirmado": false,
+ "contrato_tx": "5×2-FSK votada 100 baud rep3",
+ "contrato_rx": "5×2-FSK votada 100 baud rep3",
+ "velocidade": "5×2-FSK votada 100 baud rep3",
+ "tocando": [
+  "quadro seq 5"
+ ],
+ "percurso": [
+  {
+   "id": "parametros",
+   "nome": "Parâmetros",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Modo",
+     "valor": "5×2-FSK votada 100 baud, repetição 3"
+    },
+    {
+     "rotulo": "Volume",
+     "valor": "30%",
+     "lado": "envio"
+    },
+    {
+     "rotulo": "Microfone",
+     "valor": "57%"
+    }
+   ]
+  },
+  {
+   "id": "tons",
+   "nome": "Tons",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Em uso",
+     "valor": "Fixos da modulação",
+     "regua": []
+    }
+   ]
+  },
+  {
+   "id": "conversa",
+   "nome": "Conversa",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Quadros enviados",
+     "valor": "6",
+     "lado": "envio"
+    },
+    {
+     "rotulo": "Perdidos",
+     "valor": "2"
+    },
+    {
+     "rotulo": "Ilegíveis",
+     "valor": "7"
+    }
+   ]
+  }
+ ],
+ "atividade": "manual, 5×2-FSK votada 100 baud rep3: esperando confirmação (1 s)",
+ "a_enviar": 128,
+ "pendente_tx": true,
+ "enviados_total": 320,
+ "recebidos": 0,
+ "estacao_s": 1170.3,
+ "atraso_s": 0.82,
+ "fila_s": 0.04,
+ "passo_ms": 0.0,
+ "atrasado": false,
+ "ultima_marca_ha_s": 843.1,
+ "rms_entrada": 0.0055,
+ "pausado": false,
+ "concluido": false,
+ "finalizando": false,
+ "entrada_perdida_s": 0.09,
+ "buracos_entrada": 2,
+ "transbordos": 0,
+ "ultimas": [
+  " 1170.39 [saudacao] comando do painel: para",
+  " 1170.39 [saudacao] parada pelo painel",
+  " 1170.39 [saudacao] entrada: instante do ADC informado, 0 transbordo(s) avisado(s)",
+  " 1170.39 [saudacao] a entrada perdeu 0.09s em 2 buraco(s) (0 transbordo(s) avisados); repostos como silêncio",
+  " 1170.52 [volume] restaurado: caixa 57%, microfone 57%"
+ ],
+ "volume": {
+  "caixa": 2,
+  "mic": null,
+  "mic_pos": 0.57,
+  "caixa_pos": 0.3
+ },
+ "conversa": true,
+ "texto_enviado": [],
+ "texto_recebido": "",
+ "fim": "parada pelo painel",
+ "pid": 2648962,
+ "porta": 7130,
+ "parede_s": 1171.18,
+ "atualizado": "17:13:39"
+}

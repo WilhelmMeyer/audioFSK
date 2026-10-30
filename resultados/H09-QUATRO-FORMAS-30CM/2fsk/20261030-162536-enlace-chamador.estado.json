@@ -1,0 +1,120 @@
+{
+ "papel": "chamador",
+ "simulado": null,
+ "protocolo": 2,
+ "fase": "terminada",
+ "estado_estacao": "dados_tx",
+ "etapa": "dados_tx",
+ "esperando": null,
+ "saudado": true,
+ "aberto": true,
+ "confirmado": true,
+ "contrato_tx": "2-FSK 100 baud rep3",
+ "contrato_rx": "2-FSK 100 baud rep3",
+ "velocidade": "2-FSK 100 baud rep3",
+ "tocando": [
+  "quadro seq 9"
+ ],
+ "percurso": [
+  {
+   "id": "parametros",
+   "nome": "Parâmetros",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Modo",
+     "valor": "2-FSK 100 baud, repetição 3"
+    },
+    {
+     "rotulo": "Volume",
+     "valor": "30%",
+     "lado": "envio"
+    },
+    {
+     "rotulo": "Microfone",
+     "valor": "57%"
+    }
+   ]
+  },
+  {
+   "id": "tons",
+   "nome": "Tons",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Em uso",
+     "valor": "2 tons",
+     "regua": [
+      {
+       "hz": 1700.0,
+       "estado": "usado"
+      },
+      {
+       "hz": 2350.0,
+       "estado": "usado"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "conversa",
+   "nome": "Conversa",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Quadros enviados",
+     "valor": "10",
+     "lado": "envio"
+    },
+    {
+     "rotulo": "Perdidos",
+     "valor": "0"
+    },
+    {
+     "rotulo": "Ilegíveis",
+     "valor": "1"
+    }
+   ]
+  }
+ ],
+ "atividade": "manual, 2-FSK 100 baud rep3: escutando",
+ "a_enviar": 0,
+ "pendente_tx": false,
+ "enviados_total": 320,
+ "recebidos": 0,
+ "estacao_s": 560.9,
+ "atraso_s": 0.35,
+ "fila_s": 0.04,
+ "passo_ms": 0.0,
+ "atrasado": false,
+ "ultima_marca_ha_s": 3.5,
+ "rms_entrada": 0.021,
+ "pausado": false,
+ "concluido": false,
+ "finalizando": false,
+ "entrada_perdida_s": 0.0,
+ "buracos_entrada": 0,
+ "transbordos": 0,
+ "ultimas": [
+  "  557.69 [chamador  557.44s] confirmado o seq 9 (0.69), 1ª tentativa",
+  "  561.09 [saudacao] comando do painel: para",
+  "  561.09 [saudacao] parada pelo painel",
+  "  561.09 [saudacao] entrada: instante do ADC informado, 0 transbordo(s) avisado(s)",
+  "  561.20 [volume] restaurado: caixa 57%, microfone 57%"
+ ],
+ "volume": {
+  "caixa": 2,
+  "mic": null,
+  "mic_pos": 0.57,
+  "caixa_pos": 0.3
+ },
+ "conversa": true,
+ "texto_enviado": [],
+ "texto_recebido": "",
+ "fim": "parada pelo painel",
+ "pid": 2360702,
+ "porta": 7130,
+ "parede_s": 561.41,
+ "atualizado": "16:34:58"
+}

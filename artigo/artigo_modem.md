@@ -232,8 +232,8 @@ O receptor, que mediu a sondagem, decide a configuração de cada sentido. O aco
 
 A Figura 12 mostra uma sessão do sistema implementado, da chamada aos dados, com um pacote ilegível pedido de novo e retransmitido.
 
-![](figuras/negociacao.png "0.8")
-Figura 12 - Sequência de uma sessão negociada pelo ar, em escala de tempo. Cada seta vai do fim da leitura de um turno ao fim da leitura do seguinte. A seta tracejada é um pacote ilegível.
+![](figuras/negociacao.png "0.95")
+Figura 12 - Sequência de uma sessão negociada pelo ar, em escala de tempo. Cada seta é um turno, de quem transmite a quem lê, e a seta tracejada é um pacote ilegível.
 
 A medição se repete a cada sessão porque o canal muda com o tempo. No sistema implementado, em três séries de gravações do mesmo dia, três dos dezesseis tons concentraram de 47% a 90% dos erros de símbolo de cada série, e não foram os mesmos de uma série para outra (Figura 13).
 
@@ -253,16 +253,16 @@ Figura 14 - Visor no computador (a) e no celular (b), durante a transferência d
 
 ## 6 RESULTADOS EXPERIMENTAIS
 
-Os ensaios foram feitos com dois computadores na mesma sala, cada um com alto-falante e microfone de uso geral, e com um celular no lugar de um deles nos ensaios das formas de transmissão e da transferência de arquivo. No ensaio do sincronismo, um canal de controle entre os computadores apenas comanda a gravação, e os bytes avaliados viajam somente pelo ar. Foram usadas duas montagens, uma com o alto-falante a 10 cm do microfone e outra com ele afastado, sempre com o nível abaixo da saturação.
+Os ensaios foram feitos com dois computadores na mesma sala, cada um com alto-falante e microfone de uso geral, e com um celular no lugar de um deles nos ensaios das formas de transmissão e da transferência de arquivo. No ensaio do sincronismo, um canal de controle entre os computadores apenas comanda a gravação, e os bytes avaliados viajam somente pelo ar. Foram usadas duas montagens, uma com o alto-falante a 10 cm do microfone e outra com ele afastado, além de 30 cm no ensaio das formas de transmissão, sempre com o nível abaixo da saturação.
 
-Com o alto-falante a 10 cm do microfone de um celular, cada forma de transmissão enviou o mesmo texto de 320 bytes em 10 pacotes de 32 bytes, a 100 símbolos por segundo e com repetição 3, configurados à mão nas duas pontas. A Figura 15 mostra a taxa efetiva de cada uma, contadas as confirmações, e os bits recebidos errados em cerca de 29 mil.
+Com o alto-falante a 10 cm e depois a 30 cm do microfone de um celular, cada forma de transmissão enviou o mesmo texto de 320 bytes em 10 pacotes de 32 bytes, a 100 símbolos por segundo e com repetição 3, configurados à mão nas duas pontas. A Figura 15 mostra a taxa efetiva de cada uma, contadas as confirmações, e a fração dos bits recebidos errados, em cerca de 29 mil.
 
 ![](figuras/resultado-formas.png "0.95")
-Figura 15 - Taxa efetiva de cada forma de transmissão, a 10 cm, do primeiro envio à última confirmação, e, dentro de cada barra, os bits recebidos errados antes da correção, em cerca de 29 mil. As quatro entregaram os 10 pacotes na primeira tentativa, idênticos ao enviado.
+Figura 15 - Taxa efetiva de cada forma de transmissão a 10 e a 30 cm, do primeiro envio à última confirmação (acima), e fração dos bits recebidos errados antes da correção (abaixo). Nas oito sessões os 10 pacotes chegaram idênticos ao enviado.
 
-As quatro formas entregaram o texto inteiro, sem nenhuma retransmissão, com no máximo 8 bits errados, todos corrigidos. As que transmitem quatro ou cinco bits por símbolo, a 16-FSK e a 5×2-FSK multicanal, chegam a 2,5 B/s, quase três vezes as de um bit por símbolo. Com essa folga de erros, a repetição 3 é mais do que o canal exige, e as taxas não medem o limite de cada forma.
+Nas duas distâncias as quatro formas entregaram o texto inteiro sem retransmissão. As de quatro ou cinco bits por símbolo são quase três vezes mais rápidas, e a 30 cm são as que mais erram antes da correção, enquanto a votada quase não erra.
 
-<!-- Fontes: H09-QUATRO-FORMAS-10CM (RESUMO.md; uma sessão por forma, 2026-10-30; votada com o embaralhamento da carga, as outras sem). Script: resultados/H09-QUATRO-FORMAS-10CM/figuras/figura_formas.py. A figura antiga (blocos de 48 bytes entre computadores, F02 com uma gravação excluída) saiu pela regra do autor: só testes em que as quatro formas passam. -->
+<!-- Fontes: H09-QUATRO-FORMAS-10CM e H09-QUATRO-FORMAS-30CM (RESUMO.md; uma sessão por forma e distância, 2026-10-30; a 10 cm a votada com o embaralhamento da carga e as outras sem, a 30 cm todas com; 2-FSK a 30 cm: a sessão refeita, repeticao/2fsk/, escolha do autor; a primeira, com 4 retransmissões e 6,76%, ficou fora). Script: resultados/H09-QUATRO-FORMAS-10CM/figuras/figura_formas.py. A figura antiga (blocos de 48 bytes entre computadores, F02 com uma gravação excluída) saiu pela regra do autor: só testes em que as quatro formas passam. -->
 
 Além de decidir cada tom, o receptor precisa saber onde começa cada símbolo, e a seção 3.3 apresenta duas formas de obter isso. Na primeira, a malha de adiantamento e atraso corrige o instante símbolo a símbolo, a partir do próprio sinal. Na segunda, as duas varreduras nas pontas do quadro marcam por fora onde ele começa e quanto dura cada símbolo. A Figura 16 compara as duas sobre as mesmas 24 gravações de blocos de 48 bytes em 16-FSK, feitas num único computador que tocava e gravava ao mesmo tempo.
 
@@ -275,10 +275,10 @@ Com as varreduras, o acerto fica perto de 91% desde o primeiro bit. Com a malha,
 
 Com os blocos entregues, a transferência de arquivo depende dos pacotes e da retransmissão da seção 4.3. Uma imagem de 1334 bytes foi transferida entre os dois computadores com o alto-falante afastado e chegou idêntica, conferida pelo CRC de 32 bits. Em pacotes de 64 bytes, os 21 pacotes chegaram sem retransmissão, a 6,8 B/s, e em pacotes de 128 bytes, os 11 chegaram com 3 retransmissões, a 7,2 B/s. A 10 cm, três transferências da mesma imagem também chegaram idênticas, de 5,0 a 7,6 B/s. A taxa fica abaixo da do bloco isolado pelo preâmbulo, pelo cabeçalho e pela espera entre pacotes.
 
-A Figura 17 mostra duas imagens enviadas do computador para um celular, com a 16-FSK a 100 símbolos por segundo, em pacotes de 32 bytes e com a configuração fixada à mão nas duas pontas. As duas chegaram idênticas às enviadas, conferidas pelo CRC de 32 bits, com todos os pacotes na primeira tentativa. O logotipo, de 1270 bytes, chegou em 40 pacotes, com o bloco sem repetição, em 329 s, ou 3,9 B/s, com 5,0% dos bits recebidos errados. A bandeira, de 934 bytes, chegou em 30 pacotes, com o bloco repetido duas vezes, em 324 s, ou 2,9 B/s, com 5,4%. Em ambas a correção de erros recuperou todos os bits, e a taxa fica abaixo da do bloco isolado porque, em pacotes curtos, a espera pela confirmação pesa mais.
+A Figura 17 mostra duas imagens enviadas do computador para um celular a 10 cm do alto-falante, com a 16-FSK a 100 símbolos por segundo, em pacotes de 32 bytes e com a configuração fixada à mão nas duas pontas. As duas chegaram idênticas às enviadas, conferidas pelo CRC de 32 bits, com todos os pacotes na primeira tentativa. O logotipo, de 1270 bytes, chegou em 40 pacotes, com o bloco sem repetição, em 329 s, ou 3,9 B/s, com 5,0% dos bits recebidos errados. A bandeira, de 934 bytes, chegou em 30 pacotes, com o bloco repetido duas vezes, em 324 s, ou 2,9 B/s, com 5,4%. Em ambas a correção de erros recuperou todos os bits, e a taxa fica abaixo da do bloco isolado porque, em pacotes curtos, a espera pela confirmação pesa mais.
 
 ![](figuras/arquivo-enviado-recebido.png "0.6")
-Figura 17 - Imagens recebidas pelo celular pelo ar, idênticas byte a byte às enviadas pelo computador.
+Figura 17 - Imagens recebidas pelo celular pelo ar, a 10 cm, idênticas byte a byte às enviadas pelo computador.
 
 Por fim, no enlace negociado as duas pontas partem sem configuração prévia. Com os computadores a cerca de 2 m, uma sessão entregou completos os 207 bytes de um sentido e os 44 do outro, em 302 s contados da chamada. A Figura 18 mostra o que cada receptor mediu na sondagem e o que contratou.
 
@@ -291,7 +291,13 @@ Num sentido, o receptor excluiu os três tons de margem mais baixa, entre 1862 e
 
 ## 7 CONSIDERAÇÕES FINAIS
 
-<!-- Roteiro, capítulo 7. Por redigir por último. -->
+Apresentou-se um modem que transmite bytes entre dois computadores por som audível, com alto-falante e microfone de uso geral. A camada física decide cada tom contra o piso de ruído da própria frequência e entrega, junto com cada bit, a confiança da decisão. A camada de enlace usa essa confiança para corrigir os bits que chegam errados, e as varreduras nas pontas do quadro dão o instante de cada símbolo desde o início do bloco, onde a malha de adiantamento e atraso ainda se ajusta.
+
+Com o alto-falante a 10 e a 30 cm do microfone de um celular, as quatro formas de transmissão entregaram o texto inteiro sem retransmissão, e as de quatro ou cinco bits por símbolo foram quase três vezes mais rápidas. Com o alto-falante afastado, um arquivo de 1334 bytes chegou idêntico em 21 pacotes, sem retransmissão, e o enlace negociado completou uma sessão nos dois sentidos sem configuração prévia, cada receptor escolhendo os próprios tons e o próprio ganho.
+
+Esses resultados valem para uma sala e, nas formas de transmissão, para uma sessão de cada. O passo seguinte é medir as quatro formas em distâncias maiores, onde a repetição e a velocidade passam a ser escolhidas pelo canal, e concluir a conversa e o terminal sobre o enlace negociado.
+
+<!-- Capítulo 7 redigido em 2026-10-30, no molde das considerações finais da primeira versão e do artigo da roda de reação: o que foi feito, o que foi medido, o limite e o passo seguinte. Rever quando entrarem 1 m e 2 m. -->
 
 ## DECLARAÇÃO DE USO DE INTELIGÊNCIA ARTIFICIAL GENERATIVA
 

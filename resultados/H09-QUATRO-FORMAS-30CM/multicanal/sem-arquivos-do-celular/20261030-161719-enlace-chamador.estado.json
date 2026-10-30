@@ -1,0 +1,111 @@
+{
+ "papel": "chamador",
+ "simulado": null,
+ "protocolo": 2,
+ "fase": "terminada",
+ "estado_estacao": "dados_tx",
+ "etapa": "dados_tx",
+ "esperando": null,
+ "saudado": true,
+ "aberto": true,
+ "confirmado": true,
+ "contrato_tx": "5×2-FSK multicanal 100 baud rep3",
+ "contrato_rx": "5×2-FSK multicanal 100 baud rep3",
+ "velocidade": "5×2-FSK multicanal 100 baud rep3",
+ "tocando": [
+  "quadro seq 9"
+ ],
+ "percurso": [
+  {
+   "id": "parametros",
+   "nome": "Parâmetros",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Modo",
+     "valor": "5×2-FSK multicanal 100 baud, repetição 3"
+    },
+    {
+     "rotulo": "Volume",
+     "valor": "30%",
+     "lado": "envio"
+    },
+    {
+     "rotulo": "Microfone",
+     "valor": "57%"
+    }
+   ]
+  },
+  {
+   "id": "tons",
+   "nome": "Tons",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Em uso",
+     "valor": "Fixos da modulação",
+     "regua": []
+    }
+   ]
+  },
+  {
+   "id": "conversa",
+   "nome": "Conversa",
+   "situacao": "feita",
+   "valores": [
+    {
+     "rotulo": "Quadros enviados",
+     "valor": "10",
+     "lado": "envio"
+    },
+    {
+     "rotulo": "Perdidos",
+     "valor": "0"
+    },
+    {
+     "rotulo": "Ilegíveis",
+     "valor": "1"
+    }
+   ]
+  }
+ ],
+ "atividade": "manual, 5×2-FSK multicanal 100 baud rep3: escutando",
+ "a_enviar": 0,
+ "pendente_tx": false,
+ "enviados_total": 320,
+ "recebidos": 0,
+ "estacao_s": 130.09,
+ "atraso_s": 0.27,
+ "fila_s": 0.04,
+ "passo_ms": 0.0,
+ "atrasado": false,
+ "ultima_marca_ha_s": 3.4,
+ "rms_entrada": 0.002,
+ "pausado": false,
+ "concluido": false,
+ "finalizando": false,
+ "entrada_perdida_s": 0.0,
+ "buracos_entrada": 0,
+ "transbordos": 0,
+ "ultimas": [
+  "  126.99 [chamador  126.68s] confirmado o seq 9 (0.65), 1ª tentativa",
+  "  130.35 [saudacao] comando do painel: para",
+  "  130.35 [saudacao] parada pelo painel",
+  "  130.35 [saudacao] entrada: instante do ADC informado, 0 transbordo(s) avisado(s)",
+  "  130.52 [volume] restaurado: caixa 57%, microfone 57%"
+ ],
+ "volume": {
+  "caixa": 2,
+  "mic": null,
+  "mic_pos": 0.57,
+  "caixa_pos": 0.3
+ },
+ "conversa": true,
+ "texto_enviado": [],
+ "texto_recebido": "",
+ "fim": "parada pelo painel",
+ "pid": 2280209,
+ "porta": 7130,
+ "parede_s": 130.58,
+ "atualizado": "16:19:30"
+}
