@@ -18,6 +18,7 @@ não ouvi, ouvi mas precisa melhorar, repete" sem bits. Aqui:
   o ouvinte só responde -- nunca fala sem ter ouvido.
 * Etapas: ENCONTRO (acertar o som, por assovio), REFINO (por bits: o mesmo
   bloco conhecido em três volumes, quem ouve diz DESCE/FICA/SOBE),
+  TONS (a varredura da grade em cada sentido; quem ouve escolhe os 16 tons),
   VELOCIDADE (blocos conhecidos de 20 a
   100 baud, um sentido e depois o outro), DADOS (pare-e-espere).
 
@@ -31,13 +32,16 @@ import os
 
 import fec
 import enlace
+from dataclasses import replace
+
 from enlace import (FS, Descritor, Parte, Ouvido, MOLDES, LIMIARES, QUADROS, _BANDA,
                     modula_quadro, le_quadro, empacota, abre, confere, q_db, MARY_TONES, chirp,
                     GANHO_FIXO, CAIXA_POS, N_POS, CAIXA_SIM, CONTRATO,
                     DADOS, FIM, DADOS_N, SONDA_N, VELOCIDADES, SONDA_V_DESC, ABORDAGENS,
-                    margem_llr)
+                    margem_llr, GRADE, MARGEM_FORA, HUSH, LQ, mede_tons, escolhe_16, _tons_sonda,
+                    _sonda_tons_nominal)
 
-VERSAO = 15
+VERSAO = 16
 CAIXA_INICIAL = 2              # 30%: o ouvinte começa aqui; o chamador chama de 20% para cima
 CHAMA_INICIAL = 1
 # Teto da subida por silêncio no encontro: o meio da escada. Em 2026-10-29
@@ -49,6 +53,8 @@ CHAMA_TETO = 3
 TOPO = N_POS - 1
 VEL = 8                        # tipo do bloco de velocidade
 REF = 9                        # tipo do bloco de refino
+TONS = 10                      # quem ouviu a varredura diz os tons que quer
+ACORDO_TONS = 11               # o chamador fecha as duas tabelas
 
 # --- Sinais -------------------------------------------------------------------
 #
@@ -94,7 +100,7 @@ LIMIAR_SINAL = 0.17            # máximo falso medido 0,17 (uma vez em ~6000 jan
 # prova com bits conhecidos que os bits passam nos dois sentidos e acerta o
 # volume por eles, e conferir versão foi julgado desperdício. Os números (e
 # os sinais ETAPA_k) ficam os mesmos, para valerem as medidas feitas.
-ETAPA_NOMES = {1: 'encontro', 2: 'refino', 4: 'velocidade', 5: 'dados', 6: 'fim'}
+ETAPA_NOMES = {1: 'encontro', 2: 'refino', 3: 'tons', 4: 'velocidade', 5: 'dados', 6: 'fim'}
 _DECLIVES = {1: 3, 2: 5, 3: 7, 4: 10, 5: 12, 6: 14}
 
 
@@ -121,17 +127,19 @@ LIMIAR_ETAPA = 0.18
 # Etapa interna -> etapa combinada (o número do sinal), e por onde cada papel
 # entra numa etapa acordada.
 GRUPO = {'encontro': 1, 'refino_meu': 2, 'refino_dele': 2, 'refino': 2,
+         'tons_ida': 3, 'tons_volta': 3, 'tons_acordo': 3, 'tons': 3,
          'vel_ida': 4, 'contrato1': 4, 'vel_volta': 4, 'contrato2': 4,
          'dados_tx': 5, 'dados_rx': 5, 'fim_tx': 5, 'fim': 6}
-ENTRA_CHAMADOR = {1: 'encontro', 2: 'refino_meu', 4: 'vel_ida', 5: 'dados_tx', 6: 'fim'}
-ENTRA_OUVINTE = {1: 'encontro', 2: 'refino', 4: 'vel_ida', 5: 'dados_rx', 6: 'fim'}
+ENTRA_CHAMADOR = {1: 'encontro', 2: 'refino_meu', 3: 'tons_ida', 4: 'vel_ida', 5: 'dados_tx', 6: 'fim'}
+ENTRA_OUVINTE = {1: 'encontro', 2: 'refino', 3: 'tons', 4: 'vel_ida', 5: 'dados_rx', 6: 'fim'}
 # O que cada etapa aceita ouvir. Fora disto: o ouvinte diz em que etapa está,
 # o chamador propõe de novo a sua.
 _VEREDITOS_TODOS = {f'{v}{p}' for v in ('SOBE', 'FICA', 'DESCE') for p in '01'}
 VOCAB_SINAIS = {1: {'CHAMA'} | _VEREDITOS_TODOS, 2: {'CHAMA'} | _VEREDITOS_TODOS,
+                3: {'CHAMA', 'REPETE'} | _VEREDITOS_TODOS,
                 4: _VEREDITOS_TODOS | {'REPETE'}, 5: {'FICA0', 'FICA1', 'REPETE'},
                 6: set()}
-VOCAB_QUADROS = {1: set(), 2: {REF}, 4: {VEL, CONTRATO}, 5: {DADOS, FIM}, 6: set()}
+VOCAB_QUADROS = {1: set(), 2: {REF}, 3: {TONS, ACORDO_TONS}, 4: {VEL, CONTRATO}, 5: {DADOS, FIM}, 6: set()}
 GANHO_SINAL = GANHO_FIXO
 VEREDITOS = ('SOBE', 'FICA', 'DESCE')
 
@@ -151,9 +159,10 @@ MARCA_FORTE = 0.45            # por uma marca acima disto que chegue depois
 CHEIO_MIN = 0.2                # menor quarto da janela / energia média dela (ver _cheio)
 # Nas varreduras, menos: o alto-falante de celular quase não dá os graves, e o
 # começo de um SOBE (600-950 Hz) chegou com 9-16% da média em 2026-10-30, com
-# correlação 0,84, e foi descartado. Nas melodias ETAPA_* continua 0,2: com 0,05
+# correlação 0,84, e foi descartado; com a caixa dele a 100% o FICA chegou a
+# 3,5-4,5% (correlação 0,80) e 18 chamadas seguidas ficaram sem resposta. Nas melodias ETAPA_* continua 0,2: com 0,05
 # um ETAPA_6 falso (0,20) levou uma sessão gravada direto ao fim.
-CHEIO_MIN_VARREDURA = 0.05
+CHEIO_MIN_VARREDURA = 0.02
 # Sinais da mesma família que se sobrepõem: o mais forte só vale com folga
 # sobre o segundo; sem folga, nada se ouviu (quem mandou repete). Em 22:39 o
 # verdadeiro dava 0,26-0,29 e o falso 0,21-0,22.
@@ -318,6 +327,55 @@ def carga_vel(i):
     return bytes([i]) + bytes(rng.randint(0, 256, SONDA_N - 6).astype(np.uint8))
 
 
+# Varredura de tons. A seleção existia em `enlace.py` e não veio na reescrita de
+# 2026-10-29: até a VERSAO 15 os dados usavam sempre os 16 tons de MARY_TONES,
+# e um tom numa cova da sala só se pagava em velocidade e repetição. O estudo
+# por tom (resultados/H05-ERROS-POR-TOM) achou metade dos erros em 3 dos 16 tons,
+# tons que ficam parados numa sessão e mudam entre sessões: a medida tem de ser
+# feita na sessão. Depois do refino, porque a margem depende do volume.
+#
+# A medição e a escolha são as de `enlace.py`. A grade para em 3487,5 Hz: acima
+# disso nenhum tom foi medido no ar. Num canal sem tom ruim sai a tabela de sempre.
+N_GRADE = 19                   # GRADE[:19] = 562,5 .. 3487,5 Hz
+PADRAO = tuple(range(enlace.PADRAO_16, enlace.PADRAO_16 + 16))
+VARREDURA_N = 2 * LQ + 2 * HUSH + _sonda_tons_nominal()      # ~5 s
+
+
+def varredura():
+    m, z = MOLDES['sonda'], np.zeros(HUSH)
+    return np.concatenate([m, z, _tons_sonda(0, GANHO_FIXO), z, m])
+
+
+def mapa_de(tons):
+    return sum(1 << k for k in tons)
+
+
+def tons_de(mapa):
+    return tuple(k for k in range(N_GRADE) if mapa >> k & 1)
+
+
+def escolhe_mapa(margem):
+    """O mapa dos 16 tons a partir das margens; 0 = não medido: a mediana
+    abaixo de MARGEM_FORA é leitura fora do lugar, não canal ruim."""
+    m = np.array(margem, dtype=float)
+    if np.median(m[:N_GRADE]) < MARGEM_FORA:
+        return 0
+    m[N_GRADE:] = -99.0
+    return mapa_de(escolhe_16(m))
+
+
+def tabela(mapa):
+    """Os tons de um Descritor; None: a tabela de sempre."""
+    if not mapa or tons_de(mapa) == PADRAO:
+        return None
+    return tuple(GRADE[k] for k in tons_de(mapa))
+
+
+def _chave_dados(d):
+    """O (velocidade, rep) de um Descritor de dados, com qualquer tabela de tons."""
+    return CHAVE_DADOS.get(replace(d, tons=tuple(MARY_TONES)))
+
+
 class Contrato2:
     def __init__(self, c):
         self.c = tuple(c)
@@ -353,7 +411,8 @@ class Ouvido2(Ouvido):
         super().__init__()
         self.moldes = dict(SINAIS)
         self.moldes.update({k: MOLDES[k] for k in QUADROS})
-        self.limiar = {k: (LIMIARES[k] if k in QUADROS else LIMIAR_ETAPA if k.startswith('ETAPA_')
+        self.moldes['sonda'] = MOLDES['sonda']
+        self.limiar = {k: (LIMIARES[k] if k in QUADROS or k == 'sonda' else LIMIAR_ETAPA if k.startswith('ETAPA_')
                            else LIMIAR_SINAL) for k in self.moldes}
         self.lmax = max(len(m) for m in self.moldes.values())
         self.quadros = True
@@ -529,6 +588,13 @@ class Estacao:
         self.prop_porque = ''
         self.aceito = None             # ouvinte: etapa que aceitei, esperando o FICA que fecha
         self._junta = False            # _manda acrescenta à agenda em vez de trocar
+        self.tons_tx = self.tons_rx = None     # tons de cada sentido; None: MARY_TONES
+        self._varredura = None         # onde começou a varredura que estou ouvindo
+        self.mapa_ida = self.mapa_volta = 0
+        # O que cada etapa acertou, para `percurso`: só o que foi medido.
+        self.reg = dict(k_enc=None, resposta=None, ele_disse=None, eu_disse=None, som_ber=None,
+                        mic0=None, vel=dict(mando={}, chega={}), motivo_tx=None, motivo_rx=None,
+                        env=0, repeticoes=0, tons_mando=None, tons_chega=None)
         self._etapa('encontro', 'início')
 
     # --- utilidades
@@ -547,6 +613,8 @@ class Estacao:
     def _etapa(self, e, porque):
         if e != self.etapa:
             self.anota(f"etapa {self.etapa or '-'} -> {e}: {porque}")
+            if self.etapa == 'encontro':
+                self.reg['k_enc'] = self.k
         self.etapa, self.sub, self.n_sil, self.falhas, self.n_rep = e, None, 0, 0, 0
         self.prop = self.aceito = None
         self.somas = {}                    # muda a etapa, muda o quadro esperado
@@ -566,6 +634,12 @@ class Estacao:
 
     def _degrau(self):
         return self.c_ab[0] if self.c_ab is not None else 1
+
+    def _d_tx(self, d):
+        return replace(d, tons=self.tons_tx) if self.tons_tx else d
+
+    def _d_rx(self, d):
+        return replace(d, tons=self.tons_rx) if self.tons_rx else d
 
     def _caixa(self, d, porque):
         k = min(TOPO, max(0, self.k + d))
@@ -650,7 +724,7 @@ class Estacao:
         self._manda(rot, modula_quadro(desc, corpo), quando, espera, resposta)
 
     def _outros_vel(self):
-        return [self.ctrl] + list(SONDA_V_DESC)
+        return [self.ctrl] + [self._d_tx(d) for d in SONDA_V_DESC]
 
     def _repete(self, porque, sobe=False):
         """Silêncio: a mesma mensagem de novo, mesma paridade."""
@@ -696,7 +770,19 @@ class Estacao:
         for pos, tipo, sc in self.ouvido.varre():
             if self.agora < self.livre_em or self.agenda or pos < self.meu_fim or pos < self.quadro_ate:
                 continue
+            if tipo == 'sonda':
+                if self._varredura is None and self._ouve_varredura():
+                    self._varredura = pos
+                    self.anota(f"varredura em {pos / FS:.2f}s ({sc:.2f}): medindo")
+                continue
             if tipo in SINAIS:
+                # Um sinal forte larga uma leitura de marca fraca: a melodia
+                # ETAPA_6 imita a marca de quadro a 0,21, e o chamador, lendo
+                # esse quadro que não existe, não ouvia o aceite do fim.
+                if (self._lendo is not None and self._lendo['sc'] < MARCA_FRACA
+                        and sc >= MARCA_FORTE and pos > self._lendo['p']):
+                    self.anota(f"marca fraca em {self._lendo['p'] / FS:.2f}s largada pelo sinal {tipo}")
+                    self._lendo = None
                 if self._lendo is None or pos < self._lendo['p']:
                     self._sinais.append((pos, tipo, sc))
             elif self._cands(tipo) and (self._lendo is None or (
@@ -713,8 +799,9 @@ class Estacao:
                 self.anota(f"marca de quadro ({tipo}, {sc:.2f}) em {pos / FS:.2f}s: lendo")
         self._assenta()
         self._le()
+        self._mede_varredura()
         if (self.slot_ate is not None and self.agora > self.slot_ate and self._lendo is None
-                and not self._sinais and not self.agenda):
+                and self._varredura is None and not self._sinais and not self.agenda):
             self.slot_ate = None
             self._evento(dict(k='silencio', fim=self.agora))
         if self.agenda and self.agenda[0][0] <= self.agora and self.agora >= self.livre_em:
@@ -770,10 +857,11 @@ class Estacao:
         começo de um OLA a 20 baud foi lida como ele, deu ilegível em 2 s, e
         o REPETE saiu por cima do OLA ainda no ar."""
         e, k = self.etapa, self.ctrl
+        vel = [self._d_rx(d) for d in SONDA_V_DESC]
         if self.lider:
-            return {'refino_dele': [REF_DESC],
-                    'contrato1': [k] + list(SONDA_V_DESC),
-                    'vel_volta': list(SONDA_V_DESC) + [k], 'contrato2': [k] + list(SONDA_V_DESC),
+            return {'refino_dele': [REF_DESC], 'tons_ida': [k],
+                    'contrato1': [k] + vel,
+                    'vel_volta': vel + [k], 'contrato2': [k] + vel,
                     'fim_tx': [k] + self._dados_cands(),
                     'dados_rx': [k] + self._dados_cands()}.get(e, [])
         if e == 'encontro':
@@ -784,7 +872,7 @@ class Estacao:
         # Na ida o ouvinte recebe os blocos até o veredito ao do topo; daí
         # só o CONTRATO. Na volta é ele quem manda blocos: só o CONTRATO.
         if e == 'vel_ida' and self.sub != 'aguarda_contrato':
-            c += list(SONDA_V_DESC)
+            c += vel
         if e == 'dados_rx':
             c += self._dados_cands()
         if e == 'dados_tx':
@@ -832,7 +920,7 @@ class Estacao:
         """Os DADOS que o outro pode mandar: a escada de rep do contrato dele."""
         if self.base_rx is None:
             return []
-        return list(dict.fromkeys(DADOS_DESC[c] for c in escada_dados(self.base_rx)))
+        return list(dict.fromkeys(self._d_rx(DADOS_DESC[c]) for c in escada_dados(self.base_rx)))
 
     def _maior_rx(self):
         return max([d.amostras for d in self._dados_cands()] + [self.ctrl.amostras])
@@ -845,7 +933,7 @@ class Estacao:
         comprimento a marca de fechamento confirmou (o quadro é este, e não um
         candidato lido na velocidade errada); a soma é por tamanho de corpo e
         zera ao mudar de etapa, ao ler um quadro, e depois de SOMA_MAX."""
-        if d not in CHAVE_DADOS and d is not self.ctrl:
+        if _chave_dados(d) is None and d is not self.ctrl:
             return None                    # REF e VEL: cada bloco tem conteúdo próprio
         base = soma_bloco(llr, d) if llr is not None else None
         if base is None:
@@ -929,6 +1017,8 @@ class Estacao:
             return
         if ev['k'] == 'sinal':
             self.anota(f"ouvi {ev['nome']} ({self._desc_q(ev['q'])})")
+            if self.etapa == 'encontro':
+                self.reg['resposta'] = (ev['nome'], ev['q']['sc'], ev['q']['pico'])
         elif ev['k'] == 'quadro':
             t, _, _, carga = abre(ev['corpo'])
             ev['tipo'], ev['carga'] = t, carga
@@ -960,11 +1050,13 @@ class Estacao:
             return ev['nome'] in VOCAB_SINAIS[g]
         if ev['k'] == 'quadro':
             return ev['tipo'] in VOCAB_QUADROS[g]
+        if ev['k'] == 'varredura':
+            return g == 3
         return bool(VOCAB_QUADROS[g])        # ilegível: só onde há quadros
 
     @staticmethod
     def _nome_tipo(t):
-        return {VEL: 'VEL', REF: 'REFINO'}.get(t) or enlace.NOMES.get(t, t)
+        return {VEL: 'VEL', REF: 'REFINO', TONS: 'TONS', ACORDO_TONS: 'ACORDO DE TONS'}.get(t) or enlace.NOMES.get(t, t)
 
     def _o_que(self, ev):
         if ev['k'] == 'sinal':
@@ -1092,6 +1184,10 @@ class Estacao:
             quando = max(self.agora, quando) + fica + RESP + ATRASO_DET + LAT_OUTRO
         if k == 2:
             return self._l_refino_meu(None, quando)
+        if k == 3:
+            self.n_sil = 0
+            self.mapa_ida = self.mapa_volta = 0
+            return self._toca_varredura(quando, True, self.ctrl.amostras)
         if k == 4:
             self.vi = 0
             self.passou = {}
@@ -1215,6 +1311,7 @@ class Estacao:
         """O veredito sobre o meu trio: fico no passo do bloco que ele achou melhor."""
         k = self.trio[REF_VEREDITO.index(v)]
         self.anota(f"refino: ele disse {v}; a minha caixa fica em {CAIXA_REAL[k]:.0%}")
+        self.reg['ele_disse'] = v
         self.k = k
         self.pedidos_caixa.append((self.agora, k))
 
@@ -1248,6 +1345,7 @@ class Estacao:
         self.anota(f"refino: o melhor foi o bloco {melhor[0] + 1} ({melhor[1]:.1%}, {melhor[2]:.1f} dB); "
                    f"digo {v} (empate fica com o mais baixo)")
         self.notas = {}
+        self.reg['eu_disse'], self.reg['som_ber'] = v, melhor[1]
         return v
 
     def _ber_ref(self, llr, j):
@@ -1288,7 +1386,7 @@ class Estacao:
             self.n_sil += 1
             if self.n_sil < 3:
                 return self._repete("refino do ouvinte sem resposta")
-            return self._propoe(4, "refino do ouvinte sem resposta; sigo")
+            return self._propoe(3, "refino do ouvinte sem resposta; sigo")
         if ev['k'] in ('quadro', 'ilegivel') and self.sub == 'chama':
             if ev['k'] == 'quadro' and ev['tipo'] != REF:
                 return False
@@ -1299,11 +1397,108 @@ class Estacao:
             self.sub = 'veredito'
             return self._veredito(v, ev['fim'] + RESP)
         if ev['k'] == 'sinal' and self.sub == 'veredito' and ev['nome'] in ('FICA0', 'FICA1'):
-            return self._propoe(4, "refino dos dois lados feito: meço a velocidade de mim para ele", ev['fim'] + RESP)
+            return self._propoe(3, "refino dos dois lados feito: meço os tons", ev['fim'] + RESP)
+        return False
+
+    # --- tons
+
+    def _ouve_varredura(self):
+        return self.etapa == 'tons_volta' or (self.etapa == 'tons' and self.sub != 'acordado')
+
+    def _toca_varredura(self, quando, espera, resposta=None):
+        self._manda('VARREDURA', varredura(), quando, espera, resposta)
+
+    def _mede_varredura(self):
+        p = self._varredura
+        if p is None or self.ouvido.varrido < p + VARREDURA_N + FS // 2:
+            return
+        self._varredura = None
+        if not self._ouve_varredura():
+            return
+        alvo = p + VARREDURA_N - LQ
+        fecho = [q for q, t, _ in self.ouvido.marcas
+                 if t == 'sonda' and q != p and abs(q - alvo) <= int(0.004 * VARREDURA_N)]
+        audio = self.ouvido.trecho(p, p + VARREDURA_N + FS)
+        margem = mede_tons(audio, 0, (fecho[0] - p) if fecho else None, self.sessao)
+        mapa = escolhe_mapa(margem)
+        fora = sorted(set(PADRAO) - set(tons_de(mapa)))
+        self.anota("tons: " + ("não medidos (leitura fora do lugar)" if not mapa else
+                   f"margem mediana {np.median(margem[:N_GRADE]):.1f} dB, "
+                   f"excluo {[GRADE[k] for k in fora] or 'nenhum'}"))
+        self.quadro_ate = max(self.quadro_ate, p + VARREDURA_N)
+        self.ouvido_em = self.agora
+        self._evento(dict(k='varredura', mapa=mapa, fim=p + VARREDURA_N))
+
+    def _aplica_tons(self, tx, rx):
+        self.tons_tx, self.tons_rx = tabela(tx), tabela(rx)
+        self.reg['tons_mando'], self.reg['tons_chega'] = tx, rx
+        self.anota(f"tons acordados: daqui {'de sempre' if not self.tons_tx else 'escolhidos'}, "
+                   f"de lá {'de sempre' if not self.tons_rx else 'escolhidos'}")
+
+    def _l_tons_ida(self, ev):
+        """Chamador: toquei a varredura; o ouvinte diz os tons que quer ouvir."""
+        if ev['k'] == 'quadro' and ev['tipo'] == TONS:
+            self.mapa_ida = int.from_bytes(ev['carga'][:4], 'little')
+            self.n_sil = 0
+            self._etapa('tons_volta', "o ouvinte escolheu; agora a varredura dele")
+            return self._sinal('CHAMA', ev['fim'] + RESP, resposta=VARREDURA_N)
+        if ev['k'] in ('silencio', 'ilegivel'):
+            self.n_sil += 1
+            if self.n_sil < 3:
+                return self._repete("a varredura ficou sem resposta")
+            self._etapa('tons_volta', "a varredura ficou sem resposta: tons de sempre nesse sentido")
+            self.n_sil = 0
+            return self._sinal('CHAMA', self.agora if ev['k'] == 'silencio' else ev['fim'] + RESP,
+                               resposta=VARREDURA_N)
+        return False
+
+    def _l_tons_volta(self, ev):
+        """Chamador: ouço a varredura do ouvinte e fecho as duas tabelas."""
+        if ev['k'] == 'varredura':
+            self.mapa_volta = ev['mapa']
+            return self._fecha_tons(ev['fim'] + RESP)
+        if ev['k'] == 'silencio':
+            self.n_sil += 1
+            if self.n_sil < 3:
+                return self._repete("sem a varredura do ouvinte")
+            return self._fecha_tons(self.agora)
+        return False
+
+    def _fecha_tons(self, quando):
+        self.n_sil = 0
+        self._etapa('tons_acordo', "mando as duas tabelas")
+        self._quadro(self.ctrl, ACORDO_TONS,
+                     (self.mapa_ida | self.mapa_volta << N_GRADE).to_bytes(5, 'little'), quando)
+
+    def _l_tons_acordo(self, ev):
+        if ev['k'] == 'sinal' and self._parse(ev['nome'])[0] == 'FICA':
+            self._aplica_tons(self.mapa_ida, self.mapa_volta)
+            return self._propoe(4, "tons acordados: meço a velocidade de mim para ele", ev['fim'] + RESP)
+        if ev['k'] == 'silencio' or (ev['k'] == 'sinal' and ev['nome'] == 'REPETE'):
+            self.n_sil += 1
+            return self._repete("o acordo de tons ficou sem resposta", sobe=self.n_sil >= 3)
+        return False
+
+    def _o_tons(self, ev):
+        """Ouvinte: meço a varredura e digo o que quero; no CHAMA toco a minha;
+        as tabelas só valem quando o chamador as fecha, e aí confirmo com FICA."""
+        if ev['k'] == 'varredura':
+            return self._quadro(self.ctrl, TONS, ev['mapa'].to_bytes(4, 'little'), ev['fim'] + RESP, espera=False)
+        if ev['k'] == 'sinal' and ev['nome'] == 'CHAMA':
+            return self._toca_varredura(ev['fim'] + RESP, False)
+        if ev['k'] == 'quadro' and ev['tipo'] == ACORDO_TONS:
+            v = int.from_bytes(ev['carga'][:5], 'little')
+            ida, volta = v & ((1 << N_GRADE) - 1), v >> N_GRADE & ((1 << N_GRADE) - 1)
+            nova = self.sub != 'acordado'
+            self.sub = 'acordado'
+            self._aplica_tons(volta, ida)
+            return self._veredito('FICA', ev['fim'] + RESP, nova=nova, espera=False)
+        if ev['k'] == 'ilegivel':
+            return self._sinal('REPETE', ev['fim'] + RESP, espera=False)
         return False
 
     def _manda_vel(self, i, quando):
-        d = SONDA_V_DESC[i]
+        d = self._d_tx(SONDA_V_DESC[i])
         self._quadro(d, VEL, carga_vel(i), quando, outros=self._outros_vel())
 
     def _julga_vel(self, ev, esperado):
@@ -1327,6 +1522,7 @@ class Estacao:
             if v in VEL_SINAL:
                 r = VEL_SINAL.index(v)
                 self.passou[self.vi] = r
+                self.reg['vel']['mando'][RATES[self.vi]] = (r, None)
                 self.anota(f"velocidade {RATES[self.vi]} baud: ele leu, aguenta rep{REPS[r]}")
                 self.falhas = 0
                 if self.vi == len(RATES) - 1:
@@ -1338,6 +1534,7 @@ class Estacao:
         elif ev['k'] != 'silencio':
             return False
         self.falhas += 1
+        self.reg['vel']['mando'][RATES[self.vi]] = (None, None)
         self.anota(f"velocidade {RATES[self.vi]} baud: {'não serve' if ev['k'] == 'sinal' else 'sem resposta'} "
                    f"({self.falhas}ª)")
         if self.falhas >= 2:
@@ -1378,6 +1575,7 @@ class Estacao:
                                       resposta=SONDA_V_DESC[self.vj].amostras)
             if r is not None:
                 self.passou[j] = r
+                self.reg['vel']['chega'][RATES[j]] = (r, ber)
                 self.anota(f"velocidade {RATES[j]} baud de lá para cá: {ber:.1%} de bits errados, "
                            f"aguenta rep{REPS[r]}")
                 self.falhas = 0
@@ -1392,6 +1590,7 @@ class Estacao:
                 self.vj = j + 1
                 return self._veredito(self.ult_v, ev['fim'] + RESP, resposta=SONDA_V_DESC[self.vj].amostras)
             self.falhas += 1
+            self.reg['vel']['chega'][RATES[self.vj]] = (None, ber)
             self.anota(f"velocidade {RATES[self.vj]} baud de lá para cá: {ber:.1%} de bits errados, "
                        f"não serve ({self.falhas}ª)")
             if self.falhas >= 2:
@@ -1452,9 +1651,9 @@ class Estacao:
             pedaco = bytes(self.fila[:CARGA_DADOS])
             self._quadro_tx = (self.seq_tx, pedaco)
             self.pendente_tx = self._quadro_tx
-            self._quadro(DADOS_DESC[self._nivel_tx()], DADOS,
+            self._quadro(self._d_tx(DADOS_DESC[self._nivel_tx()]), DADOS,
                          bytes([self.seq_tx & 255, len(pedaco)]) + pedaco, quando,
-                         outros=[self.ctrl] + [DADOS_DESC[c] for c in escada_dados(self.base_tx)])
+                         outros=[self.ctrl] + [self._d_tx(DADOS_DESC[c]) for c in escada_dados(self.base_tx)])
             return
         self.pendente_tx = None
         self._etapa('fim_tx', "nada mais a mandar")
@@ -1479,14 +1678,18 @@ class Estacao:
                 self.anota(f"o quadro passou em {self.contrato_tx.descreve()}: os próximos vão assim")
             seq, pedaco = self._quadro_tx
             del self.fila[:len(pedaco)]
+            self.reg['env'] += len(pedaco)
             self.seq_tx += 1
             self.n_rep = 0
             return self._proximo_dado(ev['fim'] + RESP)
         if ev['k'] == 'silencio' or (ev['k'] == 'sinal' and ev['nome'] == 'REPETE'):
             self.n_rep += 1
             n = self.n_rep
+            self.reg['repeticoes'] += 1
             quando = self.agora if ev['k'] == 'silencio' else ev['fim'] + RESP
             o_que = 'REPETE' if ev['k'] == 'sinal' else 'silêncio'
+            if n >= 3:
+                self.reg['motivo_tx'] = n
             if n >= DADOS_REPETES and self.lider:
                 return self._propoe(2, f"{n} falhas seguidas ao mesmo DADOS, mudando redundância, "
                                        f"velocidade e caixa; refaço o refino", quando)
@@ -1512,9 +1715,10 @@ class Estacao:
         """Recebendo dados: DADOS novo entra; FICA para qualquer lido."""
         if ev['k'] == 'quadro' and ev['tipo'] == DADOS:
             seq, n = ev['carga'][0], ev['carga'][1]
-            c = CHAVE_DADOS.get(ev['desc'])
+            c = _chave_dados(ev['desc'])
             if c is not None and c != self.base_rx:
                 self.base_rx = c
+                self.reg['motivo_rx'] = True
                 self.anota(f"o outro passou a mandar em {Contrato2(c).descreve()}")
             nova = seq != self.seq_rx
             if nova:
@@ -1637,6 +1841,8 @@ class Estacao:
                 return self._sinal('REPETE', ev['fim'] + RESP, espera=False) if ev['k'] == 'ilegivel' else False
             i, r, ber = self._julga_vel(ev, esperado)
             v = 'REPETE' if r is None else VEL_SINAL[r]
+            if 0 <= i < len(RATES):
+                self.reg['vel']['chega'][RATES[i]] = (r, ber)
             self.anota(f"bloco a {RATES[i] if 0 <= i < len(RATES) else '?'} baud: "
                        f"{'lido' if ev['k'] == 'quadro' else 'ilegível'}, {ber:.1%} de bits errados -> "
                        f"{v}{'' if r is None else f' (rep{REPS[r]})'}")
@@ -1654,7 +1860,7 @@ class Estacao:
             self.contrato_rx = Contrato2(self.c_ab)
             self._etapa('vel_volta', f"de lá para cá: {self.contrato_rx.descreve()}; agora mando os meus blocos")
             self.vj = 0
-            return self._quadro(SONDA_V_DESC[0], VEL, carga_vel(0), ev['fim'] + RESP,
+            return self._quadro(self._d_tx(SONDA_V_DESC[0]), VEL, carga_vel(0), ev['fim'] + RESP,
                                 outros=self._outros_vel())
         return False
 
@@ -1696,12 +1902,13 @@ class Estacao:
                     return self._repete("o mesmo veredito de novo: o meu bloco se perdeu")
                 self.par_rx = par
                 self.falhas = 0
+                self.reg['vel']['mando'][RATES[self.vj]] = (VEL_SINAL.index(v), None)
                 if self.vj >= len(RATES) - 1:
                     self.sub = 'aguarda_contrato'
                     self.anota("veredito ao bloco do topo: a bateria acabou; espero o CONTRATO")
                     return True
                 self.vj += 1
-                return self._quadro(SONDA_V_DESC[self.vj], VEL, carga_vel(self.vj), ev['fim'] + RESP,
+                return self._quadro(self._d_tx(SONDA_V_DESC[self.vj]), VEL, carga_vel(self.vj), ev['fim'] + RESP,
                                     outros=self._outros_vel())
             if v == 'REPETE':
                 self.falhas += 1
@@ -1746,6 +1953,125 @@ class Estacao:
         return False
 
     # --- painel
+
+    def percurso(self, mic=None, parada=False):
+        """O caminho da sessão para as telas: o que passou, onde está, o que vem,
+        com o valor que cada etapa acertou. Só o que foi medido; o resto é traço,
+        e sem nenhum nome interno do protocolo (esses ficam no diário).
+        `mic`: a fração do microfone, que só o runtime conhece. `parada`: a sessão
+        acabou, e sem chegar ao fim a etapa em que estava falhou.
+
+        O volume do outro lado não viaja no fio: cada ponta só sabe o seu e o
+        pedido que fez sobre o dele, então ele nunca tem número aqui."""
+        r = self.reg
+        pc = lambda k: '—' if k is None else f"{CAIXA_REAL[k]:.0%}"
+        muda = lambda a, b: a if a == b else f"{a} → {b}"
+        pedido = {'DESCE': 'baixar', 'FICA': 'manter', 'SOBE': 'subir'}
+        if mic is not None and r['mic0'] is None:
+            r['mic0'] = mic
+        k_som = self.k_acordo if self.k_acordo is not None else self.k
+        origem_tx = self.c_ab if self.lider else self.c_ba
+        origem_rx = self.c_ba if self.lider else self.c_ab
+        curto = lambda c: f"{DRATES[c[0]]} baud, repetição {REPS[c[1]]}"
+
+        def bateria(lado, chave, origem):
+            rotulo = 'Envio' if chave == 'mando' else 'Recepção'
+            pontos = r['vel'][chave]
+            if not pontos:
+                return dict(rotulo=rotulo, valor='—', lado=lado)
+            toks = []
+            for b in sorted(pontos):
+                rep, ber = pontos[b]
+                t = f"{b} {'falhou' if rep is None else f'×{REPS[rep]}'}"
+                toks.append(t if ber is None else f"{t} ({ber:.0%})")
+            esc = None
+            if origem is not None and DRATES[origem[0]] in pontos:
+                esc = f"{DRATES[origem[0]]} ×{REPS[origem[1]]}"
+            return dict(rotulo=rotulo, valor='  '.join(toks), lado=lado, escolhido=esc)
+
+        def regua(lado, rotulo, mapa):
+            """Uma marca por tom da grade: usado, excluído (da tabela de sempre),
+            reserva (nem foi preciso) ou, sem medida, não medido."""
+            usados = set(tons_de(mapa)) if mapa else set()
+            marcas = [dict(hz=GRADE[k], estado='nm' if not mapa else 'usado' if k in usados else
+                           'excluido' if k in PADRAO else 'reserva') for k in range(N_GRADE)]
+            fora = [f"{GRADE[k]:g}" for k in PADRAO if k not in usados]
+            if mapa is None:
+                valor = '—'
+            elif not mapa:
+                valor = 'Não medido'
+            else:
+                valor = f"Usados 16 · Excluídos {len(fora)}" + (f": {' '.join(fora)} Hz" if fora else '')
+            return dict(rotulo=rotulo, valor=valor, lado=lado, regua=marcas)
+
+        tx_agora = None
+        if self.base_tx is not None:
+            tx_agora = self._nivel_tx() if self.etapa == 'dados_tx' else self.base_tx
+        etapas = [
+            dict(id='encontro', nome='Encontro', valores=[
+                dict(rotulo='Volume', valor=pc(r['k_enc'] if r['k_enc'] is not None else self.k), lado='envio'),
+                dict(rotulo='Sinal', valor='—' if not r['resposta'] else f"{r['resposta'][1]:.2f}", lado='chega'),
+                dict(rotulo='Pico', valor='—' if not r['resposta'] else f"{r['resposta'][2]:.2f}", lado='chega')]),
+            dict(id='som', nome='Som', valores=[
+                dict(rotulo='Volume', valor=muda(pc(r['k_enc']), pc(k_som)) if r['k_enc'] is not None else pc(k_som),
+                     lado='envio'),
+                dict(rotulo='Volume dele', valor='—' if not r['eu_disse'] else 'pedi ' + pedido[r['eu_disse']],
+                     lado='chega'),
+                dict(rotulo='Microfone', valor='—' if mic is None else muda(f"{r['mic0']:.0%}", f"{mic:.0%}")),
+                dict(rotulo='Erros', valor='—' if r['som_ber'] is None else f"{r['som_ber']:.1%}", lado='chega')]),
+            dict(id='tons', nome='Tons', valores=[
+                regua('envio', 'Envio', r['tons_mando']), regua('chega', 'Recepção', r['tons_chega'])]),
+            dict(id='velocidade', nome='Velocidade', valores=[
+                bateria('envio', 'mando', origem_tx), bateria('chega', 'chega', origem_rx)]
+                 + self._testando()),
+            dict(id='contrato', nome='Contrato', valores=[
+                dict(rotulo='Envio', valor='—' if origem_tx is None else curto(origem_tx), lado='envio'),
+                dict(rotulo='Recepção', valor='—' if origem_rx is None else curto(origem_rx), lado='chega')]),
+            dict(id='dados', nome='Dados', valores=[
+                dict(rotulo='Envio', lado='envio', valor='—' if tx_agora is None else
+                     muda(curto(origem_tx), curto(tx_agora))),
+                dict(rotulo='Recepção', lado='chega', valor='—' if self.base_rx is None else
+                     muda(curto(origem_rx), curto(self.base_rx))),
+                dict(rotulo='Quadro', valor='—' if not (self.seq_tx or self.seq_rx is not None) else
+                     str(self.seq_tx if self.etapa == 'dados_tx' or self.seq_rx is None else self.seq_rx)),
+                dict(rotulo='Repetições', valor=str(r['repeticoes'])),
+                dict(rotulo='Volume', lado='envio', valor=muda(pc(k_som), pc(self.k)))]),
+            dict(id='fim', nome='Fim', valores=[]),
+        ]
+        grupo = {'encontro': 0, 'refino': 1, 'refino_meu': 1, 'refino_dele': 1,
+                 'tons': 2, 'tons_ida': 2, 'tons_volta': 2, 'tons_acordo': 2, 'vel_ida': 3,
+                 'contrato1': 3, 'vel_volta': 3, 'contrato2': 4, 'dados_tx': 5, 'dados_rx': 5,
+                 'fim_tx': 5, 'fim': 6}
+        g = grupo.get(self.etapa, 0)
+        for i, e in enumerate(etapas):
+            if i < g or (g == 6 and i == 6):
+                e['situacao'] = 'feita'
+            elif i == g:
+                e['situacao'] = 'falhou' if parada else 'agora'
+                if not parada:
+                    e['andamento'] = self._andamento()
+            else:
+                e['situacao'] = 'falta'
+        return etapas
+
+    def _testando(self):
+        """A velocidade em teste agora, se esta ponta souber qual é."""
+        i = {'vel_ida': getattr(self, 'vi', None) if self.lider else None,
+             'vel_volta': getattr(self, 'vj', None)}.get(self.etapa)
+        if i is None or not 0 <= i < len(RATES):
+            return []
+        return [dict(rotulo='Testando', valor=f"{RATES[i]} baud, tentativa {self.falhas + 1}")]
+
+    def _andamento(self):
+        """O que acontece agora, sem nome de mensagem: enviando ou ouvindo, e por quanto."""
+        t = self.agora
+        if self._no_ar is not None and t < self._no_ar[0] + self._no_ar[1] + LAT_CEGO:
+            return dict(sentido='enviando', s=round((self._no_ar[0] + self._no_ar[1] + LAT_CEGO - t) / FS))
+        if self.agenda:
+            return dict(sentido='enviando', s=None)
+        if self.slot_ate is not None and self._lendo is None:
+            return dict(sentido='ouvindo', s=max(0, round((self.slot_ate - t) / FS)))
+        return dict(sentido='ouvindo', s=None)
 
     def atividade(self):
         t = self.agora

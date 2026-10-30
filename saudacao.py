@@ -553,6 +553,9 @@ def sessao(args, audio):
                     contrato_rx=est.contrato_rx.descreve() if est.contrato_rx else None,
                     velocidade=(est.degraus[est._degrau()] if getattr(est, 'aberto', False) else None),
                     tocando=list(getattr(est, 'tocando', [])),
+                    percurso=est.percurso(mic=vol.mic_base if vol is not None else None,
+                                          parada=fase == 'terminada')
+                    if hasattr(est, 'percurso') else None,
                     atividade=est.atividade() if hasattr(est, 'atividade') else None,
                     a_enviar=len(est.fila), pendente_tx=est.pendente_tx is not None,
                     enviados_total=len(dados), recebidos=len(est.recebido),

@@ -314,6 +314,41 @@ body {
 .p2 { display: grid; gap: 12px;
   --fx-agora: var(--ambar); --fx-feito: #7fcf95; --fx-falha: #ea7a5f; --fx-fundo: rgba(241,178,74,.10); }
 .projecao .p2 { --fx-agora: #8a4f00; --fx-feito: #2f6b3f; --fx-falha: #a3301b; --fx-fundo: rgba(138,79,0,.13); }
+.contador[hidden] { display: none; }
+.p2.com-percurso { grid-template-columns: 1fr; }
+.p2.com-percurso > div:not(.p2-perc) { display: none; }
+.percurso { margin: 0; padding: 0; list-style: none; }
+.percurso li { position: relative; display: grid; grid-template-columns: 22px 1fr; column-gap: 8px; padding: 0 0 7px; }
+.percurso li::before { content: ''; position: absolute; left: 8px; top: 4px; bottom: -4px; width: 2px; background: var(--caqui-escuro); }
+.percurso li:last-child { padding-bottom: 0; } .percurso li:last-child::before { display: none; }
+.percurso li.feita::before { background: var(--fx-feito); opacity: .7; }
+.percurso .lamp { position: relative; z-index: 1; width: 14px; height: 14px; margin: 2px 0 0 2px; border-radius: 50%; background: #3b3630; box-shadow: 0 0 0 2px #0b0a09; }
+.percurso .feita .lamp { background: var(--fx-feito); }
+.percurso .agora .lamp { background: var(--fx-agora); box-shadow: 0 0 0 2px #0b0a09, 0 1px 9px 2px var(--fx-fundo); animation: pisca-perc 1.1s steps(2, jump-none) infinite; }
+.percurso .falhou .lamp { background: var(--fx-falha); }
+@keyframes pisca-perc { from { opacity: 1; } to { opacity: .35; } }
+.percurso b { font: 400 18px/1.15 var(--f-placa); letter-spacing: .08em; text-transform: uppercase; color: var(--caqui); }
+.percurso .feita b, .percurso .agora b { color: var(--osso); } .percurso .falhou b { color: var(--fx-falha); }
+.percurso .cabeca { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.i-fases.com-percurso .fx-vivo, .i-fases.com-percurso .fluxo { display: none; }
+.percurso .valores span, .percurso .valores em { overflow-wrap: anywhere; }
+.andamento { font: 700 13px/1.2 var(--f-tipo); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.andamento::before { content: ''; display: inline-block; margin-right: 6px; border-style: solid; border-width: 4px 0 4px 7px; border-color: transparent transparent transparent currentColor; }
+.andamento.envio { color: var(--envio-claro); }
+.andamento.chega { color: var(--chega-claro); } .andamento.chega::before { transform: rotate(180deg); }
+.percurso .valores { grid-column: 2; display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 3px; }
+.percurso .valores span { font: 400 14px/1.35 var(--f-placa); letter-spacing: .06em; text-transform: uppercase; color: var(--osso-2); }
+.percurso .valores em { font: 700 13px/1.35 var(--f-tipo); font-style: normal; letter-spacing: 0; text-transform: none; color: var(--ambar); font-variant-numeric: tabular-nums; }
+.percurso .valores .envio em { color: var(--envio-claro); } .percurso .valores .chega em { color: var(--chega-claro); }
+.percurso .valores span.tem-regua { flex: 1 0 100%; white-space: normal; }
+.regua { display: flex; gap: 2px; margin: 2px 0 3px; }
+.regua i { flex: 1; height: 12px; min-width: 0; background: #0b0a09; }
+.regua .usado { background: currentColor; }
+.envio .regua { color: var(--envio-claro); } .chega .regua { color: var(--chega-claro); }
+.regua .excluido { background: linear-gradient(45deg, transparent 44%, var(--alarme) 44% 56%, transparent 56%), linear-gradient(-45deg, transparent 44%, var(--alarme) 44% 56%, transparent 56%), #0b0a09; }
+.regua .reserva { background: #0b0a09; box-shadow: inset 0 0 0 1px var(--caqui-escuro); }
+.regua .nm { background: linear-gradient(transparent 44%, var(--caqui-escuro) 44% 56%, transparent 56%), #0b0a09; }
+.percurso em u { text-decoration: none; background: var(--ambar); color: #1b1a18; padding: 0 2px; }
 .p2-rot { margin: 0 0 6px; font: 400 15px/1 var(--f-placa); letter-spacing: .1em; text-transform: uppercase; color: var(--caqui); }
 .p2-etapas { list-style: none; margin: 0; padding: 0; display: grid; }
 .p2-etapas li { position: relative; display: grid; grid-template-columns: 20px 1fr auto; column-gap: 8px; align-items: baseline; padding: 5px 8px 6px 2px; }
@@ -905,7 +940,7 @@ pre.conv-lista { font: 400 15px/1.45 var(--f-tipo); white-space: pre-wrap; overf
     <div class="estacao">
       <span>estação <b id="maquina">—</b></span>
       <span>papel <b id="papel">—</b></span>
-      <span>estado <b id="estado-est">—</b></span>
+      <span hidden>estado <b id="estado-est">—</b></span>
     </div>
     <div class="direita">
       <span class="msg-topo so-sessao" id="msg-topo" role="status"></span>
@@ -929,11 +964,11 @@ pre.conv-lista { font: 400 15px/1.45 var(--f-tipo); white-space: pre-wrap; overf
           <output id="c-rec">—</output>
           <div class="barra chega"><i id="b-rec"></i></div>
         </div>
-        <div class="contador">relógio da estação <output id="c-rel">—</output></div>
+        <div class="contador">tempo <output id="c-rel">—</output></div>
         <div class="contador so-bancada" title="Relógio de parede menos o da estação. Cresce = a estação ficou para trás e age sobre um agora velho.">atraso <output id="c-atr">—</output></div>
-        <div class="contador so-bancada" title="Áudio esperando processamento">fila <output id="c-fila">—</output></div>
-        <div class="contador so-bancada" title="Duração da última volta de passo()">passo <output id="c-passo">—</output></div>
-        <div class="contador so-bancada">última marca há <output id="c-marca">—</output></div>
+        <div class="contador so-bancada" title="Áudio esperando processamento" hidden>fila <output id="c-fila">—</output></div>
+        <div class="contador so-bancada" title="Duração da última volta de passo()" hidden>passo <output id="c-passo">—</output></div>
+        <div class="contador so-bancada" hidden>última marca há <output id="c-marca">—</output></div>
         <div class="contador">quadros ilegíveis <output id="c-ileg">—</output></div>
         <div class="contador so-bancada" title="Entrada que o PortAudio jogou fora, reposta como silêncio para o relógio da estação não escorregar">entrada perdida <output id="c-perda">—</output></div>
       </div>
@@ -1051,11 +1086,11 @@ pre.conv-lista { font: 400 15px/1.45 var(--f-tipo); white-space: pre-wrap; overf
     <div class="conversa" id="conversa-v">
       <div class="conv-cols">
         <div class="conv-col envio">
-          <h3>Enviado <small>esta estação</small><span class="conv-estado" id="conv-estado"></span><button type="button" class="conv-limpa" id="conv-limpa" hidden>limpar</button></h3>
+          <h3>Enviado<span class="conv-estado" id="conv-estado"></span><button type="button" class="conv-limpa" id="conv-limpa" hidden>limpar</button></h3>
           <ol class="conv-lista" id="conv-env" aria-live="off"></ol>
         </div>
         <div class="conv-col chega">
-          <h3>Recebido <small>do outro lado</small></h3>
+          <h3>Recebido</h3>
           <ol class="conv-lista" id="conv-rec" aria-live="polite"></ol>
           <pre class="conv-lista" id="r-texto" hidden></pre>
         </div>
@@ -1065,7 +1100,7 @@ pre.conv-lista { font: 400 15px/1.45 var(--f-tipo); white-space: pre-wrap; overf
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 9.2 9.6 15.1a3.6 3.6 0 0 1-5.1-5.1l6.4-6.4a2.4 2.4 0 0 1 3.4 3.4l-6.3 6.3a1.2 1.2 0 0 1-1.7-1.7l5.6-5.6"/></svg>
           <input type="file" id="arquivo" aria-label="Anexar arquivo">
         </label>
-        <input type="text" id="conv-texto" placeholder="digite e Enter · comece com $ para executar no outro lado" aria-label="Texto para enviar pela conversa" maxlength="2000">
+        <input type="text" id="conv-texto" placeholder="Texto a enviar" aria-label="Texto para enviar pela conversa" maxlength="2000">
         <button type="submit" class="botao" id="conv-manda">Enviar</button>
         <p class="conv-msg" id="conv-msg" role="status"></p>
       </form>
@@ -1107,6 +1142,7 @@ pre.conv-lista { font: 400 15px/1.45 var(--f-tipo); white-space: pre-wrap; overf
     <div class="janela">
       <svg class="fluxo" id="fluxo" role="img" aria-label="Fluxograma do aperto de mão: chamador à esquerda, ouvinte à direita"></svg>
       <div class="p2" id="p2" hidden>
+        <div class="p2-perc" id="p2-perc" hidden><ol class="percurso" id="percurso" aria-label="Percurso da sessão"></ol></div>
         <div><h3 class="p2-rot">Etapas</h3><ol class="p2-etapas" id="p2-etapas" aria-label="Etapas do protocolo 2"></ol></div>
         <div><h3 class="p2-rot">Troca <small id="p2-troca-n"></small></h3><ol class="p2-troca" id="p2-troca" aria-label="Últimos sinais mandados e ouvidos"></ol></div>
       </div>
@@ -1318,8 +1354,49 @@ function curtoAtiv2(a) {   // sem o "etapa X: " (a fila de etapas já diz)
     return `tocando ${rotulo2(m[1]).filter(Boolean).join(' · ')}` + (m[3] ? ` · ${(+m[2]).toFixed(1)}/${(+m[3]).toFixed(1)} s` : '');
   return curtoAtiv(a);
 }
+// O percurso vem pronto da estação (`percurso()` em enlace2 e enlace_manual); sem
+// ele (sessão antiga, protocolo 1), o painel de etapas lido do diário continua.
+function pintaPercurso(p) {
+  const tem = !!(p && p.length);
+  $('p2').classList.toggle('com-percurso', tem);
+  document.querySelector('.i-fases').classList.toggle('com-percurso', tem);
+  document.querySelector('.i-fases .rotulo').textContent = tem ? 'Percurso' : 'Aperto de mão';
+  $('p2-perc').hidden = !tem;
+  if (!tem) return false;
+  const ol = $('percurso'); ol.textContent = '';
+  p.forEach(e => {
+    const li = el2('li', ol); li.className = e.situacao;
+    el2('i', li).className = 'lamp';
+    const c = el2('div', li); c.className = 'cabeca';
+    el2('b', c).textContent = e.nome;
+    if (e.andamento) {
+      const a = el2('span', c); a.className = 'andamento ' + (e.andamento.sentido === 'enviando' ? 'envio' : 'chega');
+      a.textContent = e.andamento.sentido + (e.andamento.s != null ? ' ' + e.andamento.s + ' s' : '');
+    }
+    if (e.situacao !== 'falta' && e.valores && e.valores.length) {
+      const v = el2('div', li); v.className = 'valores';
+      e.valores.forEach(x => {
+        const s = el2('span', v); s.className = x.lado || '';
+        s.append(x.rotulo + ' ');
+        const m = el2('em', s), i = x.escolhido ? x.valor.indexOf(x.escolhido) : -1;
+        if (i >= 0) {
+          m.append(x.valor.slice(0, i));
+          el2('u', m).textContent = x.escolhido;
+          m.append(x.valor.slice(i + x.escolhido.length));
+        } else m.textContent = x.valor;
+        if (x.regua) {
+          s.className += ' tem-regua';
+          const g = el2('div', s); g.className = 'regua';
+          x.regua.forEach(t => { const c = el2('i', g); c.className = t.estado; c.title = t.hz + ' Hz'; });
+        }
+      });
+    }
+  });
+  return true;
+}
 function pintaP2() {
   const e = st.estado || {};
+  if (pintaPercurso(e.percurso)) return;
   const d = st.lido2 || leDiario2(e.ultimas || []);
   const terminada = e.fase === 'terminada' || !st.vivo;
   const etapa = e.etapa || d.etapa;
@@ -2258,8 +2335,8 @@ function pintaConversa() {
   const campo = $('conv-texto'), manda = $('conv-manda');
   const pode = livre || (vivo && em);
   campo.disabled = manda.disabled = !pode;
-  campo.placeholder = livre || (vivo && em) ? 'digite e Enter · comece com $ para executar no outro lado'
-    : vivo ? 'sessão sem conversa: só o texto do início vai pelo ar'
+  campo.placeholder = livre || (vivo && em) ? 'Texto a enviar'
+    : vivo ? 'Sem conversa nesta sessão'
     : 'aguardando o painel da sessão…';
   manda.textContent = livre ? 'Pôr na fila' : 'Enviar';
   $('arquivo').disabled = !livre;

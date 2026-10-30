@@ -65,6 +65,7 @@ class Sessao:
         self.lat = int(ponte.latencia())
         self.passo_ms = 0.0
         self.t_estado = 0.0
+        self.acabou = False
         self.mostrados = 0
         self.t_aviso = 0.0
         if manual:
@@ -156,6 +157,7 @@ class Sessao:
             enviados_total=len(self.dados), atividade=est.atividade(),
             contrato_tx=est.contrato_tx.descreve() if est.contrato_tx else None,
             contrato_rx=est.contrato_rx.descreve() if est.contrato_rx else None,
+            percurso=est.percurso(parada=self.acabou),
             espectro=self.espectro(), dados=dados)))
         if fila > ATRASO_AVISO and time.time() - self.t_aviso > 10:
             self.t_aviso = time.time()
@@ -194,6 +196,8 @@ class Sessao:
 
     def fecha(self):
         est = self.est
+        self.acabou = True
+        self.publica()
         if est.recebido:
             # O que chegou, como arquivo: a interface abre daqui.
             with open(self.stem + '-recebido.bin', 'wb') as f:

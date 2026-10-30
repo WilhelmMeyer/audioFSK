@@ -1,10 +1,10 @@
-"""Figura do artigo: erros de símbolo por tom em três sessões do mesmo sentido.
+"""Figura do artigo: erros de símbolo por tom em três séries de gravações do mesmo sentido.
 
 Lê ../simbolos.json (escrito por erros_por_tom.py, mapeamento Gray antigo, o
-das gravações) e conta, em cada sessão, a fração dos erros de símbolo que
-caiu em cada tom transmitido. Sessões B->A de 2026-09-03: 14-FEC-REP,
-12-13-SYNC e 08-MARY-GAIN, nomeadas na figura como sessão 1, 2 e 3. Os três
-piores tons de cada sessão vão em marcador cheio.
+das gravações) e conta, em cada série, a fração dos erros de símbolo que
+caiu em cada tom transmitido. Séries B->A de 2026-09-03: 14-FEC-REP,
+12-13-SYNC e 08-MARY-GAIN, nomeadas na figura como série 1, 2 e 3. Os três
+piores tons de cada série vão em marcador cheio.
 
     ./venv/bin/python resultados/H05-ERROS-POR-TOM/figuras/figura_tons.py
 """
@@ -31,9 +31,9 @@ plt.rcParams.update({'font.size': 8.5, 'axes.labelsize': 8.5, 'xtick.labelsize':
                      'figure.dpi': 300})
 
 # (rótulo, campanha, cor, marcador)
-SESSOES = [('Sessão 1', '14-FEC-REP', TEAL, 'o'),
-           ('Sessão 2', '12-13-SYNC', OCRE, 's'),
-           ('Sessão 3', '08-MARY-GAIN', CINZA, '^')]
+SERIES = [('Série 1', '14-FEC-REP', TEAL, 'o'),
+           ('Série 2', '12-13-SYNC', OCRE, 's'),
+           ('Série 3', '08-MARY-GAIN', CINZA, '^')]
 
 
 def fracoes(dados, campanha):
@@ -54,7 +54,7 @@ def main():
     fig, ax = plt.subplots(figsize=(3.5, 2.4))
     ax.axhline(100 / 16, color=CINZA, lw=0.7, ls=':', zorder=0)
     ax.text(-0.3, 100 / 16 + 1.2, 'uniforme, 1/16', fontsize=6.5, color=CINZA, ha='left')
-    for rot, camp, cor, mk in SESSOES:
+    for rot, camp, cor, mk in SERIES:
         f, n = fracoes(dados, camp)
         piores = np.argsort(-f)[:3]
         ax.plot(x, 100 * f, color=cor, lw=0.8, alpha=0.7)

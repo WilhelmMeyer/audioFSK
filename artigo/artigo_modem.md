@@ -222,19 +222,21 @@ A retransmissão só converge se a maioria dos pacotes chegar íntegra na primei
 
 ### 4.4 Negociação do enlace pelo ar
 
-A qualidade de cada tom não é fixa. No sistema implementado, os três piores tons concentraram de 47% a 90% dos erros de símbolo em cada sessão, e esses tons mudaram de uma sessão para outra (Figura 12). Uma configuração escolhida de antemão serve, portanto, a uma sessão e não à seguinte.
+Nas seções anteriores, as duas pontas precisam combinar de antemão a forma de transmissão, os tons, o nível e a taxa. A negociação faz esse acordo pelo próprio som, no início de cada sessão, nome dado aqui a cada conexão entre as duas estações, da chamada ao último pacote de dados. No início da sessão, as estações se encontram, medem o canal em cada sentido e combinam a configuração, sem canal auxiliar e sem ajuste manual.
 
-![](figuras/erros-por-tom.png "0.95")
-Figura 12 - Fração dos erros de símbolo em cada tom da 16-FSK, em três sessões no mesmo sentido. Os marcadores cheios são os três piores tons de cada sessão, e a linha pontilhada, a fração de uma distribuição uniforme.
+A estação que chama emite um par de varreduras de frequência, e a que escuta responde. Em seguida cada uma sonda o canal no sentido em que transmite, com tons isolados em todas as frequências candidatas e com blocos conhecidos tocados em volumes crescentes do alto-falante, repetidos com dois ganhos do microfone de quem escuta.
 
-Na negociação, as duas estações configuram o enlace pelo próprio som, sem canal auxiliar. A estação que chama emite um par de varreduras de frequência, e a que escuta responde. Em seguida cada uma sonda o canal no sentido em que transmite, com tons isolados em todas as frequências candidatas e blocos conhecidos em níveis crescentes.
+Quem decide a configuração de cada sentido é o receptor, que é quem mediu a sondagem. O acordo, chamado contrato, fixa para aquele sentido os tons utilizáveis, o volume do alto-falante de quem transmite, o ganho do microfone de quem recebe, a velocidade em símbolos por segundo e o número de repetições do bloco codificado (seção 4.1). O receptor envia o contrato ao transmissor, e os dados seguem em pare-e-espere. Se os pacotes falharem repetidamente, o transmissor recua para uma configuração mais robusta, com mais repetições ou menos símbolos por segundo.
 
-Quem decide a configuração de cada sentido é o receptor, que é quem mediu a sondagem. Ele escolhe os tons utilizáveis, o nível de transmissão e a taxa, e envia essa escolha como um contrato. Os dados seguem em pare-e-espere, e se os pacotes falharem repetidamente o transmissor recua para uma taxa menor.
-
-A Figura 13 mostra a sequência em uma sessão do sistema implementado, da chamada aos dados, com um pacote ilegível pedido de novo e retransmitido.
+A Figura 12 mostra a sequência em uma sessão do sistema implementado, da chamada aos dados, com um pacote ilegível pedido de novo e retransmitido.
 
 ![](figuras/negociacao.png "0.8")
-Figura 13 - Sequência de uma sessão negociada pelo ar, em escala de tempo. Cada seta vai do fim da leitura de um turno ao fim da leitura do seguinte. A seta tracejada é um pacote ilegível.
+Figura 12 - Sequência de uma sessão negociada pelo ar, em escala de tempo. Cada seta vai do fim da leitura de um turno ao fim da leitura do seguinte. A seta tracejada é um pacote ilegível.
+
+A medição se repete a cada sessão porque o canal muda com o tempo. No sistema implementado, em três séries de gravações feitas no mesmo dia, três dos dezesseis tons responderam sozinhos por 47% a 90% dos erros de símbolo de cada série, e esses três tons não foram os mesmos de uma série para outra (Figura 13). Uma lista de tons a evitar, escolhida de antemão, serviria a uma conexão e não à seguinte.
+
+![](figuras/erros-por-tom.png "0.95")
+Figura 13 - Fração dos erros de símbolo em cada tom da 16-FSK, em três séries de gravações do mesmo dia e no mesmo sentido. Os marcadores cheios são os três piores tons de cada série, e a linha pontilhada, a fração que caberia a cada tom se os erros se distribuíssem por igual.
 
 ## 5 INTERFACE COM A APLICAÇÃO
 
@@ -242,9 +244,14 @@ O enlace negociado é operado por uma tela no navegador, o visor, executada em c
 
 A tela reúne o necessário para acompanhar uma sessão sem consultar registros. O espectrograma do microfone, com o mais recente no alto, mostra os sinais que chegam, e a escala de frequência acima dele marca os tons contratados em cada sentido. Um fluxograma do aperto de mão indica a etapa atual da negociação, da chamada ao contrato e aos dados, e contadores e listas registram os últimos sinais enviados e ouvidos e as decisões tomadas.
 
+A Figura 14 mostra a tela no computador e no celular durante uma sessão.
+
+![](figuras/telas-visor-celular.png "0.95")
+Figura 14 - Tela de operação do enlace no computador (a) e no celular (b), durante a transferência de um arquivo.
+
 Sobre o mesmo enlace estão em implementação uma conversa, em que o canal permanece aberto entre as mensagens, e um terminal de comandos.
 
-<!-- Chat e terminal: descrever quando estiverem prontos (outra sessão). Figura do visor em modo projeção (claro) com as fases chamada, sondagem, contrato e dados: capturar quando o áudio e o painel estiverem livres; pode ficar no capítulo 6.5. Porta serial virtual: hoje só app.py --pty, sobre a 2-FSK de Bell 202 sem correção de erros, que não entregou mensagem pelo ar; o enlace negociado não expõe porta serial. O resumo e a introdução afirmam a porta serial virtual: rever. -->
+<!-- Figura 14 PROVISÓRIA: as duas telas ainda mudam (percurso e régua de tons); refazer no fim dos testes, com resultados/FIG-TELAS/COMO-REFAZER.md, e rever o parágrafo acima, que ainda descreve a tela antiga. Chat e terminal: descrever quando estiverem prontos (outra sessão). Porta serial virtual: hoje só app.py --pty, sobre a 2-FSK de Bell 202 sem correção de erros, que não entregou mensagem pelo ar; o enlace negociado não expõe porta serial. O resumo e a introdução afirmam a porta serial virtual: rever. -->
 
 ## 6 RESULTADOS EXPERIMENTAIS
 
@@ -254,34 +261,34 @@ Dois computadores na mesma sala, cada um com alto-falante e microfone de uso ger
 
 ### 6.2 Formas de transmissão
 
-A Figura 14 mostra as formas de transmissão na bancada a 10 cm, com blocos de 48 bytes e ganho 0,5.
+A Figura 15 mostra as formas de transmissão na bancada a 10 cm, com blocos de 48 bytes e ganho 0,5.
 
 ![](figuras/resultado-formas.png "0.95")
-Figura 14 - Bits certos em cada gravação, por forma de transmissão, a 10 cm. Círculo cheio, bloco entregue íntegro; vazio, bloco perdido. À direita, blocos íntegros e taxa útil calculada pela duração do quadro.
+Figura 15 - Taxa útil de cada forma de transmissão, a 10 cm, calculada pela duração do quadro. Dentro da barra, a média de bits certos das gravações. Todas entregaram o bloco íntegro, de quatro a cinco gravações por forma. A 5×2-FSK votada exclui uma gravação em que a malha de sincronismo perdeu o alinhamento.
 
-A 2-FSK de Bell 202, sem correção de erros, não entrega nenhum bloco. Com correção de erros, todas as formas entregam a maior parte dos blocos. A 5×2-FSK multicanal tem a maior taxa, 13,8 B/s, com o menor acerto de bits, e a 16-FSK só entrega todos os blocos com as varreduras de sincronismo.
+Com correção de erros, as quatro formas entregam todos os blocos. A 5×2-FSK multicanal tem a maior taxa, 13,8 B/s, com o menor acerto de bits, e a 16-FSK chega a 10,7 B/s.
 
 Com o alto-falante afastado, a 16-FSK entregou 4 blocos de 4 a 11,3 B/s, com 5,9% a 9,5% dos bits codificados trocados, todos corrigidos.
 
-<!-- Fontes: F01-2FSK-10CM, H03-2FSK-FEC (2-FSK com correção, 4 gravações), F02, F03, F00-NIVEL-10CM, F04-16FSK-10CM (2026-10-08); 14-FEC-REP (2026-09-03; rep 2 e 4 também 4/4, a 6,7 e 3,7 B/s). Taxas calculadas pelo código (RESUMO-CAMPANHA-FINAL.md). Gravações com o mapeamento Gray anterior à correção de 2026-10-29. Script: resultados/FIG-RESULTADOS/. -->
+<!-- Fontes: H03-2FSK-FEC (2-FSK com correção, 4 gravações), F02 (4 de 5 gravações: r2, 79,1%, excluída por decisão do autor em 2026-10-30, e relida a 100,0% com o relógio fixo), F03, F04-16FSK-10CM (2026-10-08); fora da figura por decisão do autor em 2026-10-30, só o que funcionou e é usado: F01-2FSK-10CM (Bell 202 sem correção, 0/5) e F00-NIVEL-10CM (16-FSK sem varreduras, 3/5); 14-FEC-REP (2026-09-03; rep 2 e 4 também 4/4, a 6,7 e 3,7 B/s). Taxas calculadas pelo código (RESUMO-CAMPANHA-FINAL.md). Gravações com o mapeamento Gray anterior à correção de 2026-10-29. Script: resultados/FIG-RESULTADOS/. -->
 
 ### 6.3 Sincronismo
 
-A Figura 15 compara a malha de adiantamento e atraso com as varreduras, lidas sobre as mesmas gravações.
+A Figura 16 compara a malha de adiantamento e atraso com as varreduras, lidas sobre as mesmas gravações.
 
 ![](figuras/resultado-sincronismo.png "0.95")
-Figura 15 - Blocos íntegros com a malha e com as varreduras, nas mesmas gravações, em três conjuntos.
+Figura 16 - Blocos íntegros com a malha e com as varreduras, nas mesmas gravações, em três conjuntos.
 
-Quando a malha acompanha o sinal, as duas empatam. A diferença está nos quadros em que a malha perde o alinhamento, que as varreduras recuperam, e é maior no conjunto gravado por um só computador, que toca e grava ao mesmo tempo, em que as varreduras leram mais bits que a malha em 23 das 24 gravações.
+Quando a malha acompanha o sinal, as duas empatam. A diferença está nos quadros em que a malha perde o alinhamento, que as varreduras recuperam, e é maior no conjunto de 24 gravações da 16-FSK com blocos de 48 bytes, em que as varreduras leram mais bits que a malha em 23 gravações.
 
 <!-- Fontes: 12-13-SYNC (4 gravações, 192 B, rep 2), H03-2FSK-FEC (as 8 com varreduras), studies/20260903-111105-ganho-mary (uma máquina, ganho 0,20 a 0,38). -->
 
 ### 6.4 Transferência de arquivo
 
-Uma imagem de 1334 bytes foi transferida com o alto-falante afastado e chegou idêntica, conferida pelo CRC de 32 bits (Figura 16). Em pacotes de 64 bytes, os 21 pacotes chegaram sem retransmissão, a 6,8 B/s, e em pacotes de 128 bytes, os 11 chegaram com 3 retransmissões, a 7,2 B/s.
+Uma imagem de 1334 bytes foi transferida com o alto-falante afastado e chegou idêntica, conferida pelo CRC de 32 bits (Figura 17). Em pacotes de 64 bytes, os 21 pacotes chegaram sem retransmissão, a 6,8 B/s, e em pacotes de 128 bytes, os 11 chegaram com 3 retransmissões, a 7,2 B/s.
 
 ![](figuras/arquivo-enviado-recebido.png "0.6")
-Figura 16 - Imagem de 1334 bytes enviada (a) e recebida pelo ar (b), idênticas byte a byte.
+Figura 17 - Imagem de 1334 bytes enviada (a) e recebida pelo ar (b), idênticas byte a byte.
 
 A taxa fica abaixo da do bloco isolado pelo preâmbulo, pelo cabeçalho e pela espera entre pacotes. A 10 cm, três transferências da mesma imagem também chegaram idênticas, de 5,0 a 7,6 B/s.
 

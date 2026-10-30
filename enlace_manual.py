@@ -245,6 +245,36 @@ class Estacao:
             a, m, r = self._no_ar
             self._no_ar = (a + n, m, r)
 
+    def _regua(self):
+        """Os tons em uso, escolhidos à mão: a mesma régua, aqui sem medida."""
+        tons = self.params.tons
+        return [dict(rotulo='Em uso', valor=f"{len(tons)} tons" if tons else 'Fixos da modulação',
+                     regua=[dict(hz=float(f), estado='usado') for f in tons])]
+
+    def percurso(self, mic=None, parada=False):
+        """O mesmo formato de `enlace2.Estacao.percurso`: aqui, duas etapas."""
+        t = self.agora
+        if self._no_ar is not None and t < self._no_ar[0] + self._no_ar[1] + LAT_CEGO:
+            andamento = dict(sentido='enviando', s=round((self._no_ar[0] + self._no_ar[1] + LAT_CEGO - t) / FS))
+        elif self.pendente_tx is not None and self._lendo is None:
+            andamento = dict(sentido='ouvindo', s=max(0, round((self.pendente_tx['ate'] - t) / FS)))
+        else:
+            andamento = dict(sentido='ouvindo', s=None)
+        conversa = dict(id='conversa', nome='Conversa', situacao='feita' if parada else 'agora', valores=[
+            dict(rotulo='Quadros enviados', valor=str(self.enviados), lado='envio'),
+            dict(rotulo='Perdidos', valor=str(self.perdidos)),
+            dict(rotulo='Ilegíveis', valor=str(self.ilegiveis))])
+        if not parada:
+            conversa['andamento'] = andamento
+        return [
+            dict(id='parametros', nome='Parâmetros', situacao='feita', valores=[
+                dict(rotulo='Modo', valor=self.params.descreve().replace(' rep', ', repetição ')),
+                dict(rotulo='Volume', valor=f"{CAIXA_POS[self.k]:.0%}", lado='envio'),
+                dict(rotulo='Microfone', valor='—' if mic is None else f"{mic:.0%}")]),
+            dict(id='tons', nome='Tons', situacao='feita', valores=self._regua()),
+            conversa,
+        ]
+
     def atividade(self):
         t = self.agora
         base = f"manual, {self.params.descreve()}"

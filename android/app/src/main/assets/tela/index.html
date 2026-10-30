@@ -67,10 +67,33 @@ h1 { margin: 0; font: 400 30px/1 var(--gothic); letter-spacing: .14em; text-tran
 .cascata { display: block; width: 100%; height: 150px; margin-top: 5px; background: var(--papel); }
 .atividade { margin: 9px 0 0; min-height: 21px; font-size: 14px; color: var(--osso-2); }
 
-.fases { display: grid; grid-template-columns: repeat(5, 1fr); margin: 0; padding: 0; list-style: none; }
-.fases li { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 9px 0 7px; color: var(--caqui); font: 400 15px/1 var(--gothic); letter-spacing: .05em; text-transform: uppercase; }
-.fases .feita { color: var(--osso); }
-.fases .agora { color: var(--osso); background: rgba(241,178,74,.12); }
+.percurso { margin: 0; padding: 0; list-style: none; }
+.percurso li { position: relative; display: grid; grid-template-columns: 22px 1fr; column-gap: 8px; padding: 0 0 8px; }
+.percurso li::before { content: ""; position: absolute; left: 6px; top: 4px; bottom: -4px; width: 2px; background: var(--caqui-escuro); }
+.percurso li:last-child { padding-bottom: 0; } .percurso li:last-child::before { display: none; }
+.percurso li.feita::before { background: var(--olho); opacity: .55; }
+.percurso .lampada { position: relative; margin-top: 1px; }
+.percurso b { font: 400 17px/1.15 var(--gothic); letter-spacing: .08em; text-transform: uppercase; color: var(--caqui); }
+.percurso .feita b, .percurso .agora b { color: var(--osso); } .percurso .falhou b { color: var(--alarme); }
+.percurso .cabeca { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.andamento { font: 700 12.5px/1.2 var(--courier); font-variant-numeric: tabular-nums; }
+.andamento::before { content: ""; display: inline-block; margin-right: 6px; border-style: solid; border-width: 4px 0 4px 7px; border-color: transparent transparent transparent currentColor; }
+.andamento.envio { color: var(--envio-claro); }
+.andamento.chega { color: var(--chega-claro); } .andamento.chega::before { transform: rotate(180deg); }
+.percurso .valores { grid-column: 2; display: flex; flex-wrap: wrap; gap: 1px 11px; margin-top: 1px; }
+.percurso .valores span { font: 400 13px/1.3 var(--gothic); letter-spacing: .05em; text-transform: uppercase; color: var(--osso-2); white-space: nowrap; }
+.percurso .valores span.longo { white-space: normal; }
+.percurso .valores em { font: 700 12.5px/1.3 var(--courier); font-style: normal; letter-spacing: 0; text-transform: none; color: var(--ambar); font-variant-numeric: tabular-nums; }
+.percurso .valores .envio em { color: var(--envio-claro); } .percurso .valores .chega em { color: var(--chega-claro); }
+.percurso .valores span.tem-regua { flex: 1 0 100%; white-space: normal; }
+.regua { display: flex; gap: 2px; margin: 2px 0 3px; }
+.regua i { flex: 1; height: 12px; min-width: 0; background: var(--poco); }
+.regua .usado { background: currentColor; }
+.envio .regua { color: var(--envio-claro); } .chega .regua { color: var(--chega-claro); }
+.regua .excluido { background: linear-gradient(45deg, transparent 44%, var(--alarme) 44% 56%, transparent 56%), linear-gradient(-45deg, transparent 44%, var(--alarme) 44% 56%, transparent 56%), var(--poco); }
+.regua .reserva { background: var(--poco); box-shadow: inset 0 0 0 1px var(--caqui-escuro); }
+.regua .nm { background: linear-gradient(transparent 44%, var(--caqui-escuro) 44% 56%, transparent 56%), var(--poco); }
+.percurso em u { text-decoration: none; background: var(--ambar); color: var(--tinta); padding: 0 2px; }
 
 .instrumentos { display: grid; grid-template-columns: 58px 1fr; gap: 14px; align-items: center; }
 .olho { width: 58px; height: 58px; border-radius: 50%; background: conic-gradient(from calc(180deg - var(--abre, 8deg)), #0f2b17 0 calc(var(--abre, 8deg) * 2), var(--olho) 0); box-shadow: 0 0 0 3px var(--poco), 0 0 0 4px var(--caqui-escuro); position: relative; transition: --abre .2s; opacity: .45; }
@@ -116,6 +139,9 @@ h1 { margin: 0; font: 400 30px/1 var(--gothic); letter-spacing: .14em; text-tran
 .campo input { flex: 1; min-width: 0; padding: 10px; font: 400 16px/1.3 var(--jost); color: var(--osso); caret-color: var(--ambar); background: var(--preto-janela); border: 1px solid var(--caqui-escuro); border-radius: 0; box-shadow: var(--funda); }
 .campo input::placeholder { color: var(--osso-2); opacity: .8; }
 input:focus-visible, button:focus-visible { outline: 2px solid var(--ambar); outline-offset: 1px; }
+/* Segurar um botão não pode selecionar texto: a seleção cancela o toque e Parar nunca completa. */
+button, label, .chave, .comando, h1, .rotulo, .fases, .leituras dt, .linha { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.comando button { touch-action: none; }
 button { padding: 11px 14px 10px; color: var(--osso); background: var(--tecla); border: 1px solid var(--caqui-escuro); border-radius: var(--r); box-shadow: 0 2px 5px rgba(0,0,0,.5); font: 400 19px/1 var(--gothic); letter-spacing: .12em; text-transform: uppercase; }
 button:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
 button:disabled { opacity: .4; }
@@ -141,6 +167,8 @@ body[data-papel=chamador] .comando button { color: #fff4e4; background: var(--en
 .fita .alerta { color: #8c2d16; font-weight: 700; } .fita .abre { color: #23426a; }
 .fita .contrato { color: #3b2a1c; font-weight: 700; } .fita .local { color: #4f5a2e; }
 .fita::-webkit-scrollbar { width: 6px; } .fita::-webkit-scrollbar-thumb { background: var(--caqui-escuro); }
+.recolhe summary { list-style: none; margin-bottom: 0; } .recolhe[open] summary { margin-bottom: 11px; }
+.recolhe summary::-webkit-details-marker { display: none; }
 .miudo { padding: 7px 10px 6px; font-size: 15px; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
@@ -161,18 +189,11 @@ body[data-papel=chamador] .comando button { color: #fff4e4; background: var(--en
       </svg>
       <canvas class="cascata" id="cascata" role="img" aria-label="Cascata: o espectro dos últimos segundos, mesma escala do mostrador"></canvas>
     </div>
-    <p class="atividade" id="atividade">Parado.</p>
     <p class="alerta-linha" id="alerta" role="alert" hidden></p>
   </section>
 
   <section class="chapa" aria-label="Etapas">
-    <ol class="fases" id="fases">
-      <li data-g="0"><span class="lampada"></span>Encontro</li>
-      <li data-g="1"><span class="lampada"></span>Refino</li>
-      <li data-g="2"><span class="lampada"></span>Velocidade</li>
-      <li data-g="3"><span class="lampada"></span>Dados</li>
-      <li data-g="4"><span class="lampada"></span>Fim</li>
-    </ol>
+    <ol class="percurso" id="percurso"></ol>
   </section>
 
   <section class="chapa" aria-label="Instrumentos">
@@ -189,7 +210,6 @@ body[data-papel=chamador] .comando button { color: #fff4e4; background: var(--en
       <div class="envio"><div class="linha">Enviados <span id="v-env">0 de 0 B</span></div><div class="barra"><i id="b-env"></i></div></div>
       <div class="chega"><div class="linha">Recebidos <span id="v-rec">0 B</span></div><div class="barra" id="barra-rec" hidden><i id="b-rec"></i></div></div>
     </div>
-    <div class="contratos" id="contratos" hidden></div>
   </section>
 
   <section class="chapa" aria-label="Sessão">
@@ -216,7 +236,6 @@ body[data-papel=chamador] .comando button { color: #fff4e4; background: var(--en
       <label>Tom base, Hz<input id="m-base" type="number" inputmode="numeric" min="300" max="6000" placeholder="de fábrica"></label>
       <label>Passo do tom, Hz<input id="m-passo" type="number" inputmode="numeric" min="20" max="1000" placeholder="de fábrica"></label>
       <label class="ack"><input id="m-ack" type="checkbox" checked>Confirmar quadros</label>
-      <p class="nota">Modulação, velocidade, repetição, tons e confirmação têm de ser iguais nos dois lados. O volume é de cada um.</p>
     </div>
     <div class="campo">
       <input id="texto" placeholder="Texto a enviar" autocomplete="off" enterkeyhint="send">
@@ -230,18 +249,16 @@ body[data-papel=chamador] .comando button { color: #fff4e4; background: var(--en
     <img id="imagem" alt="Imagem recebida pelo ar">
   </section>
 
-  <section class="chapa" aria-label="Diário">
-    <div class="rotulo"><span>Diário</span><button class="miudo" id="repetir" title="Passa replay.wav pela estação, sem som">Repetir gravação</button></div>
+  <details class="chapa recolhe" aria-label="Diário">
+    <summary class="rotulo"><span>Diário</span><button class="miudo" id="repetir" title="Passa replay.wav pela estação, sem som">Repetir gravação</button></summary>
     <div class="papel fita" id="fita" role="log"></div>
-  </section>
+  </details>
 
   <div class="comando"><button id="acao"><span class="enche" id="enche"></span><b id="acao-t">Iniciar</b></button></div>
 
 <script>
 const $ = id => document.getElementById(id);
 const nativo = window.ponte || {iniciar() {}, parar() {}, enviar() {}, repetir() {}};
-const GRUPO = {encontro: 0, refino_meu: 1, refino_dele: 1, refino: 1, vel_ida: 2, contrato1: 2,
-               vel_volta: 2, contrato2: 2, dados: 3, dados_tx: 3, dados_rx: 3, fim_tx: 3, fim: 4};
 const F0 = 400, F1 = 4600, X = f => (f - F0) / (F1 - F0) * 360;
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -356,6 +373,49 @@ function dados(b64) {
   }
 }
 
+// O percurso vem pronto da estação (`percurso()` em enlace2 e enlace_manual): aqui só se desenha.
+function desenhaPercurso(p) {
+  const ol = $('percurso'); ol.textContent = '';
+  (p || []).forEach(e => {
+    const li = document.createElement('li'); li.className = e.situacao;
+    const l = document.createElement('span');
+    l.className = 'lampada' + ({feita: ' verde', agora: ' acesa pisca', falhou: ' alarme'}[e.situacao] || '');
+    li.append(l);
+    const c = document.createElement('div'); c.className = 'cabeca'; li.append(c);
+    const b = document.createElement('b'); b.textContent = e.nome; c.append(b);
+    if (e.andamento) {
+      const a = c.appendChild(document.createElement('span')); a.className = 'andamento ' + (e.andamento.sentido === 'enviando' ? 'envio' : 'chega');
+      a.textContent = e.andamento.sentido + (e.andamento.s != null ? ' ' + e.andamento.s + ' s' : '');
+    }
+    if (e.situacao !== 'falta' && e.valores && e.valores.length) {
+      const v = document.createElement('div'); v.className = 'valores';
+      e.valores.forEach(x => {
+        const s = document.createElement('span');
+        s.className = (x.lado || '') + (x.valor.length > 22 ? ' longo' : '');
+        s.append(x.rotulo + ' ');
+        const m = document.createElement('em');
+        const i = x.escolhido ? x.valor.indexOf(x.escolhido) : -1;
+        if (i >= 0) {
+          m.append(x.valor.slice(0, i));
+          const u = document.createElement('u'); u.textContent = x.escolhido; m.append(u);
+          m.append(x.valor.slice(i + x.escolhido.length));
+        } else m.textContent = x.valor;
+        s.append(m); v.append(s);
+        if (x.regua) {
+          s.className += ' tem-regua';
+          const g = document.createElement('div'); g.className = 'regua';
+          x.regua.forEach(t => {
+            const c = document.createElement('i'); c.className = t.estado; c.title = t.hz + ' Hz'; g.append(c);
+          });
+          s.append(g);
+        }
+      });
+      li.append(v);
+    }
+    ol.append(li);
+  });
+}
+
 const tela = {
   protocolo(h) { $('protocolo').textContent = h; },
   sessao(ligada) {
@@ -365,19 +425,14 @@ const tela = {
     document.querySelectorAll('[name=papel],[name=negociacao]').forEach(r => r.disabled = ligada);
     document.querySelectorAll('#parametros input,#parametros select').forEach(c => c.disabled = ligada);
     if (!ligada) $('alerta').hidden = true;
+    if (ligada) desenhaPercurso([]);
     $('l-vivo').className = 'lampada' + (ligada ? ' acesa pisca' : '');
-    if (!ligada) { espectro(null); $('atividade').textContent = 'Parado.'; $('olho').style.setProperty('--abre', '8deg'); }
+    if (!ligada) { espectro(null); $('olho').style.setProperty('--abre', '8deg'); }
   },
   estado(e) {
-    const g = GRUPO[e.etapa];
-    document.querySelectorAll('#fases li').forEach(li => {
-      const n = +li.dataset.g, agora = n === g, feita = g !== undefined && (n < g || (g === 4 && agora));
-      li.className = feita ? 'feita' : agora ? 'agora' : '';
-      li.firstElementChild.className = 'lampada' + (feita ? ' verde' : agora ? ' acesa pisca' : '');
-    });
+    desenhaPercurso(e.percurso);
     espectro(e.espectro);
     caiLinha(e.espectro, /tocando/.test(e.atividade || ''));
-    $('atividade').textContent = e.atividade || '';
     const db = e.rms > 0 ? 20 * Math.log10(e.rms) : -99;
     $('v-nivel').textContent = db.toFixed(0) + ' dB';
     // O olho fecha com o nível, como a válvula: -60 dB aberto, 0 dB fechado.
@@ -390,11 +445,6 @@ const tela = {
     $('v-env').textContent = `${feitos} de ${total} B`;
     $('b-env').style.width = (total ? feitos / total * 100 : 0) + '%';
     if ($('barra-rec').hidden) $('v-rec').textContent = e.recebidos + ' B';
-    const c = $('contratos');
-    c.hidden = !(e.contrato_tx || e.contrato_rx);
-    c.innerHTML = '';
-    if (e.contrato_tx) c.append(Object.assign(document.createElement('div'), {textContent: 'Para lá: ' + e.contrato_tx, style: 'color:var(--envio-claro)'}));
-    if (e.contrato_rx) c.append(Object.assign(document.createElement('div'), {textContent: 'Para cá: ' + e.contrato_rx, style: 'color:var(--chega-claro)'}));
     if (e.dados) dados(e.dados);
   },
   linha(s) {
@@ -436,8 +486,10 @@ const papel = () => document.querySelector('[name=papel]:checked').value;
 // outro lado ficaria repetindo para ninguém.
 let segura = null;
 const solta = () => { clearTimeout(segura); segura = null; $('enche').classList.remove('segura'); };
-$('acao').addEventListener('pointerdown', () => {
+$('acao').addEventListener('contextmenu', e => e.preventDefault());
+$('acao').addEventListener('pointerdown', e => {
   if (!document.body.classList.contains('ligada')) return;
+  $('acao').setPointerCapture(e.pointerId);
   $('enche').classList.add('segura');
   segura = setTimeout(() => { solta(); nativo.parar(); $('acao-t').textContent = 'Parando…'; }, 900);
 });

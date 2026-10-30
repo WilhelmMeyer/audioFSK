@@ -24,19 +24,22 @@ plt.rcParams.update({'font.size': 8.5, 'axes.labelsize': 8.5, 'xtick.labelsize':
 
 # (rótulo, campanha, modo no csv, taxa útil calculada em B/s ou None)
 FORMAS = [
-    ('2-FSK Bell 202\nsem correção', 'F01-2FSK-10CM', 'fsk', None),
     ('2-FSK 1700/2350 Hz\ncom correção', 'H03-2FSK-FEC', 'fsk2', 3.6),
     ('5×2-FSK votada', 'F02-5X2-VOTADA-10CM', 'mfsk', 3.7),
     ('5×2-FSK multicanal', 'F03-5X2-MULTICANAL-10CM', 'mfsk', 13.8),
-    ('16-FSK', 'F00-NIVEL-10CM', 'mary', 11.2),
-    ('16-FSK com\nvarreduras', 'F04-16FSK-10CM', 'mary', 10.7),
+    ('16-FSK', 'F04-16FSK-10CM', 'mary', 10.7),
 ]
+
+# Fora da figura por decisão do autor, 2026-10-30: a malha perdeu o alinhamento
+# neste quadro (79,1% de bits; 100,0% com o relógio fixo no melhor alinhamento,
+# `align.py --mode mfsk`). A legenda do artigo diz que foi excluída.
+EXCLUIDAS = {'20261008-173015-f02-votada-10cm-r2'}
 
 # (rótulo, gravações, blocos malha, blocos varreduras)
 SINC = [
-    ('16-FSK,\nduas máquinas', 4, 4, 4),        # 12-13-SYNC
-    ('2-FSK,\nduas máquinas', 8, 6, 7),                  # H03-2FSK-FEC, as 8 com varreduras
-    ('16-FSK,\numa máquina', 24, 15, 23),       # studies/20260903-111105-ganho-mary
+    ('16-FSK,\n192 bytes', 4, 4, 4),        # 12-13-SYNC
+    ('2-FSK,\n48 bytes', 8, 6, 7),                  # H03-2FSK-FEC, as 8 com varreduras
+    ('16-FSK,\n48 bytes', 24, 15, 23),       # studies/20260903-111105-ganho-mary
 ]
 
 
@@ -47,26 +50,30 @@ def salva(fig, nome):
 
 
 def formas():
-    fig, ax = plt.subplots(figsize=(3.5, 3.0))
-    for i, (rot, camp, modo, taxa) in enumerate(FORMAS):
-        y = len(FORMAS) - 1 - i
+    # Um gráfico só: a altura é a taxa, o número dentro da barra é a média de bits certos.
+    NOMES = {'H03-2FSK-FEC': ('2-FSK', '#008F7A'),
+             'F02-5X2-VOTADA-10CM': ('5×2-FSK\nvotada', '#C4552D'),
+             'F04-16FSK-10CM': ('16-FSK', '#2F6DB5'),
+             'F03-5X2-MULTICANAL-10CM': ('5×2-FSK\nmulticanal', '#A8326E')}
+    fig, ax = plt.subplots(figsize=(4.2, 2.6))
+    for x, (rot, camp, modo, taxa) in enumerate(sorted(FORMAS, key=lambda f: f[3])):
         linhas = [r for r in csv.DictReader(open(os.path.join(RES, camp, 'resultado.csv')))
-                  if r['modo'] == modo]
+                  if r['modo'] == modo and r['stem'] not in EXCLUIDAS]
         ok = sum(int(r['bloco_ok']) for r in linhas)
-        for r in linhas:
-            b = float(r['acerto_bits'])
-            cheio = int(r['bloco_ok']) == 1
-            ax.plot(b, y, 'o', ms=5, color=TEAL, markerfacecolor=TEAL if cheio else 'white',
-                    markeredgewidth=1.0, alpha=0.9)
-        txt = f'{ok}/{len(linhas)}' + (f'  {str(taxa).replace(".", ",")} B/s' if taxa else '')
-        ax.text(101.5, y, txt, va='center', fontsize=7.5, color=TEAL)
-        print(f'    {rot!r}: {ok}/{len(linhas)} blocos')
-    ax.set_yticks(range(len(FORMAS)))
-    ax.set_yticklabels([f[0] for f in reversed(FORMAS)])
-    ax.set_xlim(50, 101)
-    ax.set_xlabel('Bits certos por gravação (%)')
-    ax.text(101.5, len(FORMAS) - 0.35, 'blocos  taxa', fontsize=7, color=CINZA)
-    ax.grid(axis='x', color='0.9', lw=0.5)
+        media = sum(float(r['acerto_bits']) for r in linhas) / len(linhas)
+        nome, cor = NOMES[camp]
+        ax.bar(x, taxa, width=0.62, color=cor)
+        ax.text(x, taxa + 0.25, str(taxa).replace('.', ','), ha='center', fontsize=8.5,
+                fontweight='bold', color='0.15')
+        ax.text(x, taxa / 2, f'{media:.1f}%'.replace('.', ','), ha='center', va='center',
+                fontsize=8, color='white')
+        print(f'    {nome!r}: {ok}/{len(linhas)} blocos, {taxa} B/s, {media:.2f}% bits')
+    ax.set_xticks(range(len(FORMAS)))
+    ax.set_xticklabels([NOMES[f[1]][0] for f in sorted(FORMAS, key=lambda f: f[3])])
+    ax.tick_params(axis='x', length=0)
+    ax.set_ylim(0, 16)
+    ax.set_yticks([0, 5, 10, 15])
+    ax.set_ylabel('Taxa útil (B/s)')
     for lado in ('top', 'right'):
         ax.spines[lado].set_visible(False)
     salva(fig, 'resultado-formas.png')
