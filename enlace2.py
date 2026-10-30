@@ -35,7 +35,7 @@ import enlace
 from dataclasses import replace
 
 from enlace import (FS, Descritor, Parte, Ouvido, MOLDES, LIMIARES, QUADROS, _BANDA,
-                    modula_quadro, le_quadro, empacota, abre, confere, q_db, MARY_TONES, chirp,
+                    modula_quadro, le_quadro, conta_bits, empacota, abre, confere, q_db, MARY_TONES, chirp,
                     GANHO_FIXO, CAIXA_POS, N_POS, CAIXA_SIM, CONTRATO,
                     DADOS, FIM, DADOS_N, SONDA_N, VELOCIDADES, SONDA_V_DESC, ABORDAGENS,
                     margem_llr, GRADE, MARGEM_FORA, HUSH, LQ, mede_tons, escolhe_16, _tons_sonda,
@@ -579,6 +579,7 @@ class Estacao:
         self.c_ab = self.c_ba = None          # (índice em DRATES, índice em REPS)
         self.base_tx = self.base_rx = None     # o contrato de cada sentido, que o REPETE muda
         self.passou = {}                       # bateria de velocidade: {índice em RATES: rep}
+        self.bits_errados = self.bits_lidos = 0
         self.ult_v = 'FICA'
         self.seq_tx = 0
         self.seq_rx = None
@@ -961,6 +962,11 @@ class Estacao:
 
     def _entrega(self, L, d, corpo, llr):
         p = L['p']
+        c = conta_bits(corpo, llr, d) if self.etapa in ETAPAS_DADOS else None
+        if c:
+            self.bits_errados += c[0]
+            self.bits_lidos += c[1]
+            self.anota(f"{c[0]} de {c[1]} bits corrigidos ({c[0] / c[1]:.1%}) neste quadro")
         self.somas.pop(d.nbytes, None)
         self._lendo = None
         self.quadro_ate = p + d.amostras
@@ -1000,9 +1006,9 @@ class Estacao:
                 # Sem a marca de fechamento, que a varredura ainda não viu; se
                 # não passar, a tentativa de sempre vem depois, com ela.
                 cedo.add(d)
-                corpo, _ = le_quadro(self.ouvido.trecho(p, p + d.amostras + LER_CEDO), 0, d, None)
+                corpo, llr = le_quadro(self.ouvido.trecho(p, p + d.amostras + LER_CEDO), 0, d, None)
                 if corpo is not None:
-                    self._entrega(L, d, corpo, None)
+                    self._entrega(L, d, corpo, llr)
                     return
             if d in L['tentados'] or self.ouvido.varrido < p + d.amostras + FS // 2:
                 continue
@@ -2068,6 +2074,8 @@ class Estacao:
                 dict(rotulo='Quadro', valor='—' if not (self.seq_tx or self.seq_rx is not None) else
                      str(self.seq_tx if self.etapa == 'dados_tx' or self.seq_rx is None else self.seq_rx)),
                 dict(rotulo='Repetições', valor=str(r['repeticoes'])),
+                dict(rotulo='Bits corrigidos', lado='chega', valor='—' if not self.bits_lidos else
+                     f"{self.bits_errados} de {self.bits_lidos} ({self.bits_errados / self.bits_lidos:.1%})"),
                 dict(rotulo='Volume', lado='envio', valor=muda(pc(k_som), pc(self.k)))]),
             dict(id='fim', nome='Fim', valores=[]),
         ]

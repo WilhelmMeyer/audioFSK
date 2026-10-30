@@ -388,6 +388,23 @@ def empacota(tipo, sessao, carga, n, mais=False):
     return c + bytes([k >> 8, k & 0xFF])
 
 
+def conta_bits(corpo, llr, desc):
+    """Bits lidos errados antes do FEC, num quadro que passou no CRC: recodifica o
+    corpo certo e compara com a decisão bruta. Devolve (errados, total) ou None."""
+    if corpo is None or llr is None:
+        return None
+    if desc.camada == 'multicanal':
+        k = len(MFSK_PAIRS)
+        ref = fec.frame_parallel(corpo, k, repeat=desc.rep)[len(fec.SYNC) * k:]
+        n = min(len(ref), len(llr))
+    else:
+        ref = fec.encode(corpo, repeat=desc.rep)
+        n = len(ref)
+    if n == 0 or len(llr) < n:
+        return None
+    return int(np.sum((np.asarray(llr[:n]) > 0) != (ref[:n] > 0))), int(n)
+
+
 def confere(corpo):
     if corpo is None or len(corpo) < 5:
         return False

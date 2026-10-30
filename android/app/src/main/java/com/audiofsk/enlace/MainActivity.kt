@@ -3,6 +3,7 @@ package com.audiofsk.enlace
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -31,8 +32,9 @@ class MainActivity : Activity() {
         window.statusBarColor = Color.parseColor("#1b1a18")
         window.navigationBarColor = Color.parseColor("#1b1a18")
         if (!Python.isStarted()) Python.start(AndroidPlatform(this))
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+        val pede = listOf(Manifest.permission.RECORD_AUDIO, "android.permission.POST_NOTIFICATIONS")
+            .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (pede.isNotEmpty()) requestPermissions(pede.toTypedArray(), 1)
         web = WebView(this).apply {
             setBackgroundColor(Color.parseColor("#1b1a18"))
             fitsSystemWindows = true
@@ -73,6 +75,7 @@ class MainActivity : Activity() {
         if (ocupado) return
         ocupado = true
         emSessao(true)
+        startForegroundService(Intent(this, Servico::class.java))
         thread(name = "estacao") {
             var ponte: Ponte? = null
             try {
@@ -88,6 +91,7 @@ class MainActivity : Activity() {
             } finally {
                 sessao = null
                 ponte?.fecha()
+                stopService(Intent(this, Servico::class.java))
                 emSessao(false)
                 ocupado = false
             }

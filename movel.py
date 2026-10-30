@@ -211,6 +211,8 @@ class Sessao:
                           label=f'enlace-{self.papel}', papel=self.papel,
                           versao=enlace2.VERSAO, fonte=str(self.ponte.fonte()),
                           aberto=est.aberto, recebidos=len(est.recebido),
+                          bits_errados=getattr(est, 'bits_errados', None),
+                          bits_lidos=getattr(est, 'bits_lidos', None),
                           diario=self.diario, fim=self.motivo,
                           estacao_s=round(est.agora / FS, 1), simulado=None,
                           nota="sessão do enlace no celular; não é uma captura para bench/resultado")

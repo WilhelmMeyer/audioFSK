@@ -36,13 +36,13 @@ from modem import MARY_TONES, FSK2_TONES
 import enlace
 from enlace import (FS, Descritor, Parte, MOLDES, LIMIARES, QUADROS, GANHO_FIXO, CAIXA_POS, N_POS,
                     DADOS, DADOS_N, VELOCIDADES, BAUD, LENTO_GUARDA, LENTO_PRE,
-                    PRE_SYM, le_quadro, abre)
+                    PRE_SYM, le_quadro, abre, conta_bits)
 import enlace2
 from enlace2 import (SINAIS, GANHO_SINAL, LIMIAR_SINAL, MARCA_FORTE, MARCA_FRACA, RESP, LAT_CEGO,
                      GUARDA, ATRASO_DET, LAT_OUTRO, RESP_DADOS, LER_CEDO, FECHO_RAZAO, empacota2, modula_quadro,
                      Ouvido2)
 
-VERSAO = 1
+VERSAO = 2
 CAIXA_INICIAL = enlace2.CAIXA_INICIAL
 CARGA = DADOS_N - 5 - 3         # seq, n, assinatura
 TENTATIVAS = 6
@@ -68,6 +68,14 @@ MODULACOES = {
 }
 NOMES_MOD = {'16fsk': '16-FSK', '8fsk': '8-FSK', '4fsk': '4-FSK', '2fsk': '2-FSK',
              'votada': '5×2-FSK votada', 'multicanal': '5×2-FSK multicanal'}
+
+
+def embaralha(seq, dados):
+    """XOR com uma sequência fixa, sorteada pelo seq: desfaz a si mesma. Em
+    2026-10-30 os pacotes só de zeros da bandeira viravam um tom repetido, e o
+    receptor errava 13-18% dos bits deles, quase os mesmos a cada tentativa."""
+    rng = np.random.RandomState(0x5EED + seq)
+    return bytes(a ^ b for a, b in zip(dados, rng.randint(0, 256, len(dados)).astype(np.uint8)))
 
 
 @dataclass(frozen=True)
@@ -193,6 +201,7 @@ class Estacao:
         self.ult_rx = None
         self.alerta = None
         self.enviados = self.perdidos = self.ilegiveis = 0
+        self.bits_errados = self.bits_lidos = 0
         self._lendo = None
         self._no_ar = None
         self._rms = deque(maxlen=int(10 * FS / 2048))
@@ -270,6 +279,10 @@ class Estacao:
             dict(rotulo='Quadros enviados', valor=str(self.enviados), lado='envio'),
             dict(rotulo='Perdidos', valor=str(self.perdidos)),
             dict(rotulo='Ilegíveis', valor=str(self.ilegiveis))])
+        if self.bits_lidos:
+            conversa['valores'].append(dict(
+                rotulo='Bits corrigidos',
+                valor=f"{self.bits_errados} de {self.bits_lidos} ({self.bits_errados / self.bits_lidos:.1%})"))
         if not parada and self.enviados and not self.fila and self.pendente_tx is None:
             # Tudo entregue, e o canal segue aberto: sem isto, parecia travado.
             conversa['valores'] += [dict(rotulo='A enviar', valor='nada', lado='envio'),
@@ -307,7 +320,7 @@ class Estacao:
         pedaco = bytes(self.fila[:CARGA])
         del self.fila[:len(pedaco)]
         cabeca = bytes([self.seq & 0xFF, len(pedaco), self.params.assinatura()])
-        corpo = empacota2(DADOS, self.sessao, cabeca + pedaco, DADOS_N)
+        corpo = empacota2(DADOS, self.sessao, cabeca + embaralha(self.seq & 0xFF, pedaco), DADOS_N)
         seq = self.seq
         self.seq = (self.seq + 1) & 0xFF
         return dict(seq=seq, n=len(pedaco), tent=0,
@@ -424,14 +437,14 @@ class Estacao:
             # Sem esperar a varredura achar a marca de fechamento; se falhar, a
             # leitura de sempre vem depois, com ela.
             L['cedo'] = True
-            corpo, _ = le_quadro(self.ouvido.trecho(p, p + d.amostras + LER_CEDO), 0, d, None)
+            corpo, llr = le_quadro(self.ouvido.trecho(p, p + d.amostras + LER_CEDO), 0, d, None)
             if corpo is not None:
                 self._lendo = None
                 self.quadro_ate = p + d.amostras
                 self.ilegiveis = 0
                 self.alerta = None
                 self.ouvido_em = self.agora
-                self._recebeu(corpo)
+                self._recebeu(corpo, llr)
                 return
         if self.ouvido.varrido < p + d.amostras + FS // 2:
             return
@@ -440,9 +453,9 @@ class Estacao:
         fecho = [m for m in self.ouvido.marcas
                  if m[1] == d.marca and abs(m[0] - alvo) <= int(0.004 * d.amostras)]
         audio = self.ouvido.trecho(p, p + d.amostras + FS)
-        corpo, _ = le_quadro(audio, 0, d, (fecho[0][0] - p) if fecho else None)
+        corpo, llr = le_quadro(audio, 0, d, (fecho[0][0] - p) if fecho else None)
         if corpo is None and fecho:
-            corpo, _ = le_quadro(audio, 0, d, None)
+            corpo, llr = le_quadro(audio, 0, d, None)
         self.quadro_ate = p + d.amostras
         if corpo is None:
             self._ilegivel(L, bool(fecho))
@@ -450,23 +463,28 @@ class Estacao:
         self.ilegiveis = 0
         self.alerta = None
         self.ouvido_em = self.agora
-        self._recebeu(corpo)
+        self._recebeu(corpo, llr)
 
-    def _recebeu(self, corpo):
+    def _recebeu(self, corpo, llr=None):
         tipo, _, sessao, carga = abre(corpo)
         if tipo != DADOS:
             return
         seq, n, ass = carga[0], carga[1], carga[2]
+        c = conta_bits(corpo, llr, self.d)
+        if c:
+            self.bits_errados += c[0]
+            self.bits_lidos += c[1]
+        bits = f", {c[0]} de {c[1]} bits corrigidos ({c[0] / c[1]:.1%})" if c else ""
         if ass != self.params.assinatura():
             self.alerta = (f"o outro lado assina {ass:02x} e este {self.params.assinatura():02x}: "
                            "parâmetros diferentes, ainda que este quadro tenha passado")
             self.anota(f"ATENÇÃO: {self.alerta}")
         if (sessao, seq) == self.ult_rx:
-            self.anota(f"repetição do seq {seq}; confirmo de novo")
+            self.anota(f"repetição do seq {seq}; confirmo de novo{bits}")
         else:
             self.ult_rx = (sessao, seq)
-            self.recebido += carga[3:3 + n]
-            self.anota(f"li quadro seq {seq}: {n} bytes (total {len(self.recebido)})")
+            self.recebido += embaralha(seq, carga[3:3 + n])
+            self.anota(f"li quadro seq {seq}: {n} bytes (total {len(self.recebido)}){bits}")
         if self.params.ack:
             x = SINAIS[f"FICA{seq & 1}"] * GANHO_SINAL
             self.agenda.append((max(self.agora, self.quadro_ate + RESP_DADOS),
