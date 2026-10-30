@@ -72,7 +72,7 @@ arquivo. -->
 | 12 | GERGANOV (2021), ggwave | Software, não artigo. Faz exatamente o que a nossa 16-FSK faz, divide o dado em pedaços de 4 bits e manda um tom por pedaço, com Reed-Solomon por cima, e entrega 8 a 16 bytes por segundo. Mesma ordem de grandeza dos 11 B/s medidos aqui, o que dá uma âncora externa ao resultado. | não citada | repositório aberto |
 | 13 | TANENBAUM; WETHERALL, *Redes de computadores* | Livro-texto. CRC, pare-e-espere, ARQ e HDLC, que é a comparação feita ao dizer que segmentação e reenvio são enlace, não transporte. Preferir a tradução brasileira. | seção 2.2, na apresentação da camada de enlace | livro |
 | 14 | VITERBI (1967), IEEE Trans. Inf. Theory | O artigo do algoritmo. Limites de erro para códigos convolucionais e o decodificador assintoticamente ótimo. | seção 2.2, na apresentação da camada de enlace | fechado; ver Forney (1973) |
-| 15 | FORNEY (1973), Proc. IEEE | A exposição que tornou o algoritmo de Viterbi padrão, e a leitura mais didática dos dois. | não citada | `forney-1973-viterbi.pdf` |
+| 15 | FORNEY (1973), Proc. IEEE | A exposição que tornou o algoritmo de Viterbi padrão, e a leitura mais didática dos dois. Seção V: decodificadores de Viterbi em enlaces de comunicação espacial. | segunda versão, seção 4.1 (uso em comunicação espacial) | `forney-1973-viterbi.pdf` |
 | 16 | LIN; COSTELLO (2004), *Error control coding* | Livro-texto. Decisão suave e entrelaçamento, que são os dois pontos da seção 2.4 que Viterbi e Forney sozinhos não cobrem. | não citada | livro |
 
 ## G1 - comunicação acústica entre dispositivos, transferência de dados por áudio (introdução, P1)

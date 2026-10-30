@@ -8,7 +8,8 @@ verossimilhança discorda do bit enviado (o enviado é refeito por fec.encode a
 partir da carga gravada, não lido do áudio). Embaixo, os bits da mensagem
 depois do Viterbi, conferidos contra a carga. Os dois eixos têm escalas
 próprias: o entrelaçamento desfaz a correspondência posição a posição. Por
-último, a confiança |LLR| dos bits que chegaram certos e dos trocados.
+último, a confiança |LLR| dos bits que chegaram certos e dos errados, em número
+de bits, com o limiar que mais separa os dois.
 
     ./venv/bin/python resultados/14-FEC-REP/figuras/figura_correcao.py
 """
@@ -79,16 +80,16 @@ def main():
     msg_err = np.unpackbits(np.frombuffer(lido, np.uint8)) != np.unpackbits(np.frombuffer(carga, np.uint8))
     n, nm = len(env), 8 * len(carga)
 
-    fig = plt.figure(figsize=(3.4, 2.55))
-    gs = fig.add_gridspec(3, 1, height_ratios=[0.5, 0.5, 1.25], hspace=1.25,
-                          left=0.03, right=0.97, top=0.9, bottom=0.15)
+    fig = plt.figure(figsize=(3.4, 3.2))
+    gs = fig.add_gridspec(3, 1, height_ratios=[0.42, 0.42, 1.6], hspace=1.05,
+                          left=0.13, right=0.97, top=0.93, bottom=0.14)
 
     ax = fig.add_subplot(gs[0])
     ax.axhspan(0, 1, color='#E3EEEF', lw=0)
     ax.vlines(np.flatnonzero(err) + 0.5, 0, 1, color=ERRADO, lw=0.55)
     ax.set_xlim(0, n); ax.set_ylim(0, 1); ax.set_yticks([])
     bordas(ax, n, 'ordem de transmissão')
-    ax.set_title(f'Recebidos: {err.sum()} de {n} bits codificados trocados '
+    ax.set_title(f'Recebidos: {err.sum()} de {n} bits codificados errados '
                  f'({virgula(100 * err.mean())}%)', fontsize=7.5, loc='left', pad=3)
     ax.tick_params(length=2, pad=1.5)
 
@@ -97,28 +98,50 @@ def main():
     ax.vlines(np.flatnonzero(msg_err) + 0.5, 0, 1, color=ERRADO, lw=0.55)
     ax.set_xlim(0, nm); ax.set_ylim(0, 1); ax.set_yticks([])
     bordas(ax, nm, 'ordem da mensagem')
-    ax.set_title(f'Decodificados: {int(msg_err.sum())} de {nm} bits da mensagem trocados',
+    ax.set_title(f'Decodificados: {int(msg_err.sum())} de {nm} bits da mensagem errados',
                  fontsize=7.5, loc='left', pad=3)
     ax.tick_params(length=2, pad=1.5)
 
     ax = fig.add_subplot(gs[2])
-    bins = np.linspace(0, 1.02 * mod.max(), 30)
-    ax.hist(mod[~err], bins=bins, density=True, color=TEAL_MED, alpha=0.45, lw=0,
-            label=f'certos (média {virgula(mod[~err].mean(), 2)})')
-    ax.hist(mod[err], bins=bins, density=True, histtype='step', color=ERRADO, lw=1.1,
-            label=f'trocados (média {virgula(mod[err].mean(), 2)})')
-    ax.set_xlim(0, bins[-1]); ax.set_yticks([])
-    ax.set_xlabel('Confiança do bit codificado, |LLR|', labelpad=1.5)
-    ax.legend(frameon=False, fontsize=7, loc='upper right', handlelength=1.2)
-    for lado in ('top', 'right', 'left'):
+    # Limiar que melhor separa os grupos (maior diferença entre as frações abaixo dele).
+    grade = np.arange(0.5, 3.01, 0.1)
+    lim = grade[np.argmax([(mod[err] < t).mean() - (mod[~err] < t).mean() for t in grade])]
+    X, Y = 100 * (mod[err] < lim).mean(), 100 * (mod[~err] < lim).mean()
+    N, M = int((mod[err] < lim).sum()), int((mod[~err] < lim).sum())
+    passo = lim / 4                      # o limiar cai numa borda de barra
+    bins = np.arange(0, mod.max() + passo, passo)
+    he = np.histogram(mod[err], bins)[0]
+    hc = np.histogram(mod[~err], bins)[0]
+    c = bins[:-1] + passo / 2
+    w = passo * 0.42
+    ax.bar(c - w / 2, he, w, color=ERRADO, lw=0, label=f'errados ({err.sum()})')
+    ax.bar(c + w / 2, hc, w, color=TEAL_MED, lw=0, label=f'certos ({(~err).sum()})')
+    ax.axvline(lim, ymax=0.9, color='0.45', lw=0.7, ls=':')
+    ax.text(lim, 0.92, virgula(lim), transform=ax.get_xaxis_transform(), ha='center',
+            va='bottom', fontsize=7, color='0.35')
+    topo = max(he.max(), hc.max())
+    ax.set_ylim(0, 200)
+    ax.set_xlim(0, bins[-1])
+    ax.set_ylabel('número de bits')
+    ax.tick_params(axis='x', labelsize=6.5, colors='0.45', length=2, pad=1)
+    ax.tick_params(axis='y', length=2, pad=1.5)
+    ax.legend(frameon=False, fontsize=7, loc='lower right', bbox_to_anchor=(1.0, 0.98),
+              ncol=2, handlelength=1.0, borderaxespad=0)
+    ax.annotate('', xy=(0.98, -0.30), xytext=(0.02, -0.30), xycoords='axes fraction',
+                arrowprops=dict(arrowstyle='->', color='0.25', lw=0.7))
+    ax.text(0.0, -0.36, 'baixa', transform=ax.transAxes, ha='left', va='top', fontsize=7.5)
+    ax.text(1.0, -0.36, 'alta', transform=ax.transAxes, ha='right', va='top', fontsize=7.5)
+    ax.text(0.5, -0.36, 'confiança com que o bit chegou (|LLR|)', transform=ax.transAxes,
+            ha='center', va='top', fontsize=7.5)
+    for lado in ('top', 'right'):
         ax.spines[lado].set_visible(False)
-    ax.tick_params(length=2, pad=1.5)
 
     for s in SAIDAS:
         fig.savefig(s)
-    print(f'[correcao] {STEM}: {err.sum()} de {n} bits codificados trocados '
-          f'({virgula(100 * err.mean(), 2)}%), mensagem {int(msg_err.sum())} de {nm} trocados')
-    print(f'    |LLR| médio {virgula(mod[err].mean(), 2)} nos trocados, {virgula(mod[~err].mean(), 2)} nos certos')
+    print(f'[correcao] {STEM}: {err.sum()} de {n} bits codificados errados '
+          f'({virgula(100 * err.mean(), 2)}%), mensagem {int(msg_err.sum())} de {nm} errados')
+    print(f'    |LLR| médio {virgula(mod[err].mean(), 2)} nos errados, {virgula(mod[~err].mean(), 2)} nos certos')
+    print(f'    limiar {virgula(lim)}: {N} de {err.sum()} errados abaixo ({virgula(X)}%), {M} de {(~err).sum()} certos ({virgula(Y)}%)')
     for s in SAIDAS:
         print('   ', s)
 

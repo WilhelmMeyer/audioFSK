@@ -179,21 +179,25 @@ A camada de enlace recebe da camada física os bits com a sua confiança e entre
 
 ### 4.1 Correção de erros
 
-Mesmo com o nível ajustado, parte dos bits chega trocada, e a camada de enlace precisa corrigi-los sem pedir a transmissão de novo. A correção exige redundância. A cada bit da mensagem que entra no codificador, ele emite três bits, de modo que 8 bits de dados ocupam 24 bits no ar. Esses três bits não repetem o bit que entrou. Cada um é o ou-exclusivo de um grupo diferente de bits, tirados do bit que entrou e dos seis que vieram antes dele. Assim cada bit da mensagem participa do cálculo dos bits emitidos em sete entradas seguidas, e a informação de um bit trocado no ar continua presente nos vizinhos.
+Mesmo com o nível ajustado, parte dos bits chega trocada, e a camada de enlace precisa corrigi-los sem pedir a transmissão de novo. Para isso o transmissor envia mais bits do que a mensagem tem, e o excesso, chamado redundância, é o que permite ao receptor descobrir e desfazer as trocas.
 
-Esse esquema é um código convolucional de taxa um terço, três bits emitidos por bit de entrada, e comprimento de restrição sete, os sete bits que entram em cada cálculo. Os três grupos usados são os dos polinômios geradores 171, 133 e 165 em octal (PROAKIS; SALEHI, 2008).
+A forma mais simples de redundância é enviar cada bit três vezes e decidir pela maioria. Um bit trocado entre as três cópias é corrigido, mas cada cópia só confere o próprio bit. Se duas cópias do mesmo bit chegarem trocadas, a maioria decide errado, ainda que todos os vizinhos tenham chegado certos, e um único bit errado basta para que o pacote inteiro falhe na verificação e seja descartado.
 
-A Figura 9 mostra o codificador e o lugar do bloco no quadro transmitido, que se completa com o preâmbulo, a palavra de referência da seção 4.2 e as varreduras da seção 3.3.
+Para evitar essa fragilidade, o sistema usa um código convolucional. Ele também envia três bits por bit da mensagem, mas nenhum deles é cópia. Cada bit enviado é o resultado de uma operação lógica entre o bit que entra e alguns dos que vieram antes dele, e por isso confere vários bits da mensagem de uma vez. Os bits da mensagem passam a guardar informação uns sobre os outros, e um bit trocado no ar pode ser reconstituído pelos demais bits enviados que também dependem dele.
 
-![](figuras/quadro-codificado.png "0.95")
-Figura 9 - Quadro de 48 bytes em 16-FSK, em escala de tempo, e o codificador. Cada bit emitido é o ou-exclusivo dos bits ligados à sua linha, segundo os polinômios 171, 133 e 165 em octal.
+A operação é o ou-exclusivo, que dá 1 quando a quantidade de uns é ímpar e 0 quando é par. A Figura 9 mostra o cálculo com um exemplo. O codificador guarda em fila os sete últimos bits da mensagem, e cada um dos três bits enviados é o ou-exclusivo de um grupo diferente desses sete. Quando o bit seguinte entra, a fila anda uma posição e o cálculo se repete, de modo que cada bit da mensagem participa de sete cálculos seguidos.
 
-Na recepção, o decodificador procura a mensagem cuja codificação mais se parece com o que chegou, pelo algoritmo de Viterbi (VITERBI, 1967). Como cada bit da mensagem participa de vários bits transmitidos, uma mensagem errada discorda do recebido em muitas posições, e a certa, só nas poucas que chegaram trocadas. Cada discordância pesa conforme a confiança com que o bit chegou, o que se chama decisão suave, e um bit trocado que chegou com baixa confiança quase não pesa.
+![](figuras/codificador.png "0.95")
+Figura 9 - Codificador convolucional com um exemplo. A fila guarda os sete últimos bits da mensagem, e cada bit enviado é o ou-exclusivo dos bits marcados na sua linha. Ao lado de cada linha, o seu padrão de ligações, com 1 para caixa ligada, e o mesmo padrão em octal.
 
-A Figura 10 mostra essa correção em um bloco recebido no sistema implementado. Dos 1170 bits codificados, 112 chegaram trocados, 9,6%, e a mensagem decodificada saiu sem nenhum erro. Os bits trocados chegaram com confiança média de 0,87, contra 2,39 nos certos, e por isso pesaram pouco na decisão.
+Na nomenclatura da literatura, o código usado tem taxa um terço, três bits enviados por bit da mensagem, e comprimento de restrição sete, os sete bits que entram em cada cálculo (PROAKIS; SALEHI, 2008). Cada grupo é identificado pelo seu padrão de ligações. Lida a linha da Figura 9 do bit que entra ao mais antigo, cada caixa ligada vale 1 e cada uma não ligada vale 0. A primeira linha dá 1111001, que em octal, de três em três bits, se escreve 171, e as outras duas dão 133 e 165.
+
+Na recepção, o decodificador procura a mensagem cuja codificação mais se parece com o que chegou, pelo algoritmo de Viterbi (VITERBI, 1967). Como cada bit da mensagem entra no cálculo de vários bits enviados, uma mensagem errada discorda do recebido em muitas posições, e a certa, só nas poucas que chegaram trocadas. Cada discordância pesa conforme a confiança com que o bit chegou, o que se chama decisão suave, e um bit trocado que chegou com baixa confiança quase não pesa. A combinação de código convolucional e decodificação de Viterbi se firmou nos enlaces de comunicação espacial, em que o canal também entrega bits ruidosos e o decodificador alcança desempenho próximo do ótimo com complexidade modesta (FORNEY, 1973).
+
+A Figura 10 mostra essa correção em um bloco recebido no sistema implementado. Dos 1170 bits codificados, 112 chegaram errados, 9,6%, e a mensagem decodificada saiu sem nenhum erro. Embaixo, a figura mostra por quê: 107 dos 112 bits errados chegaram com confiança baixa, abaixo de 1,7, contra 273 dos 1058 certos, e por isso pesaram pouco na correção.
 
 ![](figuras/correcao-bloco.png "0.95")
-Figura 10 - Correção de um bloco de 48 bytes recebido em 16-FSK. Em cima, a posição dos bits codificados trocados, na ordem de transmissão; no meio, a mensagem decodificada, sem erros; embaixo, a distribuição da confiança dos bits certos e dos trocados.
+Figura 10 - Correção de um bloco de 48 bytes recebido em 16-FSK. Em cima, a posição dos bits codificados errados, na ordem de transmissão; no meio, a mensagem decodificada, sem erros; embaixo, quantos bits errados e certos chegaram em cada faixa de confiança.
 
 Antes de transmitidos, os bits codificados são entrelaçados, escritos em linhas e lidos em colunas, o que afasta no tempo bits que o código mantém próximos. Uma perturbação curta, como um ruído de rajada, atinge então bits espalhados, que o decodificador corrige um a um. O bloco pode ainda ser repetido, o que aumenta a tolerância a erros à custa de tempo de transmissão.
 
@@ -203,10 +207,10 @@ A camada física entrega uma sequência contínua de confianças, sem marca de o
 
 O bloco codificado é precedido por uma palavra de referência de 31 bits, conhecida pelas duas pontas. O receptor correlaciona essa palavra com a sequência recebida, e o pico da correlação marca o primeiro bit do bloco com exatidão de um bit.
 
-A Figura 11 mostra essa correlação em um bloco recebido no sistema implementado. O pico, 0,87, fica no início do bloco, e o maior valor fora dele, 0,68, cai dentro dos dados, por isso o receptor toma o maior pico, e não o primeiro valor acima do limiar.
+A Figura 11 mostra onde a palavra fica no quadro transmitido, entre o preâmbulo e o bloco codificado, que ocupa a maior parte do tempo no ar.
 
-![](figuras/correlacao-palavra.png "0.95")
-Figura 11 - Correlação da palavra de referência ao longo do fluxo recebido, em um bloco de 16-FSK. O pico marca o início do bloco; o trecho constante é o preâmbulo.
+![](figuras/quadro-codificado.png "0.95")
+Figura 11 - Quadro de 48 bytes em 16-FSK, em escala de tempo, entre as duas varreduras de sincronismo da seção 3.3.
 
 ### 4.3 Pacotes e retransmissão
 
@@ -302,6 +306,8 @@ Os autores declaram não haver conflito de interesses no desenvolvimento e na pu
 ## REFERÊNCIAS
 
 FINNEGAN, Kenneth W.; BENSON, Bridget. Clarifying the amateur Bell 202 modem. In: **ARRL/TAPR Digital Communications Conference (DCC)**, 33., 2014. Anais [...]. [S.l.]: TAPR, 2014.
+
+FORNEY JR., G. David. The Viterbi algorithm. **Proceedings of the IEEE**, v. 61, n. 3, p. 268-278, mar. 1973.
 
 GERGANOV, Georgi. **ggwave**: tiny data-over-sound library. 2021. Disponível em: https://github.com/ggerganov/ggwave.
 
