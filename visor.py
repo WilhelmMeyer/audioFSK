@@ -125,6 +125,15 @@ class Sessao:
                 v = p.get(chave)
                 if v not in (None, ''):
                     a += [opc, str(float(v))]
+            if p.get('manual'):
+                a += ['--manual']
+                for chave, opc in (('modulacao', '--modulacao'), ('baud', '--baud'), ('rep', '--rep'),
+                                   ('tom_base', '--tom-base'), ('passo_tom', '--passo-tom'),
+                                   ('caixa', '--caixa')):
+                    if p.get(chave) not in (None, ''):
+                        a += [opc, str(p[chave])]
+                if p.get('sem_confirmacao'):
+                    a += ['--sem-confirmacao']
             if SIMULADO:
                 # Sem microfone nem alto-falante: a outra ponta roda no mesmo
                 # processo, com o painel na porta seguinte e a pasta ao lado.

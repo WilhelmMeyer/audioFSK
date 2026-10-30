@@ -195,6 +195,9 @@ A single chassis grid, max 1680px, 16px gutter, 12px gaps. Bench: a sticky 340px
 
 Projection: one 100vh screen, no scroll. Three equal columns plus a 260-330px right column: the dial and waterfall span three columns, the reduced form (role switch, text, Iniciar, Parar já) tops the right column over the handshake phases, and level, counters and received text form the bottom row. Elements marked `so-bancada` (file, mode, timings, peak, waveform, some counters) and the diary are hidden. Type is larger and weightier, dial strokes are 2px, the needle 3px.
 
+### Phone (`android/app/src/main/assets/tela/index.html`)
+The same set, bench finish, in one column at about 412px, in a WebView with the tokens and `visor/fontes` of the PC screen: dial, handshake lamps in a row, instruments (magic eye, readouts, sent count with bar, received count with a bar only when the file states its own size), role switch and text, "O que chegou", diary. The main key is fixed at the bottom. While a session runs it becomes dark red and must be held for 0.9 s to stop, so a stray touch cannot end a session of minutes. The waterfall falls under the dial on the same axis, in rust while this station transmits and steel while it listens. Received bytes appear as they arrive: text, or a rolling hex tape, and a BMP opens from its first packet with the rest padded, so the picture rises line by line. No projection finish.
+
 ## Elevation & Depth
 
 Flat and material. Panels carry one soft drop (`0 4px 12px -4px rgba(0,0,0,.6)`); depth is mostly inset: readout windows and fields are recessed (`--funda: inset 0 1px 3px rgba(0,0,0,.6)`), the dial sits in a dark metal rim, and lamps sit behind a double ring. Keys have a small drop that flattens on press (`0 2px 5px` to `0 1px 2px`, with a 1px move). The dial glass warms with a sepia/brightness filter only while a session is on air.

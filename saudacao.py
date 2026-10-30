@@ -49,6 +49,7 @@ import sounddevice as sd
 
 import enlace
 import enlace2
+import enlace_manual
 import painel
 import volume
 import recording
@@ -377,6 +378,20 @@ def main():
                     help="2 (padrão): enlace2.py, etapas em sequência com sinais sonoros "
                          "(SOBE/FICA/DESCE/REPETE); 1: enlace.py, o de antes. As duas pontas "
                          "precisam do mesmo")
+    ap.add_argument('--manual', action='store_true',
+                    help="conversa sem saudação nem negociação: as duas pontas lançadas com os "
+                         "mesmos parâmetros (enlace_manual.py). Implica --conversa")
+    ap.add_argument('--modulacao', choices=tuple(enlace_manual.MODULACOES), default='16fsk')
+    ap.add_argument('--baud', type=int, default=100, help="com --manual: símbolos por segundo")
+    ap.add_argument('--rep', type=int, default=1, help="com --manual: repetição do FEC")
+    ap.add_argument('--tom-base', type=float, default=None,
+                    help="com --manual: altura, o tom mais grave em Hz; sem isto, a tabela de fábrica")
+    ap.add_argument('--passo-tom', type=float, default=None,
+                    help="com --manual: altura, a distância entre tons em Hz")
+    ap.add_argument('--caixa', type=int, default=enlace_manual.CAIXA_INICIAL,
+                    help="com --manual: volume, passo 0 a 6 da escada (15, 20, 30, 40, 55, 70, 100%%)")
+    ap.add_argument('--sem-confirmacao', action='store_true',
+                    help="com --manual: sem FICA de volta; quadro perdido fica perdido")
     ap.add_argument('--sem-volume', action='store_true',
                     help="não mexe no volume do sistema (a escada da caixa vira só ganho digital igual)")
     ap.add_argument('--latencia', type=float, default=None,
@@ -398,6 +413,15 @@ def main():
     ap.add_argument('--parceiro-out', default=None,
                     help="com --simulado: pasta da outra ponta (padrão: <out>-parceiro)")
     args = ap.parse_args()
+    args.params = None
+    if args.manual:
+        args.conversa = True
+        try:
+            args.params = enlace_manual.Params.de_dict(dict(
+                modulacao=args.modulacao, baud=args.baud, rep=args.rep, tom_base=args.tom_base,
+                passo_tom=args.passo_tom, caixa=args.caixa, ack=not args.sem_confirmacao))
+        except ValueError as e:
+            ap.error(str(e))
     if args.log:
         sys.stdout = sys.stderr = open(args.log, 'a', encoding='utf-8', buffering=1)
     if not args.simulado:
@@ -451,8 +475,12 @@ def sessao(args, audio):
         print(s, flush=True)
 
     proto = enlace2 if getattr(args, 'protocolo', 2) == 2 else enlace
-    est = proto.Estacao(args.papel, semente=args.semente, log=log,
-                        modo_dados=args.modo_dados)
+    if args.params is not None:
+        proto = enlace_manual
+        est = proto.Estacao(args.papel, semente=args.semente, log=log, params=args.params)
+    else:
+        est = proto.Estacao(args.papel, semente=args.semente, log=log,
+                            modo_dados=args.modo_dados)
     est.enviar(dados)
     est.conversa = args.conversa
     lidas = 0                       # bytes recebidos já examinados atrás de comandos
@@ -481,14 +509,16 @@ def sessao(args, audio):
     vol = agenda = None
     if not audio.simulado and not getattr(args, 'sem_volume', False):
         try:
-            vol = volume.Volume()
+            vol = volume.Volume(spk=args.out_device, mic=args.in_device)
+            if vol.nomes:
+                log(f"[volume] dispositivos do volume: {vol.nomes}")
             if len(vol.caixa_pos) != proto.N_POS:
                 raise RuntimeError(f"a tabela da caixa tem {len(vol.caixa_pos)} passos, "
                                    f"o enlace usa {proto.N_POS}")
             vol.guarda_original(log)
             agenda = volume.Agenda(vol)
             agenda.start()
-            agenda.poe(time.time(), 'spk', proto.CAIXA_INICIAL)
+            agenda.poe(time.time(), 'spk', est.k if args.params is not None else proto.CAIXA_INICIAL)
         except Exception as e:
             log(f"[volume] sem controle do volume do sistema ({e}); a escada da caixa "
                 "vai sair toda no mesmo volume")
@@ -758,6 +788,7 @@ def sessao(args, audio):
         gravado = np.concatenate(ouvido) if ouvido else np.zeros(0)
         meta = dict(mode='enlace', label=f'enlace-{args.papel}', papel=args.papel,
                     modo_dados=args.modo_dados,
+                    manual=args.params.descreve() if args.params is not None else None,
                     saudado=est.saudado, aberto=est.aberto,
                     confirmado=getattr(est, 'confirmado', False),
                     contrato_tx=est.contrato_tx.descreve() if est.contrato_tx else None,

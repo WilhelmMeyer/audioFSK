@@ -1,18 +1,16 @@
 package com.audiofsk.enlace
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.os.Bundle
-import android.view.View
+import android.util.Base64
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.RadioButton
-import android.widget.RadioGroup
-import android.widget.ScrollView
-import android.widget.TextView
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
@@ -20,94 +18,68 @@ import org.json.JSONObject
 import java.io.File
 import kotlin.concurrent.thread
 
+/** A tela é `assets/tela/index.html`, o mesmo aparelho do visor do PC; aqui só a ligação. */
 class MainActivity : Activity() {
-    private lateinit var diario: TextView
-    private lateinit var rolagem: ScrollView
-    private lateinit var situacao: TextView
-    private lateinit var recebido: TextView
-    private lateinit var texto: EditText
-    private lateinit var iniciar: Button
-    private lateinit var parar: Button
-    private lateinit var enviar: Button
-    private lateinit var repetir: Button
-    private lateinit var ouvinte: RadioButton
+    private lateinit var web: WebView
     @Volatile private var sessao: PyObject? = null
+    @Volatile private var ocupado = false
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(estado: Bundle?) {
         super.onCreate(estado)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.statusBarColor = Color.parseColor("#1b1a18")
+        window.navigationBarColor = Color.parseColor("#1b1a18")
         if (!Python.isStarted()) Python.start(AndroidPlatform(this))
-        monta()
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
-        linha("[app] protocolo ${BuildConfig.PROTOCOLO}; gravações em ${pasta()}")
-    }
-
-    private fun monta() {
-        val raiz = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24, 24, 24, 24)
+        web = WebView(this).apply {
+            setBackgroundColor(Color.parseColor("#1b1a18"))
             fitsSystemWindows = true
+            settings.javaScriptEnabled = true
+            addJavascriptInterface(Controles(), "ponte")
+            webViewClient = object : android.webkit.WebViewClient() {
+                override fun onPageFinished(v: WebView?, url: String?) {
+                    js("tela.protocolo(${JSONObject.quote(BuildConfig.PROTOCOLO)})")
+                    linha("[app] gravações em ${pasta()}")
+                }
+            }
+            loadUrl("file:///android_asset/tela/index.html")
         }
-        ouvinte = RadioButton(this).apply { text = "ouvinte"; id = View.generateViewId() }
-        val chamador = RadioButton(this).apply { text = "chamador"; id = View.generateViewId() }
-        raiz.addView(RadioGroup(this).apply {
-            orientation = RadioGroup.HORIZONTAL
-            addView(ouvinte); addView(chamador); check(ouvinte.id)
-        })
-        texto = EditText(this).apply { hint = "texto a enviar"; setSingleLine() }
-        raiz.addView(texto)
-        val botoes = LinearLayout(this)
-        iniciar = Button(this).apply { text = "Iniciar"; setOnClickListener { inicia() } }
-        parar = Button(this).apply { text = "Parar"; isEnabled = false
-            setOnClickListener { sessao?.put("parar", true) } }
-        enviar = Button(this).apply { text = "Enviar"; isEnabled = false
-            setOnClickListener { sessao?.callAttr("envia", texto.text.toString()); texto.setText("") } }
-        repetir = Button(this).apply { text = "Repetir"; setOnClickListener { repete() } }
-        listOf(iniciar, parar, enviar, repetir).forEach { botoes.addView(it) }
-        raiz.addView(botoes)
-        situacao = TextView(this)
-        recebido = TextView(this)
-        raiz.addView(situacao); raiz.addView(recebido)
-        diario = TextView(this).apply { textSize = 11f; setTextIsSelectable(true) }
-        rolagem = ScrollView(this).apply { addView(diario) }
-        raiz.addView(rolagem, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        setContentView(raiz)
+        setContentView(web)
     }
 
+    private fun js(codigo: String) = runOnUiThread { web.evaluateJavascript(codigo, null) }
     private fun pasta(): File = File(getExternalFilesDir(null), "sessoes").apply { mkdirs() }
+    private fun linha(s: String) = js("tela.linha(${JSONObject.quote(s)})")
+    private fun mostra(j: String) = js("tela.estado($j)")
+    private fun emSessao(ligada: Boolean) = js("tela.sessao($ligada)")
 
-    private fun linha(s: String) = runOnUiThread {
-        diario.append(s + "\n")
-        rolagem.post { rolagem.fullScroll(View.FOCUS_DOWN) }
+    /** O que chegou, aberto: imagem no papel; outro arquivo, só o resumo. */
+    private fun abre(caminho: String) {
+        val f = File(caminho)
+        val b = BitmapFactory.decodeFile(caminho)
+        if (b == null) {
+            js("tela.arquivo(${JSONObject.quote("${f.length()} B em ${f.name}")})")
+            return
+        }
+        val uri = "data:image/bmp;base64," + Base64.encodeToString(f.readBytes(), Base64.NO_WRAP)
+        js("tela.imagem(${JSONObject.quote(uri)}, ${JSONObject.quote("${b.width} x ${b.height}, ${f.length()} B")})")
+        linha("[app] imagem aberta: ${b.width}x${b.height}, de $caminho")
     }
 
-    private fun mostra(j: String) = runOnUiThread {
-        val e = JSONObject(j)
-        situacao.text = "etapa ${e.optString("etapa")}  aberto ${e.optBoolean("aberto")}  " +
-            "tempo ${e.optDouble("estacao_s")} s  rms ${e.optDouble("rms")}\n" +
-            "fila ${e.optDouble("fila_s")} s  passo ${e.optDouble("passo_ms")} ms  " +
-            "perdida ${e.optDouble("perdidas_s")} s  a enviar ${e.optInt("a_enviar")}  recebidos ${e.optInt("recebidos")}"
-        recebido.text = e.optString("texto")
-    }
-
-    private fun emSessao(ligada: Boolean) = runOnUiThread {
-        iniciar.isEnabled = !ligada; repetir.isEnabled = !ligada
-        parar.isEnabled = ligada; enviar.isEnabled = ligada
-    }
-
-    private fun inicia() {
-        val papel = if (ouvinte.isChecked) "ouvinte" else "chamador"
-        val inicial = texto.text.toString()
-        texto.setText("")
+    /** `manual`: JSON dos parâmetros escolhidos à mão; vazio, negocia pelo ar. */
+    private fun inicia(papel: String, inicial: String, manual: String, conversa: Boolean) {
+        if (ocupado) return
+        ocupado = true
         emSessao(true)
         thread(name = "estacao") {
             var ponte: Ponte? = null
             try {
-                ponte = Ponte(this, ::linha, ::mostra)
+                ponte = Ponte(this, ::linha, ::mostra, ::abre)
                 linha("[app] carregando a estação...")
                 val s = Python.getInstance().getModule("movel")
-                    .callAttr("Sessao", papel, pasta().path, ponte, inicial)
+                    .callAttr("Sessao", papel, pasta().path, ponte, inicial, null, manual.ifEmpty { null }, conversa)
                 ponte.abre()
                 sessao = s
                 s.callAttr("roda")
@@ -117,16 +89,17 @@ class MainActivity : Activity() {
                 sessao = null
                 ponte?.fecha()
                 emSessao(false)
+                ocupado = false
             }
         }
     }
 
     /** `replay.wav` posto na pasta do app: o diário sai em `replay.txt`, para comparar com o PC. */
-    private fun repete() {
+    private fun repete(papel: String) {
         val wav = File(getExternalFilesDir(null), "replay.wav")
-        if (!wav.exists()) { linha("[app] falta $wav"); return }
-        val papel = if (ouvinte.isChecked) "ouvinte" else "chamador"
-        emSessao(true); parar.isEnabled = false; enviar.isEnabled = false
+        if (!wav.exists()) { linha("[app] ERRO: falta $wav"); return }
+        if (ocupado) return
+        ocupado = true
         thread(name = "repete") {
             try {
                 val r = Python.getInstance().getModule("movel").callAttr("repete", wav.path, papel,
@@ -135,8 +108,15 @@ class MainActivity : Activity() {
             } catch (e: Throwable) {
                 linha("[app] ERRO: $e")
             } finally {
-                emSessao(false)
+                ocupado = false
             }
         }
+    }
+
+    inner class Controles {
+        @JavascriptInterface fun iniciar(papel: String, texto: String, manual: String, conversa: Boolean) = inicia(papel, texto, manual, conversa)
+        @JavascriptInterface fun parar() { sessao?.put("parar", true) }
+        @JavascriptInterface fun enviar(texto: String) { sessao?.callAttr("envia", texto) }
+        @JavascriptInterface fun repetir(papel: String) = repete(papel)
     }
 }

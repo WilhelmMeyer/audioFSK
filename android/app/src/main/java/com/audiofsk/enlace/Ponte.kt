@@ -31,6 +31,7 @@ class Ponte(
     contexto: Context,
     private val aoLinha: (String) -> Unit,
     private val aoEstado: (String) -> Unit,
+    private val aoRecebido: (String) -> Unit,
 ) {
     private val FS = 48000
     private val BLOCO = 2048
@@ -125,8 +126,8 @@ class Ponte(
             lidas += n
             val bytes = ByteBuffer.allocate(n * 4).order(ByteOrder.LITTLE_ENDIAN)
             bytes.asFloatBuffer().put(b, 0, n)
-            fila.put(bytes.array())
             naFila.addAndGet(n)
+            fila.put(bytes.array())
             if (r.getTimestamp(ts, AudioTimestamp.TIMEBASE_MONOTONIC) == AudioRecord.SUCCESS) {
                 val adiante = ts.framePosition - lidas - perdidasTotal
                 if (adiante > buffer) perdidasTotal += adiante - buffer
@@ -152,6 +153,7 @@ class Ponte(
     fun fonte(): String = fonteUsada
     fun linha(s: String) = aoLinha(s)
     fun estado(s: String) = aoEstado(s)
+    fun recebido(caminho: String) = aoRecebido(caminho)
 
     fun fecha() {
         aberta = false

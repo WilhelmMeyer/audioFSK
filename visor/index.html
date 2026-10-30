@@ -960,6 +960,57 @@ pre.conv-lista { font: 400 15px/1.45 var(--f-tipo); white-space: pre-wrap; overf
     <label class="marca" title="o canal fica aberto depois do texto inicial: o que for digitado na conversa vai pelo ar; a sessão só acaba pelo Finalizar">
       <input type="checkbox" id="conversa" checked> conversa
     </label>
+    <details class="mais so-bancada" id="manual-gaveta">
+      <summary>manual, sem negociar</summary>
+      <div class="mais-gaveta chapa">
+        <label class="marca" title="pula saudação e contrato: os dois lados têm de ser lançados com os mesmos valores">
+          <input type="checkbox" id="manual" name="manual"> usar estes parâmetros
+        </label>
+        <div class="duas">
+          <div class="campo">
+            <label for="m-modulacao">Modulação</label>
+            <select id="m-modulacao" name="modulacao">
+              <option value="16fsk">16-FSK</option>
+              <option value="8fsk">8-FSK</option>
+              <option value="4fsk">4-FSK</option>
+              <option value="2fsk">2-FSK</option>
+              <option value="votada">5×2-FSK votada</option>
+              <option value="multicanal">5×2-FSK multicanal</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="m-baud">Velocidade (baud)</label>
+            <input type="number" id="m-baud" name="baud" value="100" min="5" max="300" step="1">
+          </div>
+        </div>
+        <div class="duas">
+          <div class="campo">
+            <label for="m-rep">Repetição</label>
+            <input type="number" id="m-rep" name="rep" value="1" min="1" max="8" step="1">
+          </div>
+          <div class="campo">
+            <label for="m-caixa" title="volume desta máquina; não precisa ser igual ao do outro lado">Volume da caixa</label>
+            <select id="m-caixa" name="caixa">
+              <option value="0">15%</option><option value="1">20%</option><option value="2" selected>30%</option>
+              <option value="3">40%</option><option value="4">55%</option><option value="5">70%</option><option value="6">100%</option>
+            </select>
+          </div>
+        </div>
+        <div class="duas">
+          <div class="campo">
+            <label for="m-base" title="altura: o tom mais grave; vazio mantém a tabela de fábrica">Tom base (Hz)</label>
+            <input type="number" id="m-base" name="tom_base" min="300" max="6000" step="1" placeholder="de fábrica">
+          </div>
+          <div class="campo">
+            <label for="m-passo" title="altura: a distância entre tons; vazio mantém a tabela de fábrica">Passo do tom (Hz)</label>
+            <input type="number" id="m-passo" name="passo_tom" min="20" max="1000" step="1" placeholder="de fábrica">
+          </div>
+        </div>
+        <label class="marca" title="sem o FICA de volta nada é repetido: quadro perdido fica perdido">
+          <input type="checkbox" id="m-sem-conf" name="sem_confirmacao"> sem confirmação
+        </label>
+      </div>
+    </details>
     <details class="mais so-bancada">
       <summary>tempos e dispositivos</summary>
       <div class="mais-gaveta chapa">
@@ -2351,6 +2402,8 @@ $('form').addEventListener('submit', async (ev) => {
   const fd = new FormData($('form'));
   const p = Object.fromEntries([...fd.entries()].filter(([k]) => k !== 'arquivo'));
   p.conversa = $('conversa').checked;
+  p.manual = $('manual').checked;
+  p.sem_confirmacao = $('m-sem-conf').checked;
   // o que ficou no campo sem Enter vai junto: quem clica Iniciar quer mandar o que vê
   const resto = $('conv-texto').value.trim();
   if (resto) { fila.push(resto); $('conv-texto').value = ''; pintaConversa(); }

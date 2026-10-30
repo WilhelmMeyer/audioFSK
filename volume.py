@@ -27,6 +27,7 @@ ainda lá (a sessão anterior morreu sem restaurar) restaura dele primeiro.
 """
 
 import json
+import re
 import os
 import subprocess
 import sys
@@ -67,14 +68,37 @@ interface IAudioEndpointVolume {
  int a(); int b(); int c(); int d(); int SetMute(bool m, Guid c); int GetMute(out bool m);
  int j(); int k(); int l(); int m(); int GetVolumeRange(out float mn, out float mx, out float st);
 }
+[StructLayout(LayoutKind.Sequential)] public struct PK { public Guid g; public int id; }
+[StructLayout(LayoutKind.Sequential)] public struct PV { public short vt, r1, r2, r3; public IntPtr p, p2; }
+[Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IPropertyStore { int a(); int b(); int GetValue(ref PK k, out PV v); }
 [Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IMMDevice { int Activate(ref Guid id, int ctx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o); }
+interface IMMDevice { int Activate(ref Guid id, int ctx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o);
+ int OpenPropertyStore(int acc, out IPropertyStore s); }
+[Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceCollection { int GetCount(out int n); int Item(int i, out IMMDevice d); }
 [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IMMDeviceEnumerator { int f(); int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice d); }
+interface IMMDeviceEnumerator { int EnumAudioEndpoints(int flow, int state, out IMMDeviceCollection c);
+ int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice d); }
 [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumerator {}
 public class Vol {
+ public static string[] Nome = new string[2];
+ static string Amigavel(IMMDevice d) {
+  IPropertyStore s; d.OpenPropertyStore(0, out s);
+  var k = new PK { g = new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), id = 14 }; PV v; s.GetValue(ref k, out v);
+  return v.vt == 31 ? Marshal.PtrToStringUni(v.p) : ""; }
+ static IMMDevice Acha(int flow) {
+  var en = (IMMDeviceEnumerator)(new MMDeviceEnumerator()); IMMDevice d;
+  string n = Nome[flow];
+  if (!String.IsNullOrEmpty(n)) {
+   IMMDeviceCollection c; en.EnumAudioEndpoints(flow, 1, out c); int k; c.GetCount(out k);
+   for (int i = 0; i < k; i++) { c.Item(i, out d); string a = Amigavel(d);
+    if (a == n || a.Contains(n) || (n.Length >= 20 && a.StartsWith(n))) return d; }
+   throw new Exception("nenhum dispositivo ativo com o nome " + n); }
+  en.GetDefaultAudioEndpoint(flow, 0, out d); return d; }
+ public static string Qual(int flow) { return Amigavel(Acha(flow)); }
  static IAudioEndpointVolume V(int flow) {
-  var en = (IMMDeviceEnumerator)(new MMDeviceEnumerator()); IMMDevice d; en.GetDefaultAudioEndpoint(flow, 0, out d);
+  IMMDevice d = Acha(flow);
   var iid = typeof(IAudioEndpointVolume).GUID; object o; d.Activate(ref iid, 23, IntPtr.Zero, out o); return (IAudioEndpointVolume)o; }
  public static string Get(int flow) { var v=V(flow); float s; bool m; v.GetMasterVolumeLevelScalar(out s); v.GetMute(out m);
   return String.Format(System.Globalization.CultureInfo.InvariantCulture, "ok {0:F3} {1}", s, m ? 1 : 0); }
@@ -86,7 +110,8 @@ public class Vol {
 while ($null -ne ($l = [Console]::In.ReadLine())) {
  $p = $l.Split(' '); $flow = if ($p[1] -eq 'mic') { 1 } else { 0 }
  try {
-  if ($p[0] -eq 'set') { $r = [Vol]::Set($flow, [float]::Parse($p[2], [System.Globalization.CultureInfo]::InvariantCulture)) }
+  if ($p[0] -eq 'nome') { [Vol]::Nome[$flow] = ($p[2..($p.Length-1)] -join ' '); $r = "ok 1 " + [Vol]::Qual($flow) }
+  elseif ($p[0] -eq 'set') { $r = [Vol]::Set($flow, [float]::Parse($p[2], [System.Globalization.CultureInfo]::InvariantCulture)) }
   else { $r = [Vol]::Get($flow) }
  } catch { $r = "erro " + $_.Exception.Message }
  [Console]::Out.WriteLine($r); [Console]::Out.Flush()
@@ -106,8 +131,19 @@ class Volume:
     `mic(k)` põem o passo k. Uma instância por processo, chamada de uma
     thread só por vez (a trava garante)."""
 
-    def __init__(self):
+    def __init__(self, spk=None, mic=None):
+        """`spk`/`mic`: nome (ou parte) do dispositivo que a sessão usa. No
+        Windows o volume vai nesse dispositivo e não no padrão do sistema: um
+        adaptador USB plugado vira o padrão sozinho, e a escada da caixa ia
+        parar numa saída onde nada tocava (2026-10-30). No Linux o wpctl segue
+        o padrão, como antes."""
         self.trava = threading.Lock()
+        self.nomes = {}
+        self._ids = {}
+        if sys.platform != 'win32':
+            for qual, nome in (('spk', spk), ('mic', mic)):
+                if nome:
+                    self._ids[qual], self.nomes[qual] = self._id_wpctl(qual, nome)
         self.caixa_pos = _tabela_caixa()
         self._ps = None
         if sys.platform == 'win32':
@@ -122,6 +158,14 @@ class Volume:
             pronto = self._ps.stdout.readline().strip()
             if pronto != 'pronto':
                 raise RuntimeError(f"powershell de volume não respondeu: {pronto!r}")
+            for qual, nome in (('spk', spk), ('mic', mic)):
+                if nome:
+                    self._ps.stdin.write(f'nome {qual} {nome}\n')
+                    self._ps.stdin.flush()
+                    r = self._ps.stdout.readline().strip()
+                    if not r.startswith('ok '):
+                        raise RuntimeError(f"volume ({qual} {nome!r}): {r}")
+                    self.nomes[qual] = r.split(' ', 2)[2]
         self.original = None
         self.mic_base = None
 
@@ -135,9 +179,30 @@ class Volume:
             raise RuntimeError(f"volume ({linha}): {r}")
         return float(r.split()[1])
 
-    @staticmethod
-    def _alvo(qual):
+    def _alvo(self, qual):
+        if qual in self._ids:
+            return self._ids[qual]
         return '@DEFAULT_AUDIO_SINK@' if qual == 'spk' else '@DEFAULT_AUDIO_SOURCE@'
+
+    @staticmethod
+    def _id_wpctl(qual, nome):
+        """O id do nó do PipeWire cujo nome contém `nome`, entre as saídas
+        (spk) ou entradas (mic) de `wpctl status -n`."""
+        r = subprocess.run(['wpctl', 'status', '-n'], capture_output=True, text=True,
+                           timeout=5).stdout
+        secao = 'Sinks:' if qual == 'spk' else 'Sources:'
+        dentro = False
+        for l in r.splitlines():
+            if secao in l:
+                dentro = True
+                continue
+            if dentro and l.strip(' │├└─*') == '':
+                dentro = False
+            m = re.match(r'[\s│├└─*]*(\d+)\.\s+(\S+)', l) if dentro else None
+            # o PortAudio diz bluez_output.41:42:..., o PipeWire 41_42_...
+            if m and nome.replace(':', '_') in m.group(2):
+                return m.group(1), m.group(2)
+        raise RuntimeError(f"nenhum nó do PipeWire com o nome {nome!r} em {secao}")
 
     def le(self, qual):
         with self.trava:

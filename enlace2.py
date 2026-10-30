@@ -148,6 +148,11 @@ ASSENTA = int(0.5 * FS)
 MARCA_FRACA = 0.30            # leitura aberta por marca abaixo disto pode ser largada
 MARCA_FORTE = 0.45            # por uma marca acima disto que chegue depois
 CHEIO_MIN = 0.2                # menor quarto da janela / energia média dela (ver _cheio)
+# Nas varreduras, menos: o alto-falante de celular quase não dá os graves, e o
+# começo de um SOBE (600-950 Hz) chegou com 9-16% da média em 2026-10-30, com
+# correlação 0,84, e foi descartado. Nas melodias ETAPA_* continua 0,2: com 0,05
+# um ETAPA_6 falso (0,20) levou uma sessão gravada direto ao fim.
+CHEIO_MIN_VARREDURA = 0.05
 # Sinais da mesma família que se sobrepõem: o mais forte só vale com folga
 # sobre o segundo; sem folga, nada se ouviu (quem mandou repete). Em 22:39 o
 # verdadeiro dava 0,26-0,29 e o falso 0,21-0,22.
@@ -431,7 +436,8 @@ class Ouvido2(Ouvido):
                     sc, j = self._fino(x, D * i, m, tipo)
                     pos = a + j
                     if r0 <= pos < r1 and sc >= self.limiar[tipo]:
-                        if tipo in SINAIS and not _cheio(x[j:j + lt]):
+                        if tipo in SINAIS and not _cheio(x[j:j + lt], minimo=(
+                                CHEIO_MIN if tipo.startswith('ETAPA_') else CHEIO_MIN_VARREDURA)):
                             continue
                         novas.append((pos, tipo, sc))
             self.varrido = r1

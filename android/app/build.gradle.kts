@@ -9,15 +9,20 @@ plugins {
 // O protocolo é o da raiz do repositório, copiado a cada build e nunca editado
 // aqui: uma cópia à mão acabaria falando outra coisa no fio que o PC.
 val raiz = rootDir.parentFile
-val arquivosProtocolo = listOf("fec.py", "modem.py", "xfer.py", "enlace.py", "enlace2.py")
+val arquivosProtocolo = listOf("fec.py", "modem.py", "xfer.py", "enlace.py", "enlace2.py", "enlace_manual.py")
 val protocolo = layout.buildDirectory.dir("protocolo").get().asFile
 copy {
     from(raiz) { include(arquivosProtocolo + listOf("recording.py", "movel.py")) }
     into(protocolo)
 }
+// As fontes do visor do PC: uma cópia à mão acabaria sendo outra identidade.
+copy {
+    from(File(raiz, "visor/fontes"))
+    into(layout.projectDirectory.dir("src/main/assets/tela/fontes"))
+}
 
 // O que fala no fio, não o commit: enlace2 muda sem commit. No PC, o mesmo número:
-// cat fec.py modem.py xfer.py enlace.py enlace2.py | sha1sum | cut -c1-8
+// cat fec.py modem.py xfer.py enlace.py enlace2.py enlace_manual.py | sha1sum | cut -c1-8
 val hashProtocolo = MessageDigest.getInstance("SHA-1").run {
     arquivosProtocolo.forEach { update(File(raiz, it).readBytes()) }
     digest().joinToString("") { "%02x".format(it) }.take(8)

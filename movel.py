@@ -23,6 +23,7 @@ O que difere de `saudacao.sessao`, de propósito:
 pontas no mesmo processo mais rápido que o tempo real.
 """
 
+import base64
 import json
 import os
 import queue
@@ -32,6 +33,7 @@ import numpy as np
 
 import enlace
 import enlace2
+import enlace_manual
 import recording
 
 FS = enlace.FS
@@ -40,11 +42,17 @@ ATRASO_AVISO = 2.0      # s de entrada na fila: acima disto a estação está at
 FATORES = enlace.CAIXA_POS
 
 
+def manual_est(est):
+    return getattr(est, 'manual', False)
+
+
 class Sessao:
     """`ponte` é a `Ponte` do Kotlin: `le(ms)`, `pendentes()`, `toca(bytes)`,
-    `cala()`, `latencia()`, `perdidas()`, `fonte()`, `linha(str)`, `estado(str)`."""
+    `cala()`, `latencia()`, `perdidas()`, `fonte()`, `linha(str)`, `estado(str)`,
+    `recebido(caminho)`."""
 
-    def __init__(self, papel, pasta, ponte, texto='', semente=None):
+    def __init__(self, papel, pasta, ponte, texto='', semente=None, manual=None, conversa=False):
+        """`manual`: JSON dos campos de `enlace_manual.Params.de_dict`; None negocia."""
         self.papel, self.ponte = papel, ponte
         self.dados = texto.encode('utf-8')
         self.stem = os.path.join(pasta, time.strftime("%Y%m%d-%H%M%S") + f"-enlace-{papel}")
@@ -57,11 +65,17 @@ class Sessao:
         self.lat = int(ponte.latencia())
         self.passo_ms = 0.0
         self.t_estado = 0.0
+        self.mostrados = 0
         self.t_aviso = 0.0
-        self.est = enlace2.Estacao(papel, semente=semente, log=self.log)
+        if manual:
+            self.est = enlace_manual.Estacao(papel, semente=semente, log=self.log,
+                                             params=enlace_manual.Params.de_dict(json.loads(manual)))
+        else:
+            self.est = enlace2.Estacao(papel, semente=semente, log=self.log)
+            self.est.conversa = bool(conversa)
         self.est.enviar(self.dados)
         self.log(f"[movel] enlace2 versão {enlace2.VERSAO}, papel {papel}, "
-                 f"entrada {ponte.fonte()}, latência declarada {self.lat / FS:.3f}s, "
+                 f"latência declarada {self.lat / FS:.3f}s, "
                  f"{len(self.dados)} bytes a enviar")
 
     def log(self, s):
@@ -108,22 +122,42 @@ class Sessao:
                 self.log(f"[movel] microfone sem ajuste (pico ouvido {pico:.2f})")
         est.pedidos_mic_passo.clear()
         est.pedidos_mic.clear()
-        if (not self.concluido and est.aberto and est.confirmado
+        if (not manual_est(est) and not est.conversa and not self.concluido and est.aberto and est.confirmado
                 and not est.fila and est.pendente_tx is None):
             self.concluido = True
             self.log(f"[movel] tudo enviado e confirmado; recebidos {len(est.recebido)} bytes")
         return burst
 
+    def espectro(self, bins=96, n=8192):
+        """dB por faixa de 400 a 4600 Hz, a escala do mostrador; [] sem áudio."""
+        if not self.ouvido:
+            return []
+        x = np.concatenate(self.ouvido[-(n // BLOCO + 1):])[-n:]
+        if len(x) < n:
+            return []
+        p = np.abs(np.fft.rfft(x * np.hanning(n))) ** 2 / n ** 2
+        i = np.round(np.linspace(400, 4600, bins + 1) * n / FS).astype(int)
+        return [round(float(10 * np.log10(p[a:b].max() + 1e-12)), 1) for a, b in zip(i[:-1], i[1:])]
+
     def publica(self):
         est = self.est
         fila = int(self.ponte.pendentes()) / FS
+        # Só quando cresceu: a tela refaz a fita e a imagem a partir disto.
+        dados = None
+        if len(est.recebido) != self.mostrados:
+            self.mostrados = len(est.recebido)
+            dados = base64.b64encode(bytes(est.recebido)).decode('ascii')
         self.ponte.estado(json.dumps(dict(
             papel=self.papel, estado=getattr(est, 'estado', None), etapa=est.etapa,
+            manual=manual_est(est), alerta=getattr(est, 'alerta', None),
             aberto=est.aberto, a_enviar=len(est.fila), recebidos=len(est.recebido),
-            texto=bytes(est.recebido[-2000:]).decode('utf-8', 'replace'),
             estacao_s=round(est.agora / FS, 1), fila_s=round(fila, 2),
             passo_ms=round(self.passo_ms, 1), perdidas_s=round(int(self.ponte.perdidas()) / FS, 2),
-            rms=round(float(np.sqrt(np.mean(self.ouvido[-1] ** 2))), 4) if self.ouvido else None)))
+            rms=round(float(np.sqrt(np.mean(self.ouvido[-1] ** 2))), 4) if self.ouvido else None,
+            enviados_total=len(self.dados), atividade=est.atividade(),
+            contrato_tx=est.contrato_tx.descreve() if est.contrato_tx else None,
+            contrato_rx=est.contrato_rx.descreve() if est.contrato_rx else None,
+            espectro=self.espectro(), dados=dados)))
         if fila > ATRASO_AVISO and time.time() - self.t_aviso > 10:
             self.t_aviso = time.time()
             self.log(f"[movel] ATENÇÃO: atrasado {fila:.1f} s em relação ao tempo real "
@@ -132,6 +166,7 @@ class Sessao:
     def roda(self):
         """O laço até `parar` ou o FIM da estação. Bloqueia: é a thread de trabalho."""
         est = self.est
+        self.log(f"[movel] entrada {self.ponte.fonte()}")
         try:
             while not self.parar:
                 while not self.comandos.empty():
@@ -142,7 +177,7 @@ class Sessao:
                         and est.agora > est.livre_em + 3 * FS):
                     self.motivo = 'encerrada pelo FIM'
                     break
-                if time.time() - self.t_estado > 0.5:
+                if time.time() - self.t_estado > 0.25:
                     self.t_estado = time.time()
                     self.publica()
                 b = self.ponte.le(500)
@@ -151,12 +186,20 @@ class Sessao:
                 burst = self.volta(np.frombuffer(bytes(b), dtype='<f4'))
                 if burst is not None:
                     self.ponte.toca(np.clip(burst, -1, 1).astype('<f4').tobytes())
+        except Exception as e:
+            self.motivo = f'erro: {e!r}'
+            raise
         finally:
             self.ponte.cala()
             self.fecha()
 
     def fecha(self):
         est = self.est
+        if est.recebido:
+            # O que chegou, como arquivo: a interface abre daqui.
+            with open(self.stem + '-recebido.bin', 'wb') as f:
+                f.write(bytes(est.recebido))
+            self.ponte.recebido(self.stem + '-recebido.bin')
         self.log(f"[movel] {self.motivo}; recebidos {len(est.recebido)} bytes, "
                  f"entrada perdida {int(self.ponte.perdidas()) / FS:.2f}s")
         gravado = np.concatenate(self.ouvido) if self.ouvido else np.zeros(0)
