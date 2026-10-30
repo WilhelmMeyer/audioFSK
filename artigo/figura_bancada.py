@@ -33,7 +33,7 @@ def maquina(eixo, x, y, rotulo):
     eixo.add_patch(FancyBboxPatch((x + 0.12, y + 0.16), 1.66, 0.8,
                                   boxstyle='round,pad=0.02',
                                   fc='white', ec=CINZA, lw=1.2))
-    eixo.text(x + 0.95, y + 1.12, rotulo, ha='center', va='bottom', fontsize=10)
+    eixo.text(x + 0.95, y + 1.06, rotulo, ha='center', va='bottom', fontsize=10)
 
 
 def alto_falante(eixo, x, y):
@@ -43,7 +43,7 @@ def alto_falante(eixo, x, y):
     for r in (0.16, 0.26, 0.36):
         eixo.add_patch(Wedge((x + 0.34, y + 0.3), r, -35, 35, width=0.015,
                              fc=TINTA, ec=TINTA))
-    eixo.text(x + 0.17, y - 0.12, 'alto-falante', ha='center', va='top', fontsize=9)
+    eixo.text(x + 0.17, y - 0.08, 'alto-falante', ha='center', va='top', fontsize=9)
 
 
 def microfone(eixo, x, y):
@@ -53,7 +53,7 @@ def microfone(eixo, x, y):
 
 
 def main():
-    fig, eixo = plt.subplots(figsize=(6.3, 2.6), layout='constrained')
+    fig, eixo = plt.subplots(figsize=(6.3, 1.465), layout='constrained')
 
     maquina(eixo, 0.2, 0.75, 'máquina que transmite')
     maquina(eixo, 4.6, 0.75, 'máquina que grava')
@@ -71,7 +71,7 @@ def main():
               fontsize=9.5, color=TINTA, linespacing=1.3)
 
     eixo.set_xlim(0, 6.7)
-    eixo.set_ylim(0.35, 2.6)
+    eixo.set_ylim(0.68, 1.96)
     eixo.axis('off')
     SAIDA.parent.mkdir(exist_ok=True)
     fig.savefig(SAIDA, dpi=300)
