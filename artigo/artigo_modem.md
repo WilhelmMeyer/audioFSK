@@ -167,6 +167,8 @@ No sistema implementado, em quatro quadros de 2453 símbolos recebidos entre as 
 
 O mesmo cálculo mostra por que $S$ tem de ser exato. Um símbolo a mais ou a menos na contagem erra o período em 480/2453 ≈ 0,2 amostra, e o erro acumulado ao longo do quadro chega a um símbolo inteiro.
 
+No enlace negociado da seção 4.4, todo quadro leva as duas varreduras, e o receptor usa só elas. A malha permanece nas transmissões configuradas à mão, em que as varreduras são opcionais.
+
 ### 3.4 Nível de operação
 
 A seção 2.2 mostrou que, acima de certo nível, a cadeia analógica achata os picos e gera harmônicos. O volume do alto-falante e o ganho de captura são, por isso, ajustados abaixo desse ponto, e esse ajuste é condição de todos os ensaios. Na 16-FSK, a troca abrupta de tom a cada símbolo produz picos cerca de 2,5 vezes maiores que os de um tom contínuo, medidos no sistema implementado, e o nível é calibrado com uma transmissão real e não com um tom isolado.
@@ -255,44 +257,39 @@ Sobre o mesmo enlace estão em implementação uma conversa, em que o canal perm
 
 ## 6 RESULTADOS EXPERIMENTAIS
 
-### 6.1 Bancada
 
 Dois computadores na mesma sala, cada um com alto-falante e microfone de uso geral. Um canal de controle entre eles apenas comanda o ensaio, e os bytes avaliados viajam somente pelo ar. Foram usadas duas montagens, uma com o alto-falante a 10 cm do microfone e outra com ele afastado, ambas com o nível abaixo da saturação.
 
-### 6.2 Formas de transmissão
 
 A Figura 15 mostra as formas de transmissão na bancada a 10 cm, com blocos de 48 bytes e ganho 0,5.
 
 ![](figuras/resultado-formas.png "0.95")
-Figura 15 - Taxa útil de cada forma de transmissão, a 10 cm, calculada pela duração do quadro. Dentro da barra, a média de bits certos das gravações. Todas entregaram o bloco íntegro, de quatro a cinco gravações por forma. A 5×2-FSK votada exclui uma gravação em que a malha de sincronismo perdeu o alinhamento.
+Figura 15 - Taxa útil de cada forma de transmissão, a 10 cm, calculada pela duração do quadro (barras, eixo esquerdo), e a média de bits recebidos errados, todos recuperados pela correção de erros (pontos, eixo direito). Todas entregaram o bloco íntegro, de quatro a cinco gravações por forma. A 5×2-FSK votada exclui uma gravação em que a malha de sincronismo perdeu o alinhamento.
 
-Com correção de erros, as quatro formas entregam todos os blocos. A 5×2-FSK multicanal tem a maior taxa, 13,8 B/s, com o menor acerto de bits, e a 16-FSK chega a 10,7 B/s.
+Com correção de erros, as quatro formas entregam todos os blocos. A 5×2-FSK multicanal tem a maior taxa, 13,8 B/s, e também a maior fração de bits recebidos errados, 8,6%, e a 16-FSK chega a 10,7 B/s com 3,5%.
 
 Com o alto-falante afastado, a 16-FSK entregou 4 blocos de 4 a 11,3 B/s, com 5,9% a 9,5% dos bits codificados trocados, todos corrigidos.
 
 <!-- Fontes: H03-2FSK-FEC (2-FSK com correção, 4 gravações), F02 (4 de 5 gravações: r2, 79,1%, excluída por decisão do autor em 2026-10-30, e relida a 100,0% com o relógio fixo), F03, F04-16FSK-10CM (2026-10-08); fora da figura por decisão do autor em 2026-10-30, só o que funcionou e é usado: F01-2FSK-10CM (Bell 202 sem correção, 0/5) e F00-NIVEL-10CM (16-FSK sem varreduras, 3/5); 14-FEC-REP (2026-09-03; rep 2 e 4 também 4/4, a 6,7 e 3,7 B/s). Taxas calculadas pelo código (RESUMO-CAMPANHA-FINAL.md). Gravações com o mapeamento Gray anterior à correção de 2026-10-29. Script: resultados/FIG-RESULTADOS/. -->
 
-### 6.3 Sincronismo
 
-A Figura 16 compara a malha de adiantamento e atraso com as varreduras, lidas sobre as mesmas gravações.
+O receptor precisa saber onde começa cada símbolo, e a seção 3.3 apresenta duas formas de obter isso. Na primeira, a malha de adiantamento e atraso corrige o instante símbolo a símbolo, a partir do próprio sinal. Na segunda, as duas varreduras nas pontas do quadro marcam por fora onde ele começa e quanto dura cada símbolo. A Figura 16 compara as duas, aplicadas às mesmas gravações.
 
 ![](figuras/resultado-sincronismo.png "0.95")
-Figura 16 - Blocos íntegros com a malha e com as varreduras, nas mesmas gravações, em três conjuntos.
+Figura 16 - Blocos íntegros com o ajuste símbolo a símbolo da malha e com as varreduras nas pontas do quadro, aplicados às mesmas gravações, em três conjuntos.
 
-Quando a malha acompanha o sinal, as duas empatam. A diferença está nos quadros em que a malha perde o alinhamento, que as varreduras recuperam, e é maior no conjunto de 24 gravações da 16-FSK com blocos de 48 bytes, em que as varreduras leram mais bits que a malha em 23 gravações.
+Quando a malha acompanha o sinal, as duas empatam. A diferença está nos quadros em que a malha perde o alinhamento no meio do caminho e leva junto todos os símbolos seguintes, que as varreduras recuperam, e é maior no conjunto de 24 gravações da 16-FSK com blocos de 48 bytes, em que as varreduras leram mais bits que a malha em 23 gravações.
 
 <!-- Fontes: 12-13-SYNC (4 gravações, 192 B, rep 2), H03-2FSK-FEC (as 8 com varreduras), studies/20260903-111105-ganho-mary (uma máquina, ganho 0,20 a 0,38). -->
 
-### 6.4 Transferência de arquivo
 
-Uma imagem de 1334 bytes foi transferida com o alto-falante afastado e chegou idêntica, conferida pelo CRC de 32 bits (Figura 17). Em pacotes de 64 bytes, os 21 pacotes chegaram sem retransmissão, a 6,8 B/s, e em pacotes de 128 bytes, os 11 chegaram com 3 retransmissões, a 7,2 B/s.
+Uma imagem de 1334 bytes foi transferida entre os dois computadores com o alto-falante afastado e chegou idêntica, conferida pelo CRC de 32 bits. Em pacotes de 64 bytes, os 21 pacotes chegaram sem retransmissão, a 6,8 B/s, e em pacotes de 128 bytes, os 11 chegaram com 3 retransmissões, a 7,2 B/s. A 10 cm, três transferências da mesma imagem também chegaram idênticas, de 5,0 a 7,6 B/s. A taxa fica abaixo da do bloco isolado pelo preâmbulo, pelo cabeçalho e pela espera entre pacotes.
+
+A Figura 17 mostra outra transferência, do computador para um celular, com a 16-FSK a 100 símbolos por segundo e repetição 2, fixadas à mão. O logotipo do IF, de 1270 bytes, chegou idêntico em 40 pacotes de 32 bytes, com uma retransmissão, em 492 s, ou 2,6 B/s. A taxa menor vem dos pacotes curtos, em que a espera pela confirmação pesa mais, e da repetição do bloco.
 
 ![](figuras/arquivo-enviado-recebido.png "0.6")
-Figura 17 - Imagem de 1334 bytes enviada (a) e recebida pelo ar (b), idênticas byte a byte.
+Figura 17 - Logotipo do IF, de 1270 bytes, enviado pelo computador (a) e recebido pelo celular pelo ar (b), idênticos byte a byte.
 
-A taxa fica abaixo da do bloco isolado pelo preâmbulo, pelo cabeçalho e pela espera entre pacotes. A 10 cm, três transferências da mesma imagem também chegaram idênticas, de 5,0 a 7,6 B/s.
-
-### 6.5 Enlace negociado
 
 Com as máquinas a cerca de 2 m e sem configuração prévia, cada sessão válida entregou completos os 207 bytes de um sentido e os 44 do outro, em 302 s com a negociação automática. Os contratos dos dois sentidos excluíram tons diferentes e fixaram ganhos diferentes, o que confirma a medida por sentido. Com outro computador em uma das pontas, a sessão também se completou, em 405 s.
 

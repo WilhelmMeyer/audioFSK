@@ -50,32 +50,41 @@ def salva(fig, nome):
 
 
 def formas():
-    # Um gráfico só: a altura é a taxa, o número dentro da barra é a média de bits certos.
-    NOMES = {'H03-2FSK-FEC': ('2-FSK', '#008F7A'),
-             'F02-5X2-VOTADA-10CM': ('5×2-FSK\nvotada', '#C4552D'),
-             'F04-16FSK-10CM': ('16-FSK', '#2F6DB5'),
-             'F03-5X2-MULTICANAL-10CM': ('5×2-FSK\nmulticanal', '#A8326E')}
-    fig, ax = plt.subplots(figsize=(4.2, 2.6))
-    for x, (rot, camp, modo, taxa) in enumerate(sorted(FORMAS, key=lambda f: f[3])):
+    # Um grafico so: barra = taxa util (eixo esquerdo); ponto vermelho = bits
+    # recebidos errados, media das gravacoes (eixo direito).
+    NOMES = {'H03-2FSK-FEC': '2-FSK',
+             'F02-5X2-VOTADA-10CM': '5×2-FSK\nvotada',
+             'F04-16FSK-10CM': '16-FSK',
+             'F03-5X2-MULTICANAL-10CM': '5×2-FSK\nmulticanal'}
+    ERRO = '#C0392B'
+    fig, ax = plt.subplots(figsize=(3.4, 2.5))
+    ax2 = ax.twinx()
+    ordem = sorted(FORMAS, key=lambda f: f[3])
+    for x, (rot, camp, modo, taxa) in enumerate(ordem):
         linhas = [r for r in csv.DictReader(open(os.path.join(RES, camp, 'resultado.csv')))
                   if r['modo'] == modo and r['stem'] not in EXCLUIDAS]
         ok = sum(int(r['bloco_ok']) for r in linhas)
-        media = sum(float(r['acerto_bits']) for r in linhas) / len(linhas)
-        nome, cor = NOMES[camp]
-        ax.bar(x, taxa, width=0.62, color=cor)
-        ax.text(x, taxa + 0.25, str(taxa).replace('.', ','), ha='center', fontsize=8.5,
-                fontweight='bold', color='0.15')
-        ax.text(x, taxa / 2, f'{media:.1f}%'.replace('.', ','), ha='center', va='center',
-                fontsize=8, color='white')
-        print(f'    {nome!r}: {ok}/{len(linhas)} blocos, {taxa} B/s, {media:.2f}% bits')
-    ax.set_xticks(range(len(FORMAS)))
-    ax.set_xticklabels([NOMES[f[1]][0] for f in sorted(FORMAS, key=lambda f: f[3])])
+        erro = 100 - sum(float(r['acerto_bits']) for r in linhas) / len(linhas)
+        ax.bar(x, taxa, width=0.6, color='#B9D7DA')
+        ax.text(x, taxa + 0.3, str(taxa).replace('.', ','), ha='center', fontsize=8,
+                color=TEAL)
+        ax2.plot(x, erro, 'o', ms=6, color=ERRO, zorder=5)
+        ax2.text(x + 0.12, erro, f'{erro:.1f}%'.replace('.', ','), va='center', fontsize=7.5,
+                 color=ERRO, fontweight='bold')
+        print(f'    {NOMES[camp]!r}: {ok}/{len(linhas)} blocos, {taxa} B/s, {erro:.2f}% bits errados')
+    ax.set_xticks(range(len(ordem)))
+    ax.set_xticklabels([NOMES[f[1]] for f in ordem])
     ax.tick_params(axis='x', length=0)
     ax.set_ylim(0, 16)
+    ax.set_xlim(-0.55, len(ordem) - 0.2)
     ax.set_yticks([0, 5, 10, 15])
-    ax.set_ylabel('Taxa útil (B/s)')
-    for lado in ('top', 'right'):
-        ax.spines[lado].set_visible(False)
+    ax.set_ylabel('Taxa útil (B/s)', color=TEAL)
+    ax2.set_ylim(0, 12)
+    ax2.set_yticks([0, 4, 8, 12])
+    ax2.set_ylabel('Bits recebidos errados (%)', color=ERRO)
+    ax2.tick_params(axis='y', colors=ERRO)
+    ax.spines['top'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
     salva(fig, 'resultado-formas.png')
 
 
@@ -83,7 +92,7 @@ def sinc():
     fig, ax = plt.subplots(figsize=(3.5, 2.1))
     larg = 0.36
     for i, (rot, n, m, v) in enumerate(SINC):
-        for dx, val, cor, nome in ((-larg / 2, m, CINZA, 'Malha'), (larg / 2, v, TEAL, 'Varreduras')):
+        for dx, val, cor, nome in ((-larg / 2, m, CINZA, 'Ajuste símbolo a símbolo'), (larg / 2, v, TEAL, 'Varreduras nas pontas')):
             ax.bar(i + dx, 100 * val / n, larg, color=cor, label=nome if i == 0 else None)
             ax.text(i + dx, 100 * val / n + 2, f'{val}/{n}', ha='center', fontsize=7.5)
     ax.set_xticks(range(len(SINC)))
@@ -91,7 +100,7 @@ def sinc():
     ax.set_ylim(0, 115)
     ax.set_yticks([0, 50, 100])
     ax.set_ylabel('Blocos íntegros (%)')
-    ax.legend(frameon=False, fontsize=7.5, loc='lower right', ncol=2, bbox_to_anchor=(1, 1))
+    ax.legend(frameon=False, fontsize=7.5, loc='lower right', ncol=1, bbox_to_anchor=(1, 1))
     for lado in ('top', 'right'):
         ax.spines[lado].set_visible(False)
     salva(fig, 'resultado-sincronismo.png')
