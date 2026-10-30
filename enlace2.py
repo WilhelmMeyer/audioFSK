@@ -154,6 +154,15 @@ LAT_OUTRO = int(0.8 * FS)
 MARGEM = int(1.0 * FS)
 ASSENTA = int(0.5 * FS)
 MARCA_FRACA = 0.30            # leitura aberta por marca abaixo disto pode ser largada
+# Nos dados o ciclo é o que define a taxa, então lá se espera o mínimo: um quadro
+# é tentado assim que acaba (a varredura vem 1,35 s depois), um sinal esperado vale
+# 0,3 s depois de achado (fora dos dados, 1,5 s, porque as melodias ETAPA_* se
+# imitam), e a resposta sai depois do que o outro fica cego, com folga: sem ela,
+# em latência baixa, a abertura de 0,08 s caía na borda da cegueira do outro.
+ETAPAS_DADOS = ('dados_tx', 'dados_rx', 'fim_tx')
+LER_CEDO = int(0.15 * FS)
+ASSENTA_DADOS = int(0.3 * FS)
+RESP_DADOS = RESP + GUARDA + int(0.2 * FS)
 FECHO_RAZAO = 0.35             # som depois da marca / antes dela e / a marca: abaixo, é fechamento (ver _e_fechamento)
 MARCA_FORTE = 0.45            # por uma marca acima disto que chegue depois
 CHEIO_MIN = 0.2                # menor quarto da janela / energia média dela (ver _cheio)
@@ -831,9 +840,10 @@ class Estacao:
         p0, t0 = self._sinais[0][0], self._sinais[0][1]
         # Espera o sinal mais longo caber inteiro depois do primeiro achado,
         # para que um verdadeiro que começa logo depois entre no mesmo grupo.
-        if self.ouvido.varrido < p0 + LMAX_SINAL + ASSENTA:
+        curto = self.etapa in ETAPAS_DADOS and not t0.startswith('ETAPA_')
+        if self.ouvido.varrido < p0 + (ASSENTA_DADOS if curto else LMAX_SINAL + ASSENTA):
             return
-        grupo = [s for s in self._sinais if s[0] < p0 + LMAX_SINAL]
+        grupo = [s for s in self._sinais if s[0] < p0 + (ASSENTA_DADOS if curto else LMAX_SINAL)]
         self._sinais = [s for s in self._sinais if s not in grupo]
         grupo.sort(key=lambda s: -s[2])
         pos, tipo, sc = grupo[0]
@@ -949,6 +959,19 @@ class Estacao:
             self.anota(f"li com {n} tentativas somadas (a última em {d.nome})")
         return corpo
 
+    def _entrega(self, L, d, corpo, llr):
+        p = L['p']
+        self.somas.pop(d.nbytes, None)
+        self._lendo = None
+        self.quadro_ate = p + d.amostras
+        x = self.ouvido.trecho(p, p + d.amostras)
+        q = dict(sc=L['sc'], rms=float(np.sqrt(np.mean(x * x))), pico=float(np.max(np.abs(x))))
+        self.ouvido_em = self.agora
+        # Lido agora, cedo: quem respondia a `fim + RESP` já ouvia a varredura
+        # atrasar 1,35 s; sem ela, a resposta cairia na cegueira de quem mandou.
+        fim = p + d.amostras + (RESP_DADOS - RESP if self.etapa in ETAPAS_DADOS else 0)
+        self._evento(dict(k='quadro', desc=d, corpo=corpo, llr=llr, fim=fim, q=q))
+
     def _le(self):
         """Lê o quadro em curso com cada descritor candidato, do mais curto ao
         mais longo, assim que o áudio dele chegou; o primeiro que passa no CRC
@@ -970,7 +993,17 @@ class Estacao:
                 self.anota(f"marca em {p / FS:.2f}s é fechamento (a abertura se perdeu): "
                            "largo a leitura e espero a repetição")
                 return
+        cedo = L.setdefault('cedo', set())
         for d in cands:
+            if (self.etapa in ETAPAS_DADOS and d not in L['tentados'] and d not in cedo
+                    and self.ouvido.fim >= p + d.amostras + LER_CEDO):
+                # Sem a marca de fechamento, que a varredura ainda não viu; se
+                # não passar, a tentativa de sempre vem depois, com ela.
+                cedo.add(d)
+                corpo, _ = le_quadro(self.ouvido.trecho(p, p + d.amostras + LER_CEDO), 0, d, None)
+                if corpo is not None:
+                    self._entrega(L, d, corpo, None)
+                    return
             if d in L['tentados'] or self.ouvido.varrido < p + d.amostras + FS // 2:
                 continue
             L['tentados'].add(d)
@@ -992,14 +1025,15 @@ class Estacao:
                 L['fim_conhecido'] = p + d.amostras
                 L['tentados'].update(cands)
                 corpo = self._soma(d, llr)
+            elif (corpo is None and not fecho and self.etapa in ETAPAS_DADOS
+                    and self._acabou_em(p, p + d.amostras)):
+                # Sem marca de fechamento, mas o som parou aqui: quem manda já
+                # calou, e esperar o maior candidato só atrasa o REPETE. Não soma:
+                # o comprimento não foi confirmado.
+                L['fim_conhecido'] = p + d.amostras
+                L['tentados'].update(cands)
             if corpo is not None:
-                self.somas.pop(d.nbytes, None)
-                self._lendo = None
-                self.quadro_ate = p + d.amostras
-                x = self.ouvido.trecho(p, p + d.amostras)
-                q = dict(sc=L['sc'], rms=float(np.sqrt(np.mean(x * x))), pico=float(np.max(np.abs(x))))
-                self.ouvido_em = self.agora
-                self._evento(dict(k='quadro', desc=d, corpo=corpo, llr=llr, fim=p + d.amostras, q=q))
+                self._entrega(L, d, corpo, llr)
                 return
         if all(d in L['tentados'] for d in cands):
             self._lendo = None
@@ -1652,8 +1686,7 @@ class Estacao:
             self._quadro_tx = (self.seq_tx, pedaco)
             self.pendente_tx = self._quadro_tx
             self._quadro(self._d_tx(DADOS_DESC[self._nivel_tx()]), DADOS,
-                         bytes([self.seq_tx & 255, len(pedaco)]) + pedaco, quando,
-                         outros=[self.ctrl] + [self._d_tx(DADOS_DESC[c]) for c in escada_dados(self.base_tx)])
+                         bytes([self.seq_tx & 255, len(pedaco)]) + pedaco, quando)
             return
         self.pendente_tx = None
         self._etapa('fim_tx', "nada mais a mandar")
@@ -1681,12 +1714,12 @@ class Estacao:
             self.reg['env'] += len(pedaco)
             self.seq_tx += 1
             self.n_rep = 0
-            return self._proximo_dado(ev['fim'] + RESP)
+            return self._proximo_dado(ev['fim'] + RESP_DADOS)
         if ev['k'] == 'silencio' or (ev['k'] == 'sinal' and ev['nome'] == 'REPETE'):
             self.n_rep += 1
             n = self.n_rep
             self.reg['repeticoes'] += 1
-            quando = self.agora if ev['k'] == 'silencio' else ev['fim'] + RESP
+            quando = self.agora if ev['k'] == 'silencio' else ev['fim'] + RESP_DADOS
             o_que = 'REPETE' if ev['k'] == 'sinal' else 'silêncio'
             if n >= 3:
                 self.reg['motivo_tx'] = n
@@ -1732,7 +1765,7 @@ class Estacao:
         if ev['k'] == 'quadro' and ev['tipo'] == FIM:
             return fim_meu(ev)
         if ev['k'] == 'ilegivel':
-            return self._sinal('REPETE', ev['fim'] + RESP, espera=self.lider,
+            return self._sinal('REPETE', ev['fim'] + RESP_DADOS, espera=self.lider,
                                resposta=self._maior_rx())
         if ev['k'] == 'silencio':
             self.n_sil += 1

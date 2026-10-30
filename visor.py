@@ -349,8 +349,15 @@ class Visor:
         except UnicodeDecodeError:
             texto = b.decode('latin-1')
             legivel = False
-        return dict(existe=True, nome=f.name, bytes=len(b), legivel=legivel,
-                    texto=texto[:4000], hex=b[:512].hex())
+        r = dict(existe=True, nome=f.name, bytes=len(b), legivel=legivel,
+                 texto=texto[:4000], hex=b[:512].hex())
+        if b[:2] == b'BM' and len(b) >= 6:
+            # Um BMP diz o próprio tamanho: com o resto em zeros já abre, e a
+            # imagem sobe linha a linha enquanto os quadros chegam.
+            total = int.from_bytes(b[2:6], 'little')
+            r['total'] = total
+            r['bmp'] = base64.b64encode(b.ljust(total, b'\0')).decode('ascii')
+        return r
 
     def dispositivos(self):
         try:

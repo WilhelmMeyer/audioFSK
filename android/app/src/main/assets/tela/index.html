@@ -157,6 +157,9 @@ body[data-papel=chamador] .comando button { color: #fff4e4; background: var(--en
 .papel { min-height: 56px; padding: 8px 12px; color: var(--tinta); background: repeating-linear-gradient(transparent 0 20px, rgba(91,71,54,.12) 20px 21px), var(--papel); font: 400 13px/21px var(--courier); overflow-wrap: anywhere; box-shadow: var(--funda); }
 .papel.vazio { color: var(--tinta-3); font-family: var(--jost); }
 .conversa { max-height: 240px; overflow-y: auto; }
+.conversa + .campo { margin-top: 10px; }
+.papel.hex[hidden] { display: none; }
+#fita-bytes { margin-top: 10px; }
 .conversa p { margin: 0; }
 .conversa .ele { color: #2d4664; }
 .conversa .eu { color: #8a3b22; text-align: right; }
@@ -237,15 +240,16 @@ body[data-papel=chamador] .comando button { color: #fff4e4; background: var(--en
       <label>Passo do tom, Hz<input id="m-passo" type="number" inputmode="numeric" min="20" max="1000" placeholder="de fábrica"></label>
       <label class="ack"><input id="m-ack" type="checkbox" checked>Confirmar quadros</label>
     </div>
-    <div class="campo">
-      <input id="texto" placeholder="Texto a enviar" autocomplete="off" enterkeyhint="send">
-      <button id="enviar" disabled>Enviar</button>
-    </div>
   </section>
 
   <section class="chapa" aria-label="Conversa">
     <div class="rotulo"><span>Conversa</span></div>
     <div class="papel conversa vazio" id="chegou" role="log">Nada ainda.</div>
+    <div class="campo">
+      <input id="texto" placeholder="Texto a enviar" autocomplete="off" enterkeyhint="send">
+      <button id="enviar" disabled>Enviar</button>
+    </div>
+    <div class="papel hex" id="fita-bytes" hidden></div>
     <img id="imagem" alt="Imagem recebida pelo ar">
   </section>
 
@@ -342,34 +346,42 @@ function fala(quem, texto) {
 let urlImagem = null;
 function dados(b64) {
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), n = bytes.length;
-  const papel = $('chegou');
-  papel.classList.remove('vazio');
+  // O que chega é um fluxo só: um BMP diz o próprio tamanho, e o que vem depois
+  // dele é conversa. Sem separar, a mensagem ficava para sempre na fita de bytes.
   const total = n >= 6 && bytes[0] === 0x42 && bytes[1] === 0x4d
     ? new DataView(bytes.buffer).getUint32(2, true) : 0;
+  const fimArquivo = total ? Math.min(n, total) : 0;
   if (total) {
-    $('v-rec').textContent = `${n} de ${total} B`;
+    $('v-rec').textContent = `${fimArquivo} de ${total} B`;
     $('barra-rec').hidden = false;
-    $('b-rec').style.width = Math.min(100, n / total * 100) + '%';
-    const cheio = new Uint8Array(Math.max(total, n)); cheio.set(bytes);
+    $('b-rec').style.width = Math.min(100, fimArquivo / total * 100) + '%';
+    const cheio = new Uint8Array(total); cheio.set(bytes.subarray(0, fimArquivo));
     if (urlImagem) URL.revokeObjectURL(urlImagem);
     urlImagem = URL.createObjectURL(new Blob([cheio], {type: 'image/bmp'}));
     $('imagem').src = urlImagem; $('imagem').style.display = 'block';
   }
-  let texto = null;
-  if (!total) { try { texto = new TextDecoder('utf-8', {fatal: true}).decode(bytes); } catch (e) {} }
+  let resto = bytes.subarray(fimArquivo), texto = null;
+  try { texto = new TextDecoder('utf-8', {fatal: true}).decode(resto); }
+  catch (e) {   // pode ser só um caractere pela metade, no fim do que chegou
+    try { texto = new TextDecoder('utf-8', {fatal: true}).decode(resto.subarray(0, -1)); } catch (e2) {}
+  }
   if (texto !== null && !/[\x00-\x08\x0e-\x1f]/.test(texto)) {
-    fala('ele', texto.slice(jaLido)); jaLido = texto.length;
-  } else {
-    papel.classList.add('hex'); jaLido = 0;
+    const fim = texto.lastIndexOf('\n') + 1;   // só linhas inteiras
+    if (fim > jaLido) { fala('ele', texto.slice(jaLido, fim)); jaLido = fim; }
+    resto = bytes.subarray(0, 0);
+  }
+  const fita = $('fita-bytes');
+  fita.hidden = !resto.length;
+  if (resto.length) {
     let h = '';
-    for (let i = 0; i < n; i += 8) {
-      const t = bytes.subarray(i, i + 8);
+    for (let i = 0; i < resto.length; i += 8) {
+      const t = resto.subarray(i, i + 8);
       h += i.toString(16).padStart(4, '0') + ' '
          + [...t].map(b => b.toString(16).padStart(2, '0')).join(' ').padEnd(24)
          + [...t].map(b => b >= 32 && b < 127 ? String.fromCharCode(b) : '.').join('') + '\n';
     }
-    papel.textContent = h;
-    papel.scrollTop = papel.scrollHeight;
+    fita.textContent = h;
+    fita.scrollTop = fita.scrollHeight;
   }
 }
 
@@ -465,7 +477,7 @@ const tela = {
   arquivo(resumo) { tela.linha('[app] recebido: ' + resumo); },
   limpa() {
     $('fita').textContent = ''; $('imagem').style.display = 'none';
-    $('chegou').textContent = 'Nada ainda.'; $('chegou').className = 'papel conversa vazio'; jaLido = 0;
+    $('chegou').textContent = 'Nada ainda.'; $('chegou').className = 'papel conversa vazio'; jaLido = 0; $('fita-bytes').hidden = true;
     $('barra-rec').hidden = true; $('b-rec').style.width = '0';
     cc.fillStyle = PAPEL; cc.fillRect(0, 0, cascata.width, cascata.height);
   },

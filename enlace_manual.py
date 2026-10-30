@@ -39,13 +39,16 @@ from enlace import (FS, Descritor, Parte, MOLDES, LIMIARES, QUADROS, GANHO_FIXO,
                     PRE_SYM, le_quadro, abre)
 import enlace2
 from enlace2 import (SINAIS, GANHO_SINAL, LIMIAR_SINAL, MARCA_FORTE, MARCA_FRACA, RESP, LAT_CEGO,
-                     GUARDA, ATRASO_DET, LAT_OUTRO, MARGEM, empacota2, modula_quadro, Ouvido2)
+                     GUARDA, ATRASO_DET, LAT_OUTRO, RESP_DADOS, LER_CEDO, FECHO_RAZAO, empacota2, modula_quadro,
+                     Ouvido2)
 
 VERSAO = 1
 CAIXA_INICIAL = enlace2.CAIXA_INICIAL
 CARGA = DADOS_N - 5 - 3         # seq, n, assinatura
 TENTATIVAS = 6
+MARCA_SUBIDA = 1.5              # nível depois da marca / antes dela, para uma marca fraca valer
 MARCA_CLARA = 0.30              # abaixo disto uma marca pode ser falsa e não vale alerta
+ARRANQUE = 2.0                  # s antes do primeiro quadro: a caixa BT acorda e o volume assenta
 # Depois da confirmação: quem a tocou ainda está cego para o que vier (`LAT_CEGO`
 # + `GUARDA`). Sem isto a abertura do quadro seguinte caía nessa cegueira, a
 # leitura começava na marca de fechamento, e as repetições, sempre no mesmo
@@ -180,7 +183,10 @@ class Estacao:
         self.agenda = []
         self.tocando = []
         self.esperando = None
-        self.livre_em = self.meu_fim = self.quadro_ate = 0
+        # Nada sai logo ao abrir: em 2026-10-30 o primeiro quadro, tocado aos 0,04 s,
+        # junto com a troca do volume, chegou sem a marca de abertura em 3 de 3 sessões.
+        self.livre_em = int(ARRANQUE * FS)
+        self.meu_fim = self.quadro_ate = 0
         self.ouvido_em = 0
         self.pendente_tx = None        # dict(x, seq, tent, ate): quadro à espera de confirmação
         self.seq = 0
@@ -264,6 +270,10 @@ class Estacao:
             dict(rotulo='Quadros enviados', valor=str(self.enviados), lado='envio'),
             dict(rotulo='Perdidos', valor=str(self.perdidos)),
             dict(rotulo='Ilegíveis', valor=str(self.ilegiveis))])
+        if not parada and self.enviados and not self.fila and self.pendente_tx is None:
+            # Tudo entregue, e o canal segue aberto: sem isto, parecia travado.
+            conversa['valores'] += [dict(rotulo='A enviar', valor='nada', lado='envio'),
+                                    dict(rotulo='Canal', valor='aberto')]
         if not parada:
             conversa['andamento'] = andamento
         return [
@@ -303,12 +313,15 @@ class Estacao:
         return dict(seq=seq, n=len(pedaco), tent=0,
                     x=self._parte(modula_quadro(self.d, corpo), f"quadro seq {seq}"))
 
-    def _ate(self, a, n):
+    def _ate(self, a, n, tent=1):
         """Até quando esperar a confirmação; a folga sorteada, e maior no
-        ouvinte, é o que separa as duas pontas depois de uma colisão."""
-        folga = self.rng.uniform(0, 1.5 if self.papel == 'chamador' else 3.5)
-        return int(a + n + LAT_CEGO + RESP + ATRASO_DET + LAT_OUTRO + len(SINAIS['FICA0'])
-                   + ATRASO_DET + MARGEM + folga * FS)
+        ouvinte, é o que separa as duas pontas depois de uma colisão. Da segunda
+        tentativa em diante ela cresce com o quadro: uma folga menor que ele não
+        tira as repetições de cima uma da outra."""
+        escala = n / FS if tent > 1 else 0.5
+        folga = self.rng.uniform(0, escala if self.papel == 'chamador' else 3 * escala)
+        return int(a + n + LAT_CEGO + RESP_DADOS + ATRASO_DET + LAT_OUTRO + len(SINAIS['FICA0'])
+                   + ATRASO_DET + 0.2 * FS + folga * FS)
 
     def _toca(self, x):
         a, n = self.agora, len(x)
@@ -355,18 +368,74 @@ class Estacao:
         if p['tent'] > 1:
             self.anota(f"sem confirmação do seq {p['seq']}: tentativa {p['tent']}")
         if self.params.ack:
-            p['ate'] = self._ate(self.agora, len(p['x']))
+            p['ate'] = self._ate(self.agora, len(p['x']), p['tent'])
             self.pendente_tx = p
         return self._toca(p['x'])
 
     # --- recepção
 
+    def _e_fechamento(self, L):
+        """A marca lida é a de fechamento de um quadro cuja abertura se perdeu?
+        Como em `enlace2`: antes dela há corpo e depois dela o som parou. Sem
+        isso a leitura fantasma, de um quadro inteiro, engolia a abertura da
+        repetição (16-FSK rep3, 2026-10-30). Quadro curto demais não dá para
+        distinguir: seu fim também vem seguido de silêncio. None: falta áudio."""
+        p, lm = L['p'], self.d.lm
+        ini, fim = p + lm + int(0.3 * FS), p + lm + int(1.8 * FS)
+        if self.d.amostras < lm + int(2.5 * FS):
+            return False
+        if self.ouvido.varrido < fim:
+            return None
+        rms = lambda x: float(np.sqrt(np.mean(x ** 2))) if len(x) else 0.0
+        antes = rms(self.ouvido.trecho(p - int(1.7 * FS), p - int(0.3 * FS)))
+        marca = rms(self.ouvido.trecho(p, p + lm))
+        depois = rms(self.ouvido.trecho(ini, fim))
+        return depois < FECHO_RAZAO * antes and depois < FECHO_RAZAO * marca
+
     def _le(self):
         L = self._lendo
-        if L is None or self.ouvido.varrido < L['p'] + self.d.amostras + FS // 2:
+        if L is None:
+            return
+        p, d = L['p'], self.d
+        if L['sc'] < MARCA_CLARA and 'viva' not in L:
+            # No ocioso o ruído imita a marca a cada ~8 s (0,21-0,22) e prendia a
+            # estação ~6 s. Depois de um começo de quadro de verdade o nível sobe;
+            # sem isso, larga. Medido em 2026-10-30: razão mediana 1,0-1,1 nas falsas.
+            ate = p + d.lm + int(0.6 * FS)
+            if self.ouvido.fim < ate:
+                return
+            rms = lambda x: float(np.sqrt(np.mean(x ** 2))) if len(x) else 0.0
+            if rms(self.ouvido.trecho(p + d.lm + int(0.1 * FS), ate)) < MARCA_SUBIDA * rms(
+                    self.ouvido.trecho(p - int(0.6 * FS), p - int(0.1 * FS))):
+                self._lendo = None
+                return
+            L['viva'] = True
+        if 'fechamento' not in L:
+            f = self._e_fechamento(L)
+            if f is not None:
+                L['fechamento'] = f
+            if f:
+                self._lendo = None
+                self.quadro_ate = p + d.lm
+                self.anota(f"marca em {p / FS:.2f}s é fechamento (a abertura se perdeu): "
+                           "largo a leitura e espero a repetição")
+                return
+        if 'cedo' not in L and self.ouvido.fim >= p + d.amostras + LER_CEDO:
+            # Sem esperar a varredura achar a marca de fechamento; se falhar, a
+            # leitura de sempre vem depois, com ela.
+            L['cedo'] = True
+            corpo, _ = le_quadro(self.ouvido.trecho(p, p + d.amostras + LER_CEDO), 0, d, None)
+            if corpo is not None:
+                self._lendo = None
+                self.quadro_ate = p + d.amostras
+                self.ilegiveis = 0
+                self.alerta = None
+                self.ouvido_em = self.agora
+                self._recebeu(corpo)
+                return
+        if self.ouvido.varrido < p + d.amostras + FS // 2:
             return
         self._lendo = None
-        p, d = L['p'], self.d
         alvo = p + d.amostras - d.lm
         fecho = [m for m in self.ouvido.marcas
                  if m[1] == d.marca and abs(m[0] - alvo) <= int(0.004 * d.amostras)]
@@ -400,7 +469,8 @@ class Estacao:
             self.anota(f"li quadro seq {seq}: {n} bytes (total {len(self.recebido)})")
         if self.params.ack:
             x = SINAIS[f"FICA{seq & 1}"] * GANHO_SINAL
-            self.agenda.append((self.agora + RESP, self._parte(x, f"confirmação do seq {seq}")))
+            self.agenda.append((max(self.agora, self.quadro_ate + RESP_DADOS),
+                                self._parte(x, f"confirmação do seq {seq}")))
 
     def _ilegivel(self, L, com_fecho):
         self.ilegiveis += 1

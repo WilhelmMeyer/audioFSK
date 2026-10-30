@@ -201,6 +201,9 @@ The same set, bench finish, in one column at about 412px, in a WebView with the 
 ### Percurso (both screens)
 The session's path, one vertical line with one lamp per stage (green done, amber blinking now, off to come, red failed): done stages carry one line of values, and the current one adds a single arrow, sending in rust or listening in steel, with the seconds left. No protocol term (signal names, rep, sounding) on the main screen: those live only in the diary. It comes ready from the station (`percurso()` in `enlace2` and `enlace_manual`), the screens only draw it. Rust and steel keep their roles on the values; the chosen speed is an amber tag inside its value; a value never measured is a dash, and a change reads "100 → 33 baud", never overwrites.
 
+### Régua de tons
+In the path's Tons step, one mark per tone of the grid (562.5-3487.5 Hz), one row per direction: filled in the direction's colour = used, red X = excluded from the usual table, empty outline = spare, dash = not measured. Beside it only the counts and the excluded frequencies in Hz. Manual sessions show the tones in use, all filled.
+
 ## Elevation & Depth
 
 Flat and material. Panels carry one soft drop (`0 4px 12px -4px rgba(0,0,0,.6)`); depth is mostly inset: readout windows and fields are recessed (`--funda: inset 0 1px 3px rgba(0,0,0,.6)`), the dial sits in a dark metal rim, and lamps sit behind a double ring. Keys have a small drop that flattens on press (`0 2px 5px` to `0 1px 2px`, with a 1px move). The dial glass warms with a sepia/brightness filter only while a session is on air.

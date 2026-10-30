@@ -316,6 +316,7 @@ body {
 .projecao .p2 { --fx-agora: #8a4f00; --fx-feito: #2f6b3f; --fx-falha: #a3301b; --fx-fundo: rgba(138,79,0,.13); }
 .contador[hidden] { display: none; }
 .p2.com-percurso { grid-template-columns: 1fr; }
+.p2-perc { min-height: 0; max-height: 100%; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--caqui-escuro) transparent; }
 .p2.com-percurso > div:not(.p2-perc) { display: none; }
 .percurso { margin: 0; padding: 0; list-style: none; }
 .percurso li { position: relative; display: grid; grid-template-columns: 22px 1fr; column-gap: 8px; padding: 0 0 7px; }
@@ -655,6 +656,8 @@ body { overflow: hidden; }
 }
 pre.conv-lista { font: 400 15px/1.45 var(--f-tipo); white-space: pre-wrap; overflow-wrap: anywhere; }
 .conv-lista[hidden] { display: none; }
+#r-imagem { display: block; width: 100%; max-width: 320px; margin: 10px auto 0; image-rendering: pixelated; background: var(--papel); }
+#r-imagem[hidden] { display: none; }
 .conv-lista li { padding: 2px 0 2px 9px; margin-bottom: 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .conv-col.envio li { border-left: 3px solid var(--envio); }
 .conv-col.chega li { border-left: 3px solid var(--chega); }
@@ -1093,6 +1096,7 @@ pre.conv-lista { font: 400 15px/1.45 var(--f-tipo); white-space: pre-wrap; overf
           <h3>Recebido</h3>
           <ol class="conv-lista" id="conv-rec" aria-live="polite"></ol>
           <pre class="conv-lista" id="r-texto" hidden></pre>
+          <img id="r-imagem" alt="Imagem recebida pelo ar" hidden>
         </div>
       </div>
       <form class="conv-form" id="conv-form" autocomplete="off">
@@ -1392,6 +1396,9 @@ function pintaPercurso(p) {
       });
     }
   });
+  // A etapa de agora sempre à vista: em tela baixa o percurso rola.
+  const agora = ol.querySelector('.agora');
+  if (agora) agora.scrollIntoView({block: 'nearest'});
   return true;
 }
 function pintaP2() {
@@ -2445,7 +2452,12 @@ async function cicloRecebido() {
       $('r-info').title = 'o conteúdo aparece quando a sessão conclui';
       return;
     }
-    $('r-info').textContent = `${r.bytes} B` + (r.legivel ? '' : ' · hex');
+    $('r-info').textContent = r.total ? `${r.bytes} de ${r.total} B` : `${r.bytes} B` + (r.legivel ? '' : ' · hex');
+    $('r-imagem').hidden = !r.bmp;
+    if (r.bmp) {
+      const uri = 'data:image/bmp;base64,' + r.bmp;
+      if ($('r-imagem').dataset.n !== String(r.bytes)) { $('r-imagem').src = uri; $('r-imagem').dataset.n = r.bytes; }
+    }
     $('r-info').title = r.nome;
     $('r-texto').textContent = r.legivel ? r.texto : r.hex.replace(/(..)/g, '$1 ').replace(/((?:.. ){16})/g, '$1\n');
   } catch (err) {}
