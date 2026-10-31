@@ -300,7 +300,7 @@ def render_imagem(est, caminho_rel, escala=1.0):
     a_ns = "http://schemas.openxmlformats.org/drawingml/2006/main"
     pic_ns = "http://schemas.openxmlformats.org/drawingml/2006/picture"
     return (
-        '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing>'
+        '<w:p><w:pPr><w:keepNext/><w:jc w:val="center"/></w:pPr><w:r><w:drawing>'
         '<wp:inline distT="0" distB="0" distL="0" distR="0">'
         f'<wp:extent cx="{f["cx"]}" cy="{f["cy"]}"/>'
         '<wp:effectExtent l="0" t="0" r="0" b="0"/>'
@@ -651,9 +651,12 @@ def render_titulo(est, estilo, texto, extra_ppr=""):
     return f"<w:p>{ppr}{inline(est, texto)}</w:p>"
 
 
-def render_legenda(est, texto):
+def render_legenda(est, texto, extra_ppr=""):
+    # keepLines: a legenda nao se parte entre colunas; a imagem acima tem
+    # keepNext, para nao ficar separada dela
     estilo = est.modelo.estilo("legenda")
-    return f'<w:p><w:pPr><w:pStyle w:val="{estilo}"/></w:pPr>{inline(est, texto)}</w:p>'
+    ppr = f'<w:pStyle w:val="{estilo}"/>{extra_ppr}<w:keepLines/>'
+    return f'<w:p><w:pPr>{ppr}</w:pPr>{inline(est, texto)}</w:p>'
 
 
 def render_figura(est, legenda, caminho_rel, escala=1.0):
@@ -718,7 +721,7 @@ def render_tabela(est, cabecalho, corpo, legenda):
     )
     grid = "<w:tblGrid>" + "".join(f'<w:gridCol w:w="{l}"/>' for l in larguras) + "</w:tblGrid>"
     tbl = f"<w:tbl>{tblpr}{grid}" + "".join(linhas_xml) + "</w:tbl>"
-    legenda_xml = render_legenda(est, legenda) if legenda else ""
+    legenda_xml = render_legenda(est, legenda, "<w:keepNext/>") if legenda else ""
     return legenda_xml + tbl
 
 
