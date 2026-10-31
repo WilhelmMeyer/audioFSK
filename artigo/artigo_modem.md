@@ -38,7 +38,7 @@ Figura 1 - Dados transmitidos como som de um computador e reconstruídos no outr
 
 ### 2.1 Frequência e detecção
 
-A banda disponível para os dados é a faixa audível, porque é a que alto-falantes e microfones de uso geral reproduzem. Cada valor de bit, ou de grupo de bits, corresponde a uma frequência combinada entre as duas pontas. A cada intervalo fixo, chamado símbolo, o transmissor emite um tom e o receptor identifica qual esteve presente.
+Cada valor de bit, ou de grupo de bits, corresponde a uma frequência combinada entre as duas pontas. A cada intervalo fixo, chamado símbolo, o transmissor emite um tom e o receptor identifica qual esteve presente.
 
 O receptor escolhe a frequência de maior energia. Um ganho comum a todas, vindo do volume ou da distância, não altera a escolha, mas a probabilidade de erro depende da relação sinal-ruído, do inglês *signal-to-noise ratio* (SNR), em cada frequência.
 
@@ -100,8 +100,6 @@ Alto-falantes e microfones de uso geral respondem bem na faixa da fala e perdem 
 
 ## 3 CAMADA FÍSICA
 
-A camada física converte os bits em tons e, na recepção, o som captado de volta em bits, cada um com a confiança da decisão.
-
 ### 3.1 Formas de transmissão
 
 ![](figuras/formas-transmissao.png "0.95")
@@ -145,9 +143,7 @@ Na Figura 8, um quadro de 18 símbolos que não passou pelo ar, no formato do vi
 ![](figuras/sincronismo-varreduras.png "0.95")
 Figura 8 - Quadro curto de 16-FSK entre as duas varreduras, com a frequência na horizontal, o mais recente no alto e as fronteiras de (4) em linhas finas.
 
-No sistema implementado, em quatro quadros de 2453 símbolos recebidos entre as duas máquinas, o período medido por (4) variou de 479,90 a 480,07 amostras, contra 480 nominais. Um desvio de 0,1 amostra por símbolo acumula cerca de 245 amostras no quadro, meio símbolo e mais que as 72 do intervalo de descarte, e com o período nominal o fim do quadro seria lido fora do símbolo. Pelo mesmo cálculo, $S$ tem de ser exato, pois um símbolo a mais ou a menos erra o período em 480/2453 ≈ 0,2 amostra, e o erro acumulado no quadro chega a um símbolo inteiro.
-
-No enlace negociado da seção 4.4, todo quadro leva as duas varreduras e o receptor usa só elas, e a malha fica apenas no primeiro protótipo, configurado por comandos, em que as varreduras são opcionais.
+No sistema implementado, em quatro quadros de 2453 símbolos recebidos entre as duas máquinas, o período medido por (4) variou de 479,90 a 480,07 amostras, contra 480 nominais. Um desvio de 0,1 amostra por símbolo acumula cerca de 245 amostras no quadro, meio símbolo e mais que as 72 do intervalo de descarte, e com o período nominal o fim do quadro seria lido fora do símbolo. Pelo mesmo cálculo, um símbolo a mais na contagem de $S$ acumula um símbolo inteiro de erro.
 
 ### 3.4 Nível de operação
 
@@ -156,8 +152,6 @@ Como a cadeia analógica achata os picos e gera harmônicos acima de certo níve
 <!-- Pendente: confirmar com o autor se a 2-FSK da Tabela 1 é a de Bell 202 (1200/2200 Hz, 1200 baud, sem correção de erros) ou a 2-FSK justa de 1700/2350 Hz a 100 baud com FEC (fsk2 no código). O texto acima descreve a de Bell 202, como a primeira versão. Gray: o código foi corrigido em 2026-10-29 (valor = gray(tom)); a Tabela 1 precisa ser medida já com essa versão. -->
 
 ## 4 CAMADA DE ENLACE
-
-A camada de enlace recebe da camada física os bits com a sua confiança e entrega à aplicação os dados íntegros e na ordem de envio.
 
 ### 4.1 Correção de erros
 
@@ -229,7 +223,7 @@ Nas duas distâncias as quatro formas entregaram o texto idêntico ao enviado, s
 
 <!-- Fontes: H09-QUATRO-FORMAS-10CM e H09-QUATRO-FORMAS-30CM (RESUMO.md; uma sessão por forma e distância, 2026-10-30; a 10 cm a votada com o embaralhamento da carga e as outras sem, a 30 cm todas com; 2-FSK a 30 cm: a sessão refeita, repeticao/2fsk/, escolha do autor; a primeira, com 4 retransmissões e 6,76%, ficou fora). Script: resultados/H09-QUATRO-FORMAS-10CM/figuras/figura_formas.py. A figura antiga (blocos de 48 bytes entre computadores, F02 com uma gravação excluída) saiu pela regra do autor: só testes em que as quatro formas passam. -->
 
-A Figura 16 compara as duas formas de sincronismo da seção 3.3, a malha de adiantamento e atraso e as varreduras nas pontas do quadro, sobre as mesmas 24 gravações de blocos de 48 bytes em 16-FSK, feitas num único computador que tocava e gravava ao mesmo tempo.
+A Figura 16 compara a malha e as varreduras da seção 3.3 sobre as mesmas 24 gravações, cada uma lida pelos dois caminhos.
 
 ![](figuras/sincronismo-bloco.png "0.95")
 Figura 16 - Bits certos ao longo do quadro, em janelas de 5%, na média de 24 gravações lidas com a malha e com as varreduras.
