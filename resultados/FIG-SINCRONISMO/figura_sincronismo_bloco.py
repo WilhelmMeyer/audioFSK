@@ -59,7 +59,7 @@ def main():
     m, v = np.mean(malha, axis=0), np.mean(varr, axis=0)
     x = (np.arange(JANELAS) + 0.5) * 100 / JANELAS
 
-    fig, ax = plt.subplots(figsize=(3.4, 2.2))
+    fig, ax = plt.subplots(figsize=(3.4, 1.75))
     ax.plot(x, v, color=TEAL, lw=1.5)
     ax.plot(x, m, color=CINZA, lw=1.5)
     ax.text(101, v[-1] + 0.8, f'varreduras\n{blocos[1]} de {len(malha)} blocos',

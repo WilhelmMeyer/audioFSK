@@ -80,9 +80,9 @@ def main():
     msg_err = np.unpackbits(np.frombuffer(lido, np.uint8)) != np.unpackbits(np.frombuffer(carga, np.uint8))
     n, nm = len(env), 8 * len(carga)
 
-    fig = plt.figure(figsize=(3.4, 3.2))
-    gs = fig.add_gridspec(3, 1, height_ratios=[0.42, 0.42, 1.6], hspace=1.05,
-                          left=0.13, right=0.97, top=0.93, bottom=0.14)
+    fig = plt.figure(figsize=(3.4, 2.45))
+    gs = fig.add_gridspec(3, 1, height_ratios=[0.28, 0.28, 1.5], hspace=1.15,
+                          left=0.13, right=0.97, top=0.92, bottom=0.17)
 
     ax = fig.add_subplot(gs[0])
     ax.axhspan(0, 1, color='#E3EEEF', lw=0)

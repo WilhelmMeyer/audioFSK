@@ -18,7 +18,7 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(AQUI)))
 SAIDAS = (os.path.join(AQUI, 'resultado-formas.png'),
           os.path.join(RAIZ, 'artigo', 'figuras', 'resultado-formas.png'))
-TEAL, BARRA = '#0F5257', '#B9D7DA'
+TEAL, BARRA, ERRO = '#0F5257', '#B9D7DA', '#C0392B'
 plt.rcParams.update({'font.size': 8.5, 'axes.labelsize': 8.5, 'xtick.labelsize': 7.5,
                      'ytick.labelsize': 8, 'axes.linewidth': 0.7, 'savefig.dpi': 300,
                      'figure.dpi': 300})
@@ -40,29 +40,23 @@ def pct(err, lidos):
     return txt.replace('.', ',') + '%'
 
 
-fig, (ax, ax2) = plt.subplots(2, 1, figsize=(3.7, 3.1), sharex=True)
+fig, ax = plt.subplots(figsize=(3.4, 1.75))
 for x, (rot, *medidas) in enumerate(FORMAS):
     for (nome, cor, dx), (t, err, lidos) in zip(DIST, medidas):
         taxa = BYTES / t
         ax.bar(x + dx, taxa, width=0.36, color=cor, label=nome if x == 0 else None)
-        ax.text(x + dx, taxa + 0.05, f'{taxa:.1f}'.replace('.', ','), ha='center', fontsize=6.3)
-        p = 100 * err / lidos
-        ax2.bar(x + dx, p, width=0.36, color=cor)
-        ax2.text(x + dx, p + 0.3, pct(err, lidos), ha='center', fontsize=5.8)
+        # acima da barra, os bits errados antes da correcao; a taxa se le no eixo
+        ax.text(x + dx, taxa + 0.05, pct(err, lidos), ha='center', fontsize=6, color=ERRO)
         print(f'    {rot!r} {nome}: {taxa:.2f} B/s, {err} de {lidos} bits errados')
 ax.legend(frameon=False, fontsize=7.5, loc='upper left')
-ax.set_ylim(0, 3.2)
+ax.set_xticks(range(len(FORMAS)))
+ax.set_xticklabels([f[0] for f in FORMAS])
+ax.tick_params(axis='x', length=0)
+ax.set_ylim(0, 3.0)
 ax.set_yticks([0, 1, 2, 3])
 ax.set_ylabel('Taxa efetiva (B/s)')
-ax2.set_xticks(range(len(FORMAS)))
-ax2.set_xticklabels([f[0] for f in FORMAS])
-ax2.set_ylim(0, 12.5)
-ax2.set_yticks([0, 5, 10])
-ax2.set_ylabel('Bits errados antes\nda correção (%)')
-for eixo in (ax, ax2):
-    eixo.tick_params(axis='x', length=0)
-    for lado in ('top', 'right'):
-        eixo.spines[lado].set_visible(False)
+for lado in ('top', 'right'):
+    ax.spines[lado].set_visible(False)
 fig.tight_layout()
 for s in SAIDAS:
     fig.savefig(s, bbox_inches='tight')
